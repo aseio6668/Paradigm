@@ -1,0 +1,29 @@
+[package]
+name = "paradigm-contributor"
+version = "0.1.0"
+edition = "2021"
+description = "ML contributor client for Paradigm cryptocurrency"
+
+[dependencies]
+paradigm-core = { path = "../paradigm-core" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+async-trait = { workspace = true }
+num_cpus = { workspace = true }
+rand = { workspace = true }
+
+# ML dependencies temporarily disabled for build compatibility
+# candle-core = { workspace = true }
+# candle-nn = { workspace = true }
+# ort = { workspace = true }
+
+[[bin]]
+name = "paradigm-contributor"
+path = "src/main.rs"
