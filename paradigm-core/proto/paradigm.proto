@@ -1,0 +1,138 @@
+syntax = "proto3";
+
+package paradigm;
+
+// Network communication service
+service ParadigmNetwork {
+    rpc SendTransaction(TransactionRequest) returns (TransactionResponse);
+    rpc GetBalance(BalanceRequest) returns (BalanceResponse);
+    rpc GetTransactions(TransactionsRequest) returns (TransactionsResponse);
+    rpc SubmitMLTask(MLTaskRequest) returns (MLTaskResponse);
+    rpc GetMLTasks(MLTasksRequest) returns (MLTasksResponse);
+    rpc SubmitMLResult(MLResultRequest) returns (MLResultResponse);
+    rpc SyncNetwork(SyncRequest) returns (SyncResponse);
+}
+
+// Transaction messages
+message TransactionRequest {
+    string from_address = 1;
+    string to_address = 2;
+    uint64 amount = 3;
+    uint64 fee = 4;
+    bytes signature = 5;
+    uint64 nonce = 6;
+}
+
+message TransactionResponse {
+    bool success = 1;
+    string message = 2;
+    string transaction_id = 3;
+}
+
+// Balance messages
+message BalanceRequest {
+    string address = 1;
+}
+
+message BalanceResponse {
+    uint64 balance = 1;
+    bool success = 2;
+    string message = 3;
+}
+
+// Transaction history messages
+message TransactionsRequest {
+    string address = 1;
+    uint32 limit = 2;
+    uint32 offset = 3;
+}
+
+message TransactionsResponse {
+    repeated Transaction transactions = 1;
+    bool success = 2;
+    string message = 3;
+}
+
+message Transaction {
+    string id = 1;
+    string from_address = 2;
+    string to_address = 3;
+    uint64 amount = 4;
+    uint64 fee = 5;
+    string timestamp = 6;
+    bytes signature = 7;
+    uint64 nonce = 8;
+    bool confirmed = 9;
+}
+
+// ML Task messages
+message MLTaskRequest {
+    string task_type = 1;
+    bytes data = 2;
+    uint32 difficulty = 3;
+    uint64 reward = 4;
+    string deadline = 5;
+}
+
+message MLTaskResponse {
+    bool success = 1;
+    string message = 2;
+    string task_id = 3;
+}
+
+message MLTasksRequest {
+    string contributor_address = 1;
+    repeated string task_types = 2;
+}
+
+message MLTasksResponse {
+    repeated MLTask tasks = 1;
+    bool success = 2;
+    string message = 3;
+}
+
+message MLTask {
+    string id = 1;
+    string task_type = 2;
+    bytes data = 3;
+    uint32 difficulty = 4;
+    uint64 reward = 5;
+    string deadline = 6;
+    string created_at = 7;
+    string assigned_to = 8;
+    bool completed = 9;
+    bytes result = 10;
+}
+
+// ML Result messages
+message MLResultRequest {
+    string task_id = 1;
+    string contributor_address = 2;
+    bytes result = 3;
+}
+
+message MLResultResponse {
+    bool success = 1;
+    string message = 2;
+    uint64 reward_amount = 3;
+}
+
+// Network sync messages
+message SyncRequest {
+    int64 last_timestamp = 1;
+    bytes last_hash = 2;
+}
+
+message SyncResponse {
+    repeated DataChunk chunks = 1;
+    bool success = 2;
+    string message = 3;
+    int64 latest_timestamp = 4;
+}
+
+message DataChunk {
+    int64 timestamp = 1;
+    bytes hash = 2;
+    bytes data = 3;
+    string chunk_type = 4;
+}

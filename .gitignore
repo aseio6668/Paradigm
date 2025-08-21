@@ -1,0 +1,85 @@
+# Build artifacts
+/target/
+/*/target/
+
+# Rust specific
+Cargo.lock
+**/*.rs.bk
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Paradigm specific
+paradigm-data/
+*.db
+*.db-journal
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Web build artifacts
+/paradigm-web/dist/
+/paradigm-web/node_modules/
+
+# Python virtual environments (for ML components)
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Machine learning models and data
+*.model
+*.weights
+*.onnx
+training_data/
+model_cache/
+
+# Wallets and private keys (NEVER commit these!)
+*.wallet
+*.key
+*.seed
+keystore/
+
+# Test artifacts
+test_results/
+coverage/
+
+# Documentation build
+/docs/_build/
+
+# Local configuration
+config.local.toml
+.env.local
+
+# Installer build artifacts
+/installer/build/
+/installer/dist/
+*.msi
+*.exe
+*.deb
+*.rpm
+
+# Performance profiling
+*.prof
+perf.data*
+
+# Node.js (for web components)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

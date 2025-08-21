@@ -1,0 +1,36 @@
+# Paradigm Network Service
+# Systemd service file for production deployment
+
+[Unit]
+Description=Paradigm Cryptocurrency Network
+After=network.target
+Wants=network.target
+
+[Service]
+Type=forking
+User=paradigm
+Group=paradigm
+WorkingDirectory=/opt/paradigm
+ExecStart=/opt/paradigm/launch-network.sh start
+ExecStop=/opt/paradigm/launch-network.sh stop
+ExecReload=/opt/paradigm/launch-network.sh restart
+Restart=always
+RestartSec=10
+KillMode=process
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+# Environment
+Environment=RUST_LOG=info
+Environment=PARADIGM_DATA_DIR=/var/lib/paradigm
+Environment=PARADIGM_LOG_DIR=/var/log/paradigm
+
+# Security
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/paradigm /var/log/paradigm /opt/paradigm/logs /opt/paradigm/pids /opt/paradigm/data
+
+[Install]
+WantedBy=multi-user.target

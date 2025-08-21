@@ -1,0 +1,29 @@
+[package]
+name = "paradigm-wallet"
+version = "0.1.0"
+edition = "2021"
+description = "GUI wallet for Paradigm cryptocurrency"
+
+[dependencies]
+paradigm-core = { path = "../paradigm-core" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+reqwest = { workspace = true }
+dirs = "5.0"
+hex = "0.4"
+rand = { workspace = true }
+
+# GUI dependencies temporarily disabled for build compatibility
+# egui = { workspace = true }
+# eframe = { workspace = true }
+
+[[bin]]
+name = "paradigm-wallet"
+path = "src/main.rs"
