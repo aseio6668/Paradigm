@@ -19,6 +19,13 @@ pub mod tokenomics;
 pub mod performance;
 pub mod ai;
 
+// Performance optimization modules
+pub mod crypto_optimization;
+pub mod parallel_ml;
+pub mod performance_benchmarks;
+pub mod memory_optimization;
+pub mod transaction_throughput;
+
 // Type aliases for easier use
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct Address(pub [u8; 32]);

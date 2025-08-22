@@ -20,7 +20,8 @@
       "Bash(./build.bat)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(timeout 60s cargo check --package paradigm-sdk)"
+      "Bash(timeout 60s cargo check --package paradigm-sdk)",
+      "Bash(chmod:*)"
     ],
     "deny": [],
     "ask": []

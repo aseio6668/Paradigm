@@ -17,6 +17,7 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 ed25519-dalek = { workspace = true }
 sha2 = { workspace = true }
+sha3 = { workspace = true }
 blake3 = { workspace = true }
 rand = { workspace = true }
 libp2p = { workspace = true }
@@ -28,6 +29,14 @@ async-trait = { workspace = true }
 rayon = { workspace = true }
 lru = { workspace = true }
 num_cpus = { workspace = true }
+
+# Performance optimization dependencies
+dashmap = "5.5"
+ring = "0.17"
+subtle = "2.5"
+zeroize = "1.7"
+sysinfo = "0.30"
+tempfile = { version = "3.8", optional = true }
 
 [build-dependencies]
 tonic-build = "0.10"

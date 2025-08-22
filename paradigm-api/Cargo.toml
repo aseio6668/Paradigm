@@ -1,0 +1,59 @@
+[package]
+name = "paradigm-api"
+version = "0.1.0"
+edition = "2021"
+description = "Enterprise REST API for Paradigm blockchain network"
+license = "MIT"
+repository = "https://github.com/paradigm-network/paradigm"
+
+[dependencies]
+# Core framework
+tokio = { version = "1.0", features = ["full"] }
+anyhow = "1.0"
+thiserror = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Web framework
+axum = { version = "0.7", features = ["ws", "headers", "multipart"] }
+tower = { version = "0.4", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "timeout", "limit"] }
+hyper = "1.0"
+
+# Authentication & Security
+jsonwebtoken = "9.0"
+bcrypt = "0.15"
+argon2 = "0.5"
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "sqlite", "chrono", "uuid"] }
+
+# Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+metrics = "0.22"
+metrics-exporter-prometheus = "0.13"
+
+# Rate limiting
+governor = "0.6"
+nonzero_ext = "0.3"
+
+# Validation
+validator = { version = "0.16", features = ["derive"] }
+
+# HTTP client
+reqwest = { version = "0.11", features = ["json"] }
+
+# Config
+config = "0.13"
+dotenvy = "0.15"
+
+# Local dependencies
+paradigm-core = { path = "../paradigm-core" }
+paradigm-sdk = { path = "../paradigm-sdk" }
+
+[dev-dependencies]
+tokio-test = "0.4"
+httptest = "0.15"

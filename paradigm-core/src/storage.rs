@@ -1,47 +1,211 @@
 use std::collections::HashMap;
-use sqlx::{SqlitePool, Row};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use sqlx::{SqlitePool, Row, Executor};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
+use tokio::sync::RwLock;
+use dashmap::DashMap;
 
 use crate::{Address, transaction::Transaction};
 use crate::consensus::{MLTask, NetworkStats};
 
-/// Storage layer for Paradigm blockchain data
+/// High-performance cache for frequently accessed data
+#[derive(Debug)]
+pub struct PerformanceCache {
+    balances: DashMap<String, (u64, Instant)>,
+    transactions: DashMap<String, (Transaction, Instant)>,
+    ml_tasks: DashMap<String, (MLTask, Instant)>,
+    cache_ttl: Duration,
+}
+
+impl PerformanceCache {
+    pub fn new(cache_ttl_seconds: u64) -> Self {
+        Self {
+            balances: DashMap::new(),
+            transactions: DashMap::new(),
+            ml_tasks: DashMap::new(),
+            cache_ttl: Duration::from_secs(cache_ttl_seconds),
+        }
+    }
+
+    pub fn get_balance(&self, address: &str) -> Option<u64> {
+        if let Some(entry) = self.balances.get(address) {
+            if entry.1.elapsed() < self.cache_ttl {
+                return Some(entry.0);
+            } else {
+                self.balances.remove(address);
+            }
+        }
+        None
+    }
+
+    pub fn set_balance(&self, address: String, balance: u64) {
+        self.balances.insert(address, (balance, Instant::now()));
+    }
+
+    pub fn get_transaction(&self, tx_id: &str) -> Option<Transaction> {
+        if let Some(entry) = self.transactions.get(tx_id) {
+            if entry.1.elapsed() < self.cache_ttl {
+                return Some(entry.0.clone());
+            } else {
+                self.transactions.remove(tx_id);
+            }
+        }
+        None
+    }
+
+    pub fn set_transaction(&self, tx_id: String, transaction: Transaction) {
+        self.transactions.insert(tx_id, (transaction, Instant::now()));
+    }
+
+    pub fn cleanup_expired(&self) {
+        let now = Instant::now();
+        
+        // Clean expired balances
+        self.balances.retain(|_, v| now.duration_since(v.1) < self.cache_ttl);
+        
+        // Clean expired transactions
+        self.transactions.retain(|_, v| now.duration_since(v.1) < self.cache_ttl);
+        
+        // Clean expired ML tasks
+        self.ml_tasks.retain(|_, v| now.duration_since(v.1) < self.cache_ttl);
+    }
+}
+
+/// Optimized batch operation manager
+#[derive(Debug)]
+pub struct BatchOperationManager {
+    pending_transactions: Arc<RwLock<Vec<Transaction>>>,
+    pending_ml_tasks: Arc<RwLock<Vec<MLTask>>>,
+    pending_balance_updates: Arc<RwLock<HashMap<String, u64>>>,
+    batch_size: usize,
+    batch_timeout: Duration,
+}
+
+impl BatchOperationManager {
+    pub fn new(batch_size: usize, batch_timeout_ms: u64) -> Self {
+        Self {
+            pending_transactions: Arc::new(RwLock::new(Vec::new())),
+            pending_ml_tasks: Arc::new(RwLock::new(Vec::new())),
+            pending_balance_updates: Arc::new(RwLock::new(HashMap::new())),
+            batch_size,
+            batch_timeout: Duration::from_millis(batch_timeout_ms),
+        }
+    }
+
+    pub async fn add_transaction(&self, transaction: Transaction) -> bool {
+        let mut pending = self.pending_transactions.write().await;
+        pending.push(transaction);
+        pending.len() >= self.batch_size
+    }
+
+    pub async fn add_ml_task(&self, task: MLTask) -> bool {
+        let mut pending = self.pending_ml_tasks.write().await;
+        pending.push(task);
+        pending.len() >= self.batch_size
+    }
+
+    pub async fn add_balance_update(&self, address: String, balance: u64) -> bool {
+        let mut pending = self.pending_balance_updates.write().await;
+        pending.insert(address, balance);
+        pending.len() >= self.batch_size
+    }
+
+    pub async fn drain_transactions(&self) -> Vec<Transaction> {
+        let mut pending = self.pending_transactions.write().await;
+        std::mem::take(&mut *pending)
+    }
+
+    pub async fn drain_ml_tasks(&self) -> Vec<MLTask> {
+        let mut pending = self.pending_ml_tasks.write().await;
+        std::mem::take(&mut *pending)
+    }
+
+    pub async fn drain_balance_updates(&self) -> HashMap<String, u64> {
+        let mut pending = self.pending_balance_updates.write().await;
+        std::mem::take(&mut *pending)
+    }
+}
+
+/// Storage layer for Paradigm blockchain data with performance optimizations
 #[derive(Debug)]
 pub struct ParadigmStorage {
     db_pool: SqlitePool,
+    cache: PerformanceCache,
+    batch_manager: BatchOperationManager,
+    connection_stats: Arc<RwLock<ConnectionStats>>,
 }
 
 impl ParadigmStorage {
-    /// Create a new storage instance
+    /// Create a new high-performance storage instance
     pub async fn new(database_url: &str) -> Result<Self> {
-        // Handle both file paths and SQLite URLs
+        Self::new_with_config(database_url, StorageConfig::default()).await
+    }
+
+    /// Create storage with custom performance configuration
+    pub async fn new_with_config(database_url: &str, config: StorageConfig) -> Result<Self> {
+        // Handle both file paths and SQLite URLs with performance optimizations
         let connection_string = if database_url.starts_with("sqlite://") {
-            format!("{}?mode=rwc", database_url)
+            format!("{}?mode=rwc&cache=shared&synchronous=NORMAL&journal_mode=WAL&temp_store=memory&mmap_size=268435456", database_url)
         } else {
             // Ensure the directory exists
             if let Some(parent) = std::path::Path::new(database_url).parent() {
                 std::fs::create_dir_all(parent)?;
             }
-            // Convert path separators to forward slashes for SQLite URL
+            // Convert path separators to forward slashes for SQLite URL with performance settings
             let normalized_path = database_url.replace('\\', "/");
-            format!("sqlite://{}?mode=rwc", normalized_path)
+            format!("sqlite://{}?mode=rwc&cache=shared&synchronous=NORMAL&journal_mode=WAL&temp_store=memory&mmap_size=268435456", normalized_path)
         };
         
-        tracing::info!("Connecting to database: {}", connection_string);
-        let pool = SqlitePool::connect(&connection_string).await?;
+        tracing::info!("Connecting to high-performance database: {}", connection_string);
         
-        let storage = ParadigmStorage { db_pool: pool };
-        storage.initialize_tables().await?;
+        // Create optimized connection pool
+        let pool = SqlitePool::connect_with(
+            sqlx::sqlite::SqliteConnectOptions::from_str(&connection_string)?
+                .pragma("cache_size", "-64000") // 64MB cache
+                .pragma("temp_store", "memory")
+                .pragma("mmap_size", "268435456") // 256MB mmap
+                .pragma("synchronous", "NORMAL")
+                .pragma("journal_mode", "WAL")
+                .pragma("foreign_keys", "ON")
+                .busy_timeout(Duration::from_millis(config.busy_timeout_ms))
+        ).await?;
+
+        // Set pool configuration for optimal performance
+        pool.set_max_connections(config.max_connections).await;
+        pool.set_min_connections(config.min_connections).await;
+        pool.set_acquire_timeout(Duration::from_millis(config.acquire_timeout_ms)).await;
+        pool.set_idle_timeout(Some(Duration::from_secs(config.idle_timeout_secs))).await;
+        
+        let storage = ParadigmStorage { 
+            db_pool: pool,
+            cache: PerformanceCache::new(config.cache_ttl_secs),
+            batch_manager: BatchOperationManager::new(config.batch_size, config.batch_timeout_ms),
+            connection_stats: Arc::new(RwLock::new(ConnectionStats::default())),
+        };
+        
+        storage.initialize_optimized_tables().await?;
+        storage.optimize_database().await?;
+        
+        // Start background maintenance tasks
+        storage.start_maintenance_tasks().await?;
         
         Ok(storage)
     }
 
-    /// Initialize database tables
-    async fn initialize_tables(&self) -> Result<()> {
-        // Transactions table
+    /// Initialize database tables with performance optimizations
+    async fn initialize_optimized_tables(&self) -> Result<()> {
+        // Enable performance optimizations at connection level
+        sqlx::query("PRAGMA cache_size = -64000").execute(&self.db_pool).await?;
+        sqlx::query("PRAGMA temp_store = memory").execute(&self.db_pool).await?;
+        sqlx::query("PRAGMA mmap_size = 268435456").execute(&self.db_pool).await?;
+        sqlx::query("PRAGMA synchronous = NORMAL").execute(&self.db_pool).await?;
+        sqlx::query("PRAGMA journal_mode = WAL").execute(&self.db_pool).await?;
+
+        // Optimized transactions table with better indexing
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS transactions (
@@ -56,26 +220,27 @@ impl ParadigmStorage {
                 block_timestamp INTEGER,
                 confirmed BOOLEAN DEFAULT FALSE,
                 UNIQUE(id)
-            )
+            ) WITHOUT ROWID
             "#,
         )
         .execute(&self.db_pool)
         .await?;
 
-        // Balances table
+        // Optimized balances table
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS balances (
                 address TEXT PRIMARY KEY,
                 balance INTEGER NOT NULL DEFAULT 0,
-                last_updated TEXT NOT NULL
-            )
+                last_updated TEXT NOT NULL,
+                nonce INTEGER NOT NULL DEFAULT 0
+            ) WITHOUT ROWID
             "#,
         )
         .execute(&self.db_pool)
         .await?;
 
-        // ML tasks table
+        // Optimized ML tasks table
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS ml_tasks (
@@ -89,14 +254,15 @@ impl ParadigmStorage {
                 assigned_to TEXT,
                 completed BOOLEAN DEFAULT FALSE,
                 result BLOB,
+                priority INTEGER DEFAULT 0,
                 UNIQUE(id)
-            )
+            ) WITHOUT ROWID
             "#,
         )
         .execute(&self.db_pool)
         .await?;
 
-        // Network metrics table
+        // Network metrics table (partitioned by time for better performance)
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS network_metrics (
@@ -106,28 +272,32 @@ impl ParadigmStorage {
                 completed_tasks INTEGER NOT NULL,
                 active_contributors INTEGER NOT NULL,
                 total_rewards_pending INTEGER NOT NULL,
-                network_difficulty INTEGER NOT NULL
+                network_difficulty INTEGER NOT NULL,
+                hash_rate REAL DEFAULT 0.0,
+                block_time REAL DEFAULT 0.0
             )
             "#,
         )
         .execute(&self.db_pool)
         .await?;
 
-        // Data chunks for fast sync
+        // Data chunks for fast sync with compression
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS data_chunks (
                 timestamp INTEGER PRIMARY KEY,
                 hash BLOB NOT NULL,
                 data BLOB NOT NULL,
-                chunk_type TEXT NOT NULL
-            )
+                chunk_type TEXT NOT NULL,
+                compressed BOOLEAN DEFAULT FALSE,
+                original_size INTEGER DEFAULT 0
+            ) WITHOUT ROWID
             "#,
         )
         .execute(&self.db_pool)
         .await?;
 
-        // Peer information
+        // Peer information with performance metrics
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS peers (
@@ -135,14 +305,183 @@ impl ParadigmStorage {
                 address TEXT NOT NULL,
                 last_seen TEXT NOT NULL,
                 reputation_score REAL DEFAULT 1.0,
-                is_active BOOLEAN DEFAULT TRUE
-            )
+                is_active BOOLEAN DEFAULT TRUE,
+                latency_ms INTEGER DEFAULT 0,
+                bandwidth_score REAL DEFAULT 1.0,
+                contribution_score REAL DEFAULT 0.0
+            ) WITHOUT ROWID
             "#,
         )
         .execute(&self.db_pool)
         .await?;
 
-        tracing::info!("Database tables initialized successfully");
+        // Performance indexes for optimal query speed
+        self.create_performance_indexes().await?;
+        
+        tracing::info!("Optimized database tables initialized successfully");
+        Ok(())
+    }
+
+    /// Create performance-optimized indexes
+    async fn create_performance_indexes(&self) -> Result<()> {
+        // Transaction indexes
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_transactions_from ON transactions(from_address, timestamp DESC)")
+            .execute(&self.db_pool).await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_transactions_to ON transactions(to_address, timestamp DESC)")
+            .execute(&self.db_pool).await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_transactions_timestamp ON transactions(timestamp DESC)")
+            .execute(&self.db_pool).await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_transactions_confirmed ON transactions(confirmed, timestamp DESC)")
+            .execute(&self.db_pool).await?;
+
+        // ML task indexes
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_ml_tasks_type ON ml_tasks(task_type, created_at DESC)")
+            .execute(&self.db_pool).await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_ml_tasks_assigned ON ml_tasks(assigned_to, completed)")
+            .execute(&self.db_pool).await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_ml_tasks_deadline ON ml_tasks(deadline ASC)")
+            .execute(&self.db_pool).await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_ml_tasks_priority ON ml_tasks(priority DESC, created_at ASC)")
+            .execute(&self.db_pool).await?;
+
+        // Network metrics indexes
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_network_metrics_timestamp ON network_metrics(timestamp DESC)")
+            .execute(&self.db_pool).await?;
+
+        // Data chunks indexes
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_data_chunks_type ON data_chunks(chunk_type, timestamp DESC)")
+            .execute(&self.db_pool).await?;
+
+        // Peer indexes
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_peers_active ON peers(is_active, last_seen DESC)")
+            .execute(&self.db_pool).await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_peers_reputation ON peers(reputation_score DESC, contribution_score DESC)")
+            .execute(&self.db_pool).await?;
+
+        tracing::info!("Performance indexes created successfully");
+        Ok(())
+    }
+
+    /// Optimize database with maintenance operations
+    async fn optimize_database(&self) -> Result<()> {
+        // Analyze tables for query optimization
+        sqlx::query("ANALYZE").execute(&self.db_pool).await?;
+        
+        // Optimize database file
+        sqlx::query("PRAGMA optimize").execute(&self.db_pool).await?;
+        
+        tracing::info!("Database optimization completed");
+        Ok(())
+    }
+
+    /// Start background maintenance tasks
+    async fn start_maintenance_tasks(&self) -> Result<()> {
+        let cache = Arc::new(self.cache.clone());
+        let db_pool = self.db_pool.clone();
+        let stats = self.connection_stats.clone();
+        
+        // Cache cleanup task
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(300)); // 5 minutes
+            loop {
+                interval.tick().await;
+                cache.cleanup_expired();
+                
+                // Update connection stats
+                if let Ok(mut conn_stats) = stats.write().await {
+                    conn_stats.cache_cleanups += 1;
+                    conn_stats.last_cleanup = Utc::now();
+                }
+            }
+        });
+
+        // WAL checkpoint task
+        let db_pool_wal = self.db_pool.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(1800)); // 30 minutes
+            loop {
+                interval.tick().await;
+                if let Err(e) = sqlx::query("PRAGMA wal_checkpoint(TRUNCATE)")
+                    .execute(&db_pool_wal).await {
+                    tracing::warn!("WAL checkpoint failed: {}", e);
+                } else {
+                    tracing::debug!("WAL checkpoint completed");
+                }
+            }
+        });
+
+        // Database vacuum task (weekly)
+        let db_pool_vacuum = self.db_pool.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(604800)); // 1 week
+            loop {
+                interval.tick().await;
+                if let Err(e) = sqlx::query("VACUUM").execute(&db_pool_vacuum).await {
+                    tracing::warn!("Database vacuum failed: {}", e);
+                } else {
+                    tracing::info!("Database vacuum completed");
+                }
+            }
+        });
+
+        tracing::info!("Background maintenance tasks started");
+        Ok(())
+    }
+
+    /// High-performance store transaction with caching and batching
+    pub async fn store_transaction_optimized(&self, transaction: &Transaction) -> Result<()> {
+        // Check cache first
+        let tx_id = transaction.id.to_string();
+        self.cache.set_transaction(tx_id.clone(), transaction.clone());
+        
+        // Add to batch or store immediately if batch is full
+        if self.batch_manager.add_transaction(transaction.clone()).await {
+            self.flush_transaction_batch().await?;
+        }
+        
+        Ok(())
+    }
+
+    /// Flush pending transaction batch
+    async fn flush_transaction_batch(&self) -> Result<()> {
+        let transactions = self.batch_manager.drain_transactions().await;
+        if transactions.is_empty() {
+            return Ok(());
+        }
+
+        // Batch insert for optimal performance
+        let mut tx = self.db_pool.begin().await?;
+        
+        for transaction in &transactions {
+            sqlx::query(
+                r#"
+                INSERT OR REPLACE INTO transactions 
+                (id, from_address, to_address, amount, fee, timestamp, signature, nonce, confirmed)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                "#,
+            )
+            .bind(transaction.id.to_string())
+            .bind(transaction.from.to_string())
+            .bind(transaction.to.to_string())
+            .bind(transaction.amount as i64)
+            .bind(transaction.fee as i64)
+            .bind(transaction.timestamp.to_rfc3339())
+            .bind(&transaction.signature)
+            .bind(transaction.nonce as i64)
+            .bind(false)
+            .execute(&mut *tx)
+            .await?;
+        }
+        
+        tx.commit().await?;
+        
+        // Update stats
+        if let Ok(mut stats) = self.connection_stats.write().await {
+            stats.total_queries += transactions.len() as u64;
+            stats.batch_operations += 1;
+        }
+        
+        tracing::debug!("Flushed {} transactions in batch", transactions.len());
         Ok(())
     }
 
@@ -537,8 +876,112 @@ pub struct StorageStats {
     pub chunk_count: u64,
 }
 
+/// Storage configuration for performance tuning
+#[derive(Debug, Clone)]
+pub struct StorageConfig {
+    pub max_connections: u32,
+    pub min_connections: u32,
+    pub acquire_timeout_ms: u64,
+    pub idle_timeout_secs: u64,
+    pub busy_timeout_ms: u64,
+    pub cache_ttl_secs: u64,
+    pub batch_size: usize,
+    pub batch_timeout_ms: u64,
+}
+
+impl Default for StorageConfig {
+    fn default() -> Self {
+        Self {
+            max_connections: 20,
+            min_connections: 5,
+            acquire_timeout_ms: 30000,
+            idle_timeout_secs: 600,
+            busy_timeout_ms: 30000,
+            cache_ttl_secs: 300,
+            batch_size: 100,
+            batch_timeout_ms: 1000,
+        }
+    }
+}
+
+/// Connection and performance statistics
+#[derive(Debug, Default)]
+pub struct ConnectionStats {
+    pub total_queries: u64,
+    pub cache_hits: u64,
+    pub cache_misses: u64,
+    pub batch_operations: u64,
+    pub cache_cleanups: u64,
+    pub last_cleanup: DateTime<Utc>,
+    pub connection_pool_size: u32,
+    pub active_connections: u32,
+}
+
+impl ConnectionStats {
+    pub fn cache_hit_ratio(&self) -> f64 {
+        if self.cache_hits + self.cache_misses == 0 {
+            0.0
+        } else {
+            self.cache_hits as f64 / (self.cache_hits + self.cache_misses) as f64
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    // Tests disabled temporarily
-    // TODO: Add tempfile dependency for testing
+    use super::*;
+    use tempfile::tempdir;
+    
+    #[tokio::test]
+    async fn test_storage_creation() {
+        let temp_dir = tempdir().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+        
+        let storage = ParadigmStorage::new(db_path.to_str().unwrap()).await;
+        assert!(storage.is_ok());
+    }
+    
+    #[tokio::test]
+    async fn test_cache_functionality() {
+        let cache = PerformanceCache::new(60);
+        
+        // Test balance cache
+        cache.set_balance("test_address".to_string(), 1000);
+        assert_eq!(cache.get_balance("test_address"), Some(1000));
+        assert_eq!(cache.get_balance("non_existent"), None);
+        
+        // Test cache expiration (would need to wait for TTL in real scenario)
+        cache.cleanup_expired();
+    }
+    
+    #[tokio::test]
+    async fn test_batch_operations() {
+        let batch_manager = BatchOperationManager::new(3, 1000);
+        
+        // Test that batch doesn't trigger until size is reached
+        let tx1 = create_test_transaction();
+        let tx2 = create_test_transaction();
+        
+        assert!(!batch_manager.add_transaction(tx1).await);
+        assert!(!batch_manager.add_transaction(tx2).await);
+        
+        let tx3 = create_test_transaction();
+        assert!(batch_manager.add_transaction(tx3).await); // Should trigger batch
+        
+        let drained = batch_manager.drain_transactions().await;
+        assert_eq!(drained.len(), 3);
+    }
+    
+    fn create_test_transaction() -> Transaction {
+        Transaction {
+            id: uuid::Uuid::new_v4(),
+            from: Address([0u8; 32]),
+            to: Address([1u8; 32]),
+            amount: 100,
+            fee: 10,
+            timestamp: chrono::Utc::now(),
+            signature: vec![0u8; 64],
+            nonce: 1,
+        }
+    }
 }

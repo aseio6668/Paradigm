@@ -1,0 +1,235 @@
+name: Paradigm CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust: [stable, beta, nightly]
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ matrix.rust }}
+        components: rustfmt, clippy
+        
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y protobuf-compiler libssl-dev libsqlite3-dev
+        
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        
+    - name: Cache cargo index
+      uses: actions/cache@v3
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+        
+    - name: Cache cargo build
+      uses: actions/cache@v3
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+        
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+      
+    - name: Run clippy
+      run: cargo clippy --all-targets --all-features -- -D warnings
+      
+    - name: Run tests
+      run: cargo test --all-features --workspace
+      
+    - name: Run benchmarks
+      run: cargo bench --workspace
+
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install cargo-audit
+      run: cargo install cargo-audit
+      
+    - name: Run security audit
+      run: cargo audit
+      
+    - name: Install cargo-deny
+      run: cargo install cargo-deny
+      
+    - name: Run cargo-deny
+      run: cargo deny check
+
+  build:
+    name: Build Release
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y protobuf-compiler libssl-dev libsqlite3-dev
+        
+    - name: Build release
+      run: cargo build --release --all-features --workspace
+      
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: paradigm-binaries
+        path: |
+          target/release/paradigm-core
+          target/release/paradigm-wallet
+          target/release/paradigm-contributor
+
+  docker:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+      
+    - name: Login to Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v4
+      with:
+        images: |
+          ghcr.io/${{ github.repository }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+          
+    - name: Build and push Core image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: docker/Dockerfile.core
+        push: true
+        tags: ghcr.io/${{ github.repository }}/core:${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        
+    - name: Build and push Wallet image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: docker/Dockerfile.wallet
+        push: true
+        tags: ghcr.io/${{ github.repository }}/wallet:${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        
+    - name: Build and push Contributor image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: docker/Dockerfile.contributor
+        push: true
+        tags: ghcr.io/${{ github.repository }}/contributor:${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [docker]
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Configure kubectl
+      uses: azure/k8s-set-context@v1
+      with:
+        method: kubeconfig
+        kubeconfig: ${{ secrets.KUBE_CONFIG_STAGING }}
+        
+    - name: Deploy to staging
+      run: |
+        kubectl apply -f k8s/namespace.yaml
+        kubectl apply -f k8s/ -n paradigm-staging
+        kubectl rollout status deployment/paradigm-core -n paradigm-staging
+        kubectl rollout status deployment/paradigm-wallet -n paradigm-staging
+        kubectl rollout status deployment/paradigm-contributor -n paradigm-staging
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [docker]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Configure kubectl
+      uses: azure/k8s-set-context@v1
+      with:
+        method: kubeconfig
+        kubeconfig: ${{ secrets.KUBE_CONFIG_PRODUCTION }}
+        
+    - name: Deploy to production
+      run: |
+        kubectl apply -f k8s/namespace.yaml
+        kubectl apply -f k8s/ -n paradigm
+        kubectl rollout status statefulset/paradigm-core -n paradigm
+        kubectl rollout status deployment/paradigm-wallet -n paradigm
+        kubectl rollout status deployment/paradigm-contributor -n paradigm
+        
+    - name: Run smoke tests
+      run: |
+        kubectl wait --for=condition=ready pod -l app=paradigm-core -n paradigm --timeout=300s
+        kubectl port-forward svc/paradigm-core 8545:8545 -n paradigm &
+        sleep 10
+        curl -f http://localhost:8545/health || exit 1

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: paradigm-mainnet
+  labels:
+    name: paradigm-mainnet
+    environment: production
+    network: mainnet
+    app.kubernetes.io/name: paradigm
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: blockchain
+    app.kubernetes.io/part-of: paradigm-network
+    app.kubernetes.io/managed-by: kubernetes
+  annotations:
+    description: "Paradigm blockchain mainnet production environment"
+    created-by: "paradigm-deployment-script"
+    contact: "ops@paradigm.network"

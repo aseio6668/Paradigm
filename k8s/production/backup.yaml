@@ -1,0 +1,346 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: paradigm-database-backup
+  namespace: paradigm-mainnet
+  labels:
+    app.kubernetes.io/name: paradigm
+    app.kubernetes.io/component: backup
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: paradigm-backup
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: paradigm-backup
+          containers:
+          - name: backup
+            image: postgres:15-alpine
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+              BACKUP_FILE="/backups/paradigm_backup_$TIMESTAMP.sql"
+              
+              echo "Starting database backup at $(date)"
+              
+              # Create database backup
+              PGPASSWORD=$POSTGRES_PASSWORD pg_dump \
+                -h postgres \
+                -U paradigm \
+                -d paradigm \
+                --verbose \
+                --clean \
+                --no-owner \
+                --no-privileges \
+                > $BACKUP_FILE
+              
+              # Compress backup
+              gzip $BACKUP_FILE
+              
+              echo "Backup completed: ${BACKUP_FILE}.gz"
+              
+              # Upload to cloud storage (example for AWS S3)
+              if [ ! -z "$AWS_ACCESS_KEY_ID" ]; then
+                aws s3 cp ${BACKUP_FILE}.gz s3://$S3_BACKUP_BUCKET/database/
+                echo "Backup uploaded to S3"
+              fi
+              
+              # Clean up old local backups (keep last 7 days)
+              find /backups -name "paradigm_backup_*.sql.gz" -mtime +7 -delete
+              
+              echo "Backup process completed successfully"
+            env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: paradigm-secrets
+                  key: postgres-password
+            - name: S3_BACKUP_BUCKET
+              value: "paradigm-backups"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: access-key-id
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: secret-access-key
+                  optional: true
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backups
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: paradigm-backup-pvc
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paradigm-backup-pvc
+  namespace: paradigm-mainnet
+  labels:
+    app.kubernetes.io/name: paradigm
+    app.kubernetes.io/component: backup
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-retain
+  resources:
+    requests:
+      storage: 1Ti
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: paradigm-blockchain-backup
+  namespace: paradigm-mainnet
+  labels:
+    app.kubernetes.io/name: paradigm
+    app.kubernetes.io/component: backup
+spec:
+  schedule: "0 4 * * 0"  # Weekly on Sunday at 4 AM UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 4
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: paradigm-blockchain-backup
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: paradigm-backup
+          containers:
+          - name: blockchain-backup
+            image: paradigm/core:latest
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+              BACKUP_DIR="/backups/blockchain_$TIMESTAMP"
+              
+              echo "Starting blockchain backup at $(date)"
+              
+              # Create backup directory
+              mkdir -p $BACKUP_DIR
+              
+              # Backup blockchain data (excluding logs and temp files)
+              cp -r /data/blocks $BACKUP_DIR/
+              cp -r /data/state $BACKUP_DIR/
+              cp /data/genesis.json $BACKUP_DIR/
+              cp /data/node_key $BACKUP_DIR/
+              
+              # Create manifest file
+              cat > $BACKUP_DIR/manifest.json << EOF
+              {
+                "backup_timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+                "chain_id": "$CHAIN_ID",
+                "network_id": "$NETWORK_ID",
+                "backup_type": "full",
+                "version": "1.0.0"
+              }
+              EOF
+              
+              # Compress backup
+              tar -czf ${BACKUP_DIR}.tar.gz -C /backups blockchain_$TIMESTAMP
+              rm -rf $BACKUP_DIR
+              
+              echo "Blockchain backup completed: ${BACKUP_DIR}.tar.gz"
+              
+              # Upload to cloud storage
+              if [ ! -z "$AWS_ACCESS_KEY_ID" ]; then
+                aws s3 cp ${BACKUP_DIR}.tar.gz s3://$S3_BACKUP_BUCKET/blockchain/
+                echo "Blockchain backup uploaded to S3"
+              fi
+              
+              # Clean up old backups (keep last 4 weeks)
+              find /backups -name "blockchain_*.tar.gz" -mtime +28 -delete
+              
+              echo "Blockchain backup process completed successfully"
+            env:
+            - name: CHAIN_ID
+              value: "paradigm-1"
+            - name: NETWORK_ID  
+              value: "paradigm-mainnet-1"
+            - name: S3_BACKUP_BUCKET
+              value: "paradigm-backups"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: access-key-id
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: secret-access-key
+                  optional: true
+            volumeMounts:
+            - name: blockchain-data
+              mountPath: /data
+              readOnly: true
+            - name: backup-storage
+              mountPath: /backups
+          volumes:
+          - name: blockchain-data
+            persistentVolumeClaim:
+              claimName: paradigm-core-data-paradigm-core-0
+              readOnly: true
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: paradigm-backup-pvc
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: paradigm-config-backup
+  namespace: paradigm-mainnet
+  labels:
+    app.kubernetes.io/name: paradigm
+    app.kubernetes.io/component: backup
+spec:
+  schedule: "0 3 * * *"  # Daily at 3 AM UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: paradigm-config-backup
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: paradigm-backup
+          containers:
+          - name: config-backup
+            image: bitnami/kubectl:latest
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+              BACKUP_DIR="/backups/config_$TIMESTAMP"
+              
+              echo "Starting configuration backup at $(date)"
+              
+              mkdir -p $BACKUP_DIR
+              
+              # Backup ConfigMaps
+              kubectl get configmap -n paradigm-mainnet -o yaml > $BACKUP_DIR/configmaps.yaml
+              
+              # Backup Services (not secrets for security)
+              kubectl get service -n paradigm-mainnet -o yaml > $BACKUP_DIR/services.yaml
+              kubectl get deployment -n paradigm-mainnet -o yaml > $BACKUP_DIR/deployments.yaml
+              kubectl get statefulset -n paradigm-mainnet -o yaml > $BACKUP_DIR/statefulsets.yaml
+              kubectl get ingress -n paradigm-mainnet -o yaml > $BACKUP_DIR/ingress.yaml
+              kubectl get pvc -n paradigm-mainnet -o yaml > $BACKUP_DIR/pvcs.yaml
+              
+              # Create backup manifest
+              cat > $BACKUP_DIR/manifest.json << EOF
+              {
+                "backup_timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+                "namespace": "paradigm-mainnet",
+                "backup_type": "configuration",
+                "kubernetes_version": "$(kubectl version --client -o json | jq -r .clientVersion.gitVersion)"
+              }
+              EOF
+              
+              # Compress backup
+              tar -czf ${BACKUP_DIR}.tar.gz -C /backups config_$TIMESTAMP
+              rm -rf $BACKUP_DIR
+              
+              echo "Configuration backup completed: ${BACKUP_DIR}.tar.gz"
+              
+              # Upload to cloud storage
+              if [ ! -z "$AWS_ACCESS_KEY_ID" ]; then
+                aws s3 cp ${BACKUP_DIR}.tar.gz s3://$S3_BACKUP_BUCKET/config/
+                echo "Configuration backup uploaded to S3"
+              fi
+              
+              # Clean up old backups (keep last 14 days)
+              find /backups -name "config_*.tar.gz" -mtime +14 -delete
+              
+              echo "Configuration backup process completed successfully"
+            env:
+            - name: S3_BACKUP_BUCKET
+              value: "paradigm-backups"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: access-key-id
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: secret-access-key
+                  optional: true
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backups
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: paradigm-backup
+  namespace: paradigm-mainnet
+  labels:
+    app.kubernetes.io/name: paradigm
+    app.kubernetes.io/component: backup
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: paradigm-mainnet
+  name: paradigm-backup-role
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "services", "persistentvolumeclaims"]
+  verbs: ["get", "list"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets"]
+  verbs: ["get", "list"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses"]
+  verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: paradigm-backup-rolebinding
+  namespace: paradigm-mainnet
+subjects:
+- kind: ServiceAccount
+  name: paradigm-backup
+  namespace: paradigm-mainnet
+roleRef:
+  kind: Role
+  name: paradigm-backup-role
+  apiGroup: rbac.authorization.k8s.io

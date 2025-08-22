@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: paradigm
+  labels:
+    name: paradigm
+    app.kubernetes.io/name: paradigm
+    app.kubernetes.io/version: "1.0.0"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: paradigm-quota
+  namespace: paradigm
+spec:
+  hard:
+    requests.cpu: "20"
+    requests.memory: 40Gi
+    limits.cpu: "40"
+    limits.memory: 80Gi
+    persistentvolumeclaims: "10"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: paradigm-limits
+  namespace: paradigm
+spec:
+  limits:
+  - default:
+      cpu: "2"
+      memory: "4Gi"
+    defaultRequest:
+      cpu: "500m"
+      memory: "1Gi"
+    type: Container

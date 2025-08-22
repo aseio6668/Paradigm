@@ -1,0 +1,201 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: paradigm-ingress
+  namespace: paradigm-mainnet
+  labels:
+    app.kubernetes.io/name: paradigm
+    app.kubernetes.io/component: ingress
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/proxy-body-size: "16m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/rate-limit: "1000"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    kubernetes.io/ingress.class: "nginx"
+spec:
+  tls:
+  - hosts:
+    - api.paradigm.network
+    - ws.paradigm.network
+    - paradigm.network
+    secretName: paradigm-tls-cert
+  rules:
+  - host: api.paradigm.network
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: paradigm-api
+            port:
+              number: 8080
+  - host: ws.paradigm.network
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: paradigm-api
+            port:
+              number: 8080
+  - host: paradigm.network
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: paradigm-api
+            port:
+              number: 8080
+      - path: /ws
+        pathType: Prefix
+        backend:
+          service:
+            name: paradigm-api
+            port:
+              number: 8080
+      - path: /health
+        pathType: Prefix
+        backend:
+          service:
+            name: paradigm-api
+            port:
+              number: 8080
+      - path: /metrics
+        pathType: Prefix
+        backend:
+          service:
+            name: prometheus
+            port:
+              number: 9090
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: paradigm-monitoring-ingress
+  namespace: paradigm-mainnet
+  labels:
+    app.kubernetes.io/name: paradigm
+    app.kubernetes.io/component: monitoring
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: paradigm-monitoring-auth
+    nginx.ingress.kubernetes.io/auth-realm: 'Authentication Required - Paradigm Monitoring'
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    kubernetes.io/ingress.class: "nginx"
+spec:
+  tls:
+  - hosts:
+    - grafana.paradigm.network
+    - prometheus.paradigm.network
+    secretName: paradigm-monitoring-tls-cert
+  rules:
+  - host: grafana.paradigm.network
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: grafana
+            port:
+              number: 3000
+  - host: prometheus.paradigm.network
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: prometheus
+            port:
+              number: 9090
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: paradigm-network-policy
+  namespace: paradigm-mainnet
+  labels:
+    app.kubernetes.io/name: paradigm
+    app.kubernetes.io/component: security
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/part-of: paradigm-network
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 8545
+    - protocol: TCP
+      port: 8546
+    - protocol: TCP
+      port: 9090
+    - protocol: TCP
+      port: 3000
+    - protocol: TCP
+      port: 5432
+    - protocol: TCP
+      port: 6379
+  - from: []
+    ports:
+    - protocol: TCP
+      port: 30303
+  egress:
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/part-of: paradigm-network
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 8545
+    - protocol: TCP
+      port: 8546
+    - protocol: TCP
+      port: 9090
+    - protocol: TCP
+      port: 3000
+    - protocol: TCP
+      port: 5432
+    - protocol: TCP
+      port: 6379
+    - protocol: TCP
+      port: 30303

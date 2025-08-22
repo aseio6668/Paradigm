@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paradigm-wallet
+  namespace: paradigm
+  labels:
+    app: paradigm-wallet
+    component: wallet-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: paradigm-wallet
+  template:
+    metadata:
+      labels:
+        app: paradigm-wallet
+        component: wallet-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: paradigm-wallet
+        image: paradigm/wallet:latest
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: RUST_LOG
+          value: "info"
+        - name: PARADIGM_RPC_URL
+          value: "http://paradigm-core:8545"
+        - name: WALLET_ENCRYPTION_KEY
+          valueFrom:
+            secretRef:
+              name: paradigm-secrets
+              key: wallet-encryption-key
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        volumeMounts:
+        - name: wallets
+          mountPath: /app/wallets
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      volumes:
+      - name: wallets
+        persistentVolumeClaim:
+          claimName: paradigm-wallet-storage
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: paradigm-wallet
+  namespace: paradigm
+  labels:
+    app: paradigm-wallet
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: paradigm-wallet
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paradigm-wallet-storage
+  namespace: paradigm
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: "standard"
+  resources:
+    requests:
+      storage: 50Gi

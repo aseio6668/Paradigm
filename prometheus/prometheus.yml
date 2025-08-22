@@ -1,0 +1,125 @@
+# Prometheus configuration for Paradigm SDK monitoring
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'paradigm-sdk'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - "alerts/*.yml"
+  - "recording_rules/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # SDK metrics endpoint
+  - job_name: 'paradigm-sdk'
+    static_configs:
+      - targets: ['localhost:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    
+  # SDK performance metrics
+  - job_name: 'paradigm-sdk-performance'
+    static_configs:
+      - targets: ['localhost:8081']
+    metrics_path: '/performance/metrics'
+    scrape_interval: 5s
+    
+  # Blockchain node metrics
+  - job_name: 'paradigm-core'
+    static_configs:
+      - targets: ['paradigm-core:8545']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    
+  # Wallet service metrics
+  - job_name: 'paradigm-wallet'
+    static_configs:
+      - targets: ['paradigm-wallet:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    
+  # Contributor nodes metrics
+  - job_name: 'paradigm-contributor'
+    static_configs:
+      - targets: ['paradigm-contributor:8547']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    
+  # System metrics via node exporter
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 15s
+    
+  # Application metrics
+  - job_name: 'application-metrics'
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names:
+            - paradigm
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        regex: ([^:]+)(?::\\d+)?;(\\d+)
+        replacement: $1:$2
+        target_label: __address__
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: kubernetes_namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: kubernetes_pod_name
+        
+  # Custom application metrics
+  - job_name: 'custom-metrics'
+    file_sd_configs:
+      - files:
+          - '/etc/prometheus/custom_targets.json'
+        refresh_interval: 5m
+    
+  # Security monitoring metrics
+  - job_name: 'security-metrics'
+    static_configs:
+      - targets: ['localhost:8082']
+    metrics_path: '/security/metrics'
+    scrape_interval: 30s
+    
+  # Telemetry metrics
+  - job_name: 'telemetry-metrics'
+    static_configs:
+      - targets: ['localhost:8083']
+    metrics_path: '/telemetry/metrics'
+    scrape_interval: 60s
+
+# Remote write configuration for long-term storage
+remote_write:
+  - url: "https://prometheus-remote-write.example.com/api/v1/write"
+    queue_config:
+      max_samples_per_send: 1000
+      max_shards: 200
+      capacity: 2500
+
+# Remote read configuration
+remote_read:
+  - url: "https://prometheus-remote-read.example.com/api/v1/read"

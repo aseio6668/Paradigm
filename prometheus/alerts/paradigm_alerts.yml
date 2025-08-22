@@ -1,0 +1,361 @@
+# Paradigm SDK Alert Rules
+groups:
+  - name: paradigm_sdk_alerts
+    rules:
+      # High-level system alerts
+      - alert: HighErrorRate
+        expr: |
+          (
+            rate(paradigm_transactions_error_total[5m]) /
+            rate(paradigm_transactions_total[5m])
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          service: paradigm-sdk
+        annotations:
+          summary: "High error rate detected in Paradigm SDK"
+          description: "Error rate is {{ $value | humanizePercentage }} for the last 5 minutes"
+          
+      - alert: CriticalErrorRate
+        expr: |
+          (
+            rate(paradigm_transactions_error_total[5m]) /
+            rate(paradigm_transactions_total[5m])
+          ) > 0.20
+        for: 1m
+        labels:
+          severity: critical
+          service: paradigm-sdk
+        annotations:
+          summary: "CRITICAL: Very high error rate in Paradigm SDK"
+          description: "Error rate is {{ $value | humanizePercentage }} for the last 5 minutes"
+          
+      # Performance alerts
+      - alert: HighTransactionLatency
+        expr: |
+          histogram_quantile(0.95, rate(paradigm_transaction_duration_seconds_bucket[5m])) > 2.0
+        for: 5m
+        labels:
+          severity: warning
+          service: paradigm-sdk
+        annotations:
+          summary: "High transaction latency detected"
+          description: "95th percentile latency is {{ $value }}s for the last 5 minutes"
+          
+      - alert: VeryHighTransactionLatency
+        expr: |
+          histogram_quantile(0.95, rate(paradigm_transaction_duration_seconds_bucket[5m])) > 10.0
+        for: 2m
+        labels:
+          severity: critical
+          service: paradigm-sdk
+        annotations:
+          summary: "CRITICAL: Very high transaction latency"
+          description: "95th percentile latency is {{ $value }}s for the last 5 minutes"
+          
+      # Throughput alerts
+      - alert: LowTransactionThroughput
+        expr: |
+          rate(paradigm_transactions_success_total[10m]) < 1.0
+        for: 10m
+        labels:
+          severity: warning
+          service: paradigm-sdk
+        annotations:
+          summary: "Low transaction throughput"
+          description: "Transaction throughput is {{ $value }} TPS over the last 10 minutes"
+          
+      # Security alerts
+      - alert: SecurityAnomalyDetected
+        expr: |
+          increase(paradigm_security_anomalies_total[15m]) > 5
+        for: 0m
+        labels:
+          severity: critical
+          service: paradigm-sdk
+          category: security
+        annotations:
+          summary: "Security anomalies detected"
+          description: "{{ $value }} security anomalies detected in the last 15 minutes"
+          
+      - alert: SuspiciousTransactionPattern
+        expr: |
+          rate(paradigm_suspicious_transactions_total[5m]) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          service: paradigm-sdk
+          category: security
+        annotations:
+          summary: "Suspicious transaction patterns detected"
+          description: "Suspicious transaction rate: {{ $value | humanizePercentage }}"
+          
+      # System resource alerts
+      - alert: HighCPUUsage
+        expr: |
+          paradigm_system_cpu_usage > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: paradigm-sdk
+          category: system
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}% for the last 5 minutes"
+          
+      - alert: HighMemoryUsage
+        expr: |
+          paradigm_system_memory_usage > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: paradigm-sdk
+          category: system
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value }}% for the last 5 minutes"
+          
+      - alert: CriticalMemoryUsage
+        expr: |
+          paradigm_system_memory_usage > 95
+        for: 1m
+        labels:
+          severity: critical
+          service: paradigm-sdk
+          category: system
+        annotations:
+          summary: "CRITICAL: Very high memory usage"
+          description: "Memory usage is {{ $value }}% - system may become unstable"
+          
+      - alert: DiskSpaceLow
+        expr: |
+          paradigm_system_disk_usage > 90
+        for: 5m
+        labels:
+          severity: warning
+          service: paradigm-sdk
+          category: system
+        annotations:
+          summary: "Low disk space"
+          description: "Disk usage is {{ $value }}%"
+          
+      # Network alerts
+      - alert: HighNetworkTraffic
+        expr: |
+          rate(paradigm_system_network_rx[5m]) + rate(paradigm_system_network_tx[5m]) > 100000000  # 100MB/s
+        for: 10m
+        labels:
+          severity: warning
+          service: paradigm-sdk
+          category: network
+        annotations:
+          summary: "High network traffic"
+          description: "Network traffic is {{ $value | humanize }}B/s"
+          
+      # Service health alerts
+      - alert: ServiceDown
+        expr: |
+          up{job="paradigm-sdk"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: paradigm-sdk
+          category: availability
+        annotations:
+          summary: "Paradigm SDK service is down"
+          description: "Paradigm SDK service has been down for more than 1 minute"
+          
+      - alert: ServiceDegraded
+        expr: |
+          paradigm_health_status != 1  # Assuming 1 = healthy, 0 = degraded/unhealthy
+        for: 5m
+        labels:
+          severity: warning
+          service: paradigm-sdk
+          category: availability
+        annotations:
+          summary: "Paradigm SDK service is degraded"
+          description: "Service health status is {{ $value }}"
+          
+  - name: paradigm_blockchain_alerts
+    rules:
+      # Blockchain-specific alerts
+      - alert: BlockProductionStopped
+        expr: |
+          increase(paradigm_blocks_produced_total[10m]) == 0
+        for: 10m
+        labels:
+          severity: critical
+          service: paradigm-core
+          category: blockchain
+        annotations:
+          summary: "Block production has stopped"
+          description: "No blocks have been produced in the last 10 minutes"
+          
+      - alert: LongBlockTime
+        expr: |
+          paradigm_average_block_time > 30  # Assuming normal block time is ~12 seconds
+        for: 5m
+        labels:
+          severity: warning
+          service: paradigm-core
+          category: blockchain
+        annotations:
+          summary: "Block time is longer than expected"
+          description: "Average block time is {{ $value }}s over the last 5 minutes"
+          
+      - alert: PendingTransactionBacklog
+        expr: |
+          paradigm_pending_transactions > 1000
+        for: 5m
+        labels:
+          severity: warning
+          service: paradigm-core
+          category: blockchain
+        annotations:
+          summary: "Large pending transaction backlog"
+          description: "{{ $value }} transactions are pending"
+          
+      - alert: NetworkPartition
+        expr: |
+          paradigm_connected_peers < 3
+        for: 2m
+        labels:
+          severity: critical
+          service: paradigm-core
+          category: network
+        annotations:
+          summary: "Possible network partition detected"
+          description: "Only {{ $value }} peers connected"
+          
+  - name: paradigm_wallet_alerts
+    rules:
+      # Wallet service alerts
+      - alert: WalletServiceDown
+        expr: |
+          up{job="paradigm-wallet"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: paradigm-wallet
+          category: availability
+        annotations:
+          summary: "Wallet service is down"
+          description: "Wallet service has been down for more than 1 minute"
+          
+      - alert: HighWalletErrorRate
+        expr: |
+          (
+            rate(paradigm_wallet_errors_total[5m]) /
+            rate(paradigm_wallet_requests_total[5m])
+          ) > 0.10
+        for: 3m
+        labels:
+          severity: warning
+          service: paradigm-wallet
+        annotations:
+          summary: "High error rate in wallet service"
+          description: "Wallet error rate is {{ $value | humanizePercentage }}"
+          
+      - alert: WalletSyncIssue
+        expr: |
+          paradigm_wallet_sync_lag > 100  # blocks behind
+        for: 10m
+        labels:
+          severity: warning
+          service: paradigm-wallet
+          category: sync
+        annotations:
+          summary: "Wallet sync lag detected"
+          description: "Wallet is {{ $value }} blocks behind the network"
+          
+  - name: paradigm_contributor_alerts
+    rules:
+      # Contributor node alerts
+      - alert: ContributorNodeDown
+        expr: |
+          up{job="paradigm-contributor"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: paradigm-contributor
+          category: availability
+        annotations:
+          summary: "Contributor node is down"
+          description: "Contributor node {{ $labels.instance }} has been down for more than 2 minutes"
+          
+      - alert: LowContributorPerformance
+        expr: |
+          rate(paradigm_contributor_tasks_completed_total[10m]) < 0.1
+        for: 10m
+        labels:
+          severity: warning
+          service: paradigm-contributor
+          category: performance
+        annotations:
+          summary: "Low contributor performance"
+          description: "Contributor task completion rate is {{ $value }} tasks/s"
+          
+      - alert: ContributorGPUOverheat
+        expr: |
+          paradigm_contributor_gpu_temperature > 85  # Celsius
+        for: 2m
+        labels:
+          severity: critical
+          service: paradigm-contributor
+          category: hardware
+        annotations:
+          summary: "Contributor GPU overheating"
+          description: "GPU temperature is {{ $value }}°C on {{ $labels.instance }}"
+          
+  - name: paradigm_security_alerts
+    rules:
+      # Advanced security alerts
+      - alert: PotentialDDoSAttack
+        expr: |
+          rate(paradigm_requests_total[1m]) > 1000
+        for: 2m
+        labels:
+          severity: critical
+          service: paradigm-sdk
+          category: security
+        annotations:
+          summary: "Potential DDoS attack detected"
+          description: "Request rate is {{ $value }} req/s"
+          
+      - alert: UnauthorizedAccess
+        expr: |
+          increase(paradigm_unauthorized_access_attempts_total[5m]) > 10
+        for: 0m
+        labels:
+          severity: critical
+          service: paradigm-sdk
+          category: security
+        annotations:
+          summary: "Multiple unauthorized access attempts"
+          description: "{{ $value }} unauthorized access attempts in the last 5 minutes"
+          
+      - alert: AbnormalTransactionPattern
+        expr: |
+          rate(paradigm_large_transactions_total[10m]) > 0.1  # Large transactions per second
+        for: 10m
+        labels:
+          severity: warning
+          service: paradigm-sdk
+          category: security
+        annotations:
+          summary: "Abnormal large transaction pattern"
+          description: "Rate of large transactions: {{ $value }}/s"
+          
+      - alert: ComplianceViolation
+        expr: |
+          increase(paradigm_compliance_violations_total[1h]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          service: paradigm-sdk
+          category: compliance
+        annotations:
+          summary: "Compliance violation detected"
+          description: "{{ $value }} compliance violations in the last hour"

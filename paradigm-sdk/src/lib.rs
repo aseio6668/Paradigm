@@ -46,6 +46,17 @@ pub mod utils;
 pub mod error;
 pub mod enterprise;
 
+// Advanced security modules
+pub mod zkp;
+pub mod threshold;
+pub mod privacy;
+pub mod security;
+
+// Monitoring and observability modules
+pub mod monitoring;
+pub mod telemetry;
+pub mod observability;
+
 // Feature-gated modules
 #[cfg(feature = "testing")]
 pub mod testing;
@@ -71,6 +82,17 @@ pub use enterprise::{
     EnterpriseApiManager, ComplianceMonitor, EnterpriseWalletManager,
     ApiKey, ComplianceRule, MultisigWallet
 };
+
+// Advanced security features
+pub use zkp::{ZKProof, RangeProof, MerkleTree, PrivateTransaction};
+pub use threshold::{ThresholdSignature, SecretShare, MultiSigWallet, ThresholdCrypto};
+pub use privacy::{RingSignature, StealthAddress, ConfidentialTransaction, PrivacyCoin};
+pub use security::{SecurityAudit, SecurityMonitor, AnomalyDetector, ThreatIntelligence};
+
+// Monitoring and observability features
+pub use monitoring::{MonitoringSystem, MonitoringConfig, MetricsCollector, HealthMonitor};
+pub use telemetry::{TelemetrySystem, TelemetryConfig, DistributedTracer, StructuredLog};
+pub use observability::{ObservabilityPlatform, ObservabilityConfig, SystemInsights, AnalyticsEngine};
 
 // Version information
 /// SDK version

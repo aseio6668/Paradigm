@@ -1,7 +1,102 @@
-# Paradigm (PAR) Cryptocurrency
+# Paradigm Cryptocurrency Network
 
-## Overview
-Paradigm is a revolutionary next-generation cryptocurrency that replaces traditional mining with advanced machine learning-based consensus and computational contributions. The network incentivizes users to contribute computational power for ML tasks, autonomous agents, oracle services, and governance participation through a sophisticated tokenomics system with AI-driven optimization and temporal token evolution.
+<div align="center">
+
+![Paradigm Logo](docs/assets/paradigm-logo.png)
+
+[![Build Status](https://github.com/paradigm-network/paradigm/workflows/CI/badge.svg)](https://github.com/paradigm-network/paradigm/actions)
+[![Security Audit](https://github.com/paradigm-network/paradigm/workflows/Security/badge.svg)](https://github.com/paradigm-network/paradigm/actions)
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://docs.paradigm.network)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Discord](https://img.shields.io/discord/123456789?color=7289da&logo=discord&logoColor=white)](https://discord.gg/paradigm)
+
+**A next-generation cryptocurrency platform with advanced privacy, security, and enterprise features**
+
+[🚀 Quick Start](#quick-start) • [📖 Documentation](#documentation) • [🏗️ Architecture](#architecture) • [🔒 Security](#security) • [🌐 Community](#community)
+
+</div>
+
+---
+
+## 🌟 Overview
+
+Paradigm is a revolutionary cryptocurrency network designed for the modern digital economy. Built with cutting-edge cryptographic techniques, enterprise-grade security, and comprehensive observability, Paradigm offers:
+
+- **🔐 Privacy-First Design**: Zero-knowledge proofs, ring signatures, and stealth addresses
+- **🏢 Enterprise Ready**: Multi-signature wallets, compliance monitoring, and audit trails
+- **⚡ High Performance**: Optimized for speed with advanced transaction processing
+- **🔍 Full Observability**: Real-time monitoring, distributed tracing, and analytics
+- **🛡️ Security Focused**: Advanced threat detection and anomaly monitoring
+- **🌐 Cross-Chain Ready**: Interoperability with other blockchain networks
+- **🤖 AI-Driven Governance**: Advanced machine learning-based consensus and autonomous agents
+
+## 🏗️ Architecture
+
+```mermaid
+graph TB
+    subgraph "Paradigm Network Architecture"
+        subgraph "Core Layer"
+            PC[Paradigm Core]
+            CS[Consensus Engine]
+            TX[Transaction Pool]
+            BL[Blockchain]
+        end
+        
+        subgraph "AI Layer"
+            AG[AI Governance Agents]
+            ML[ML Task Coordinator]
+            OPT[Optimization Engine]
+            TEV[Temporal Evolution]
+        end
+        
+        subgraph "Security Layer"
+            QR[Quantum-Resistant Crypto]
+            ZK[Zero-Knowledge Proofs]
+            PR[Privacy Engine]
+            TH[Threshold Crypto]
+        end
+        
+        subgraph "Application Layer"
+            SDK[Paradigm SDK]
+            WAL[Wallet Service]
+            CON[Contributor Nodes]
+            API[REST API]
+        end
+        
+        subgraph "Observability Layer"
+            MON[Monitoring System]
+            TEL[Telemetry Engine]
+            ANL[Analytics Platform]
+            DASH[Dashboard]
+        end
+    end
+    
+    PC --> CS
+    CS --> TX
+    TX --> BL
+    AG --> ML
+    ML --> OPT
+    OPT --> TEV
+    QR --> ZK
+    ZK --> PR
+    PR --> TH
+    SDK --> WAL
+    WAL --> CON
+    CON --> API
+    MON --> TEL
+    TEL --> ANL
+    ANL --> DASH
+```
+
+### Component Overview
+
+| Component | Description | Technology |
+|-----------|-------------|------------|
+| **Paradigm Core** | Main blockchain node | Rust, libp2p |
+| **AI Governance** | Autonomous decision making | Machine Learning, Neural Networks |
+| **Quantum Crypto** | Post-quantum security | Lattice-based, Hash-based algorithms |
+| **SDK** | Developer tools | Rust, Python, JavaScript bindings |
+| **Monitoring** | Real-time observability | Prometheus, Grafana, OpenTelemetry |
 
 ## Key Features
 
@@ -272,37 +367,119 @@ sudo journalctl -u paradigm-network -f
 - **Analytics API**: http://localhost:8080/api/v1/
 - **Dashboard**: http://localhost:8080/api/v1/dashboard
 
-## API Reference
+## 📚 API Reference
 
-### Analytics API Endpoints
+### Core SDK Usage
 
-#### Dashboard Data
+```rust
+use paradigm_sdk::{Client, Wallet, Transaction, Amount};
+
+// Create a new client
+let client = Client::new("https://api.paradigm.network")?;
+
+// Create a wallet
+let wallet = Wallet::new()?;
+let address = wallet.get_address()?;
+
+// Send a transaction
+let tx = Transaction::new()
+    .from(wallet.get_address()?)
+    .to("0x742d35Cc6635C0532925a3b8D8434d8975c64d27")
+    .amount(Amount::from_par(100))
+    .gas_limit(21000);
+
+let signed_tx = wallet.sign_transaction(&tx)?;
+let tx_hash = client.send_transaction(&signed_tx).await?;
+```
+
+### Python SDK Usage
+
+```python
+from paradigm_sdk import Client, Wallet, Transaction, Amount
+
+# Create client and wallet
+client = Client("https://api.paradigm.network")
+wallet = Wallet.new()
+
+# Send transaction
+tx = Transaction(
+    from_addr=wallet.address,
+    to_addr="0x742d35Cc6635C0532925a3b8D8434d8975c64d27",
+    amount=Amount.from_par(100),
+    gas_limit=21000
+)
+
+signed_tx = wallet.sign_transaction(tx)
+tx_hash = client.send_transaction(signed_tx)
+```
+
+### JavaScript/TypeScript SDK Usage
+
+```typescript
+import { Client, Wallet, Transaction, Amount } from 'paradigm-sdk';
+
+// Initialize client and wallet
+const client = new Client('https://api.paradigm.network');
+const wallet = new Wallet();
+
+// Create and send transaction
+const tx = new Transaction({
+  from: wallet.address,
+  to: '0x742d35Cc6635C0532925a3b8D8434d8975c64d27',
+  amount: Amount.fromPAR(100),
+  gasLimit: 21000
+});
+
+const signedTx = wallet.signTransaction(tx);
+const txHash = await client.sendTransaction(signedTx);
+```
+
+### REST API Endpoints
+
+#### Core Blockchain API
+- `GET /api/v1/blocks/latest` - Get latest block
+- `GET /api/v1/blocks/{hash}` - Get block by hash
+- `GET /api/v1/transactions/{hash}` - Get transaction by hash
+- `POST /api/v1/transactions` - Submit new transaction
+- `GET /api/v1/accounts/{address}/balance` - Get account balance
+
+#### Analytics API Endpoints
+
+##### Dashboard Data
 - `GET /api/v1/dashboard` - Real-time dashboard data
 - `GET /api/v1/metrics/current` - Current network metrics
 - `GET /api/v1/metrics/historical` - Historical metrics with trend analysis
 
-#### Performance Monitoring
+##### Performance Monitoring
 - `GET /api/v1/performance` - Performance metrics (throughput, latency, uptime)
 - `GET /api/v1/health` - Economic health indicators with overall health score
 
-#### Alerts and Notifications
+##### Alerts and Notifications
 - `GET /api/v1/alerts` - Active alerts with severity filtering
 - `POST /api/v1/alerts/acknowledge` - Alert acknowledgment
 
-#### Visualization and Reports
+##### Visualization and Reports
 - `GET /api/v1/charts/token-supply` - Token supply chart data
 - `GET /api/v1/reports/generate` - Analytics reports with insights and recommendations
 - `GET /api/v1/status` - API health status
 
-#### AI Governance
+#### AI Governance API
 - `GET /api/v1/governance/agents` - AI agent status and performance
 - `GET /api/v1/governance/proposals` - Active governance proposals
 - `POST /api/v1/governance/vote` - Submit governance vote
+- `GET /api/v1/governance/decisions` - Recent AI decisions
 
-#### Temporal Evolution
+#### Temporal Evolution API
 - `GET /api/v1/evolution/metrics` - Token evolution metrics
 - `GET /api/v1/evolution/stages` - Token lifecycle stages
 - `POST /api/v1/evolution/stake` - Temporal staking operations
+- `GET /api/v1/evolution/rewards` - Evolution-based rewards
+
+#### Security and Privacy API
+- `POST /api/v1/zkp/generate` - Generate zero-knowledge proof
+- `POST /api/v1/zkp/verify` - Verify zero-knowledge proof
+- `POST /api/v1/privacy/ring-signature` - Create ring signature
+- `POST /api/v1/threshold/sign` - Threshold signature operation
 
 ## Contribution Types
 

@@ -1,0 +1,587 @@
+version: '3.8'
+
+services:
+  # Paradigm Core Blockchain Node
+  paradigm-core:
+    image: paradigm/core:latest
+    container_name: paradigm-core-mainnet
+    restart: unless-stopped
+    env_file: production.env
+    ports:
+      - "8545:8545"   # RPC
+      - "30303:30303" # P2P
+      - "8546:8546"   # WebSocket
+      - "9090:9090"   # Metrics
+    volumes:
+      - paradigm-data:/data
+      - paradigm-config:/config:ro
+      - paradigm-ssl:/etc/ssl:ro
+      - paradigm-logs:/logs
+    networks:
+      - paradigm-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8545/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 16G
+          cpus: '8'
+        reservations:
+          memory: 8G
+          cpus: '4'
+    labels:
+      - "com.paradigm.service=core"
+      - "com.paradigm.network=mainnet"
+
+  # Paradigm API Server (Multiple Instances)
+  paradigm-api-1:
+    image: paradigm/api:latest
+    container_name: paradigm-api-1
+    restart: unless-stopped
+    env_file: production.env
+    environment:
+      - INSTANCE_ID=api-1
+    ports:
+      - "8080:8080"
+    volumes:
+      - paradigm-config:/config:ro
+      - paradigm-ssl:/etc/ssl:ro
+      - paradigm-logs:/logs
+    networks:
+      - paradigm-network
+    depends_on:
+      paradigm-core:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '4'
+        reservations:
+          memory: 2G
+          cpus: '2'
+
+  paradigm-api-2:
+    image: paradigm/api:latest
+    container_name: paradigm-api-2
+    restart: unless-stopped
+    env_file: production.env
+    environment:
+      - INSTANCE_ID=api-2
+    ports:
+      - "8081:8080"
+    volumes:
+      - paradigm-config:/config:ro
+      - paradigm-ssl:/etc/ssl:ro
+      - paradigm-logs:/logs
+    networks:
+      - paradigm-network
+    depends_on:
+      paradigm-core:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '4'
+        reservations:
+          memory: 2G
+          cpus: '2'
+
+  paradigm-api-3:
+    image: paradigm/api:latest
+    container_name: paradigm-api-3
+    restart: unless-stopped
+    env_file: production.env
+    environment:
+      - INSTANCE_ID=api-3
+    ports:
+      - "8082:8080"
+    volumes:
+      - paradigm-config:/config:ro
+      - paradigm-ssl:/etc/ssl:ro
+      - paradigm-logs:/logs
+    networks:
+      - paradigm-network
+    depends_on:
+      paradigm-core:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '4'
+        reservations:
+          memory: 2G
+          cpus: '2'
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: paradigm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: paradigm_mainnet
+      POSTGRES_USER: paradigm
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+      - postgres-config:/etc/postgresql:ro
+    networks:
+      - paradigm-network
+    ports:
+      - "5432:5432"
+    secrets:
+      - postgres_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paradigm -d paradigm_mainnet"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    command: >
+      postgres
+      -c max_connections=200
+      -c shared_buffers=512MB
+      -c effective_cache_size=2GB
+      -c maintenance_work_mem=128MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=32MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c work_mem=4MB
+      -c min_wal_size=1GB
+      -c max_wal_size=4GB
+      -c max_worker_processes=8
+      -c max_parallel_workers_per_gather=4
+      -c max_parallel_workers=8
+      -c max_parallel_maintenance_workers=4
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+          cpus: '4'
+        reservations:
+          memory: 4G
+          cpus: '2'
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: paradigm-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - paradigm-network
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    command: >
+      redis-server /usr/local/etc/redis/redis.conf
+      --appendonly yes
+      --maxmemory 2gb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2'
+        reservations:
+          memory: 2G
+          cpus: '1'
+
+  # NGINX Load Balancer
+  nginx:
+    image: nginx:alpine
+    container_name: paradigm-nginx
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - paradigm-ssl:/etc/ssl:ro
+      - nginx-logs:/var/log/nginx
+    networks:
+      - paradigm-network
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - paradigm-api-1
+      - paradigm-api-2
+      - paradigm-api-3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1'
+
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: paradigm-prometheus
+    restart: unless-stopped
+    user: "nobody"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts:/etc/prometheus/alerts:ro
+      - prometheus-data:/prometheus
+    networks:
+      - paradigm-network
+    ports:
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2'
+
+  # Grafana Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: paradigm-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD_FILE: /run/secrets/grafana_password
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource,grafana-piechart-panel
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_SMTP_ENABLED: "true"
+      GF_SMTP_HOST: "smtp.gmail.com:587"
+      GF_SMTP_FROM_ADDRESS: "alerts@paradigm.network"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - paradigm-network
+    ports:
+      - "3000:3000"
+    secrets:
+      - grafana_password
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1'
+
+  # Alert Manager
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: paradigm-alertmanager
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    networks:
+      - paradigm-network
+    ports:
+      - "9093:9093"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  # Node Exporter for System Metrics
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: paradigm-node-exporter
+    restart: unless-stopped
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - paradigm-network
+    ports:
+      - "9100:9100"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  # Postgres Exporter
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: paradigm-postgres-exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://paradigm:${POSTGRES_PASSWORD}@postgres:5432/paradigm_mainnet?sslmode=disable"
+    networks:
+      - paradigm-network
+    ports:
+      - "9187:9187"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # cAdvisor for Container Metrics
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: paradigm-cadvisor
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /cgroup:/cgroup:ro
+    networks:
+      - paradigm-network
+    ports:
+      - "8080:8080"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  # Jaeger for Distributed Tracing
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: paradigm-jaeger
+    restart: unless-stopped
+    environment:
+      COLLECTOR_ZIPKIN_HOST_PORT: ":9411"
+    networks:
+      - paradigm-network
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14268:14268"  # HTTP collector
+      - "14250:14250"  # gRPC collector
+      - "9411:9411"    # Zipkin
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1'
+
+  # Log aggregation with Fluent Bit
+  fluent-bit:
+    image: fluent/fluent-bit:latest
+    container_name: paradigm-fluent-bit
+    restart: unless-stopped
+    volumes:
+      - ./logging/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - paradigm-logs:/logs:ro
+      - nginx-logs:/nginx-logs:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    networks:
+      - paradigm-network
+    ports:
+      - "24224:24224"
+    depends_on:
+      - elasticsearch
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  # Elasticsearch for Log Storage
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.8.0
+    container_name: paradigm-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
+      - xpack.security.enabled=false
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - paradigm-network
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2'
+
+  # Kibana for Log Visualization
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.8.0
+    container_name: paradigm-kibana
+    restart: unless-stopped
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    networks:
+      - paradigm-network
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1'
+
+# Networks
+networks:
+  paradigm-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+
+# Volumes
+volumes:
+  paradigm-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/paradigm/data
+  paradigm-config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/paradigm/config
+  paradigm-ssl:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/paradigm/ssl
+  paradigm-logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/paradigm/logs
+  postgres-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/paradigm/postgres
+  postgres-config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/paradigm/postgres-config
+  redis-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/paradigm/redis
+  nginx-logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/paradigm/nginx-logs
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  alertmanager-data:
+    driver: local
+  elasticsearch-data:
+    driver: local
+
+# Secrets
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+  grafana_password:
+    file: ./secrets/grafana_password.txt

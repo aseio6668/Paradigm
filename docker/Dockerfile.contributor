@@ -1,0 +1,64 @@
+# Paradigm Contributor Node Dockerfile
+FROM rust:1.75-slim as builder
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    opencl-headers \
+    ocl-icd-opencl-dev \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy workspace files
+COPY Cargo.toml Cargo.lock ./
+COPY paradigm-contributor ./paradigm-contributor
+COPY paradigm-core ./paradigm-core
+
+# Build the application
+RUN cargo build --release --package paradigm-contributor
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    libssl3 \
+    ocl-icd-libopencl1 \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app user
+RUN useradd -r -s /bin/false paradigm
+
+# Create directories
+RUN mkdir -p /app/tasks /app/config /app/logs && \
+    chown -R paradigm:paradigm /app
+
+# Copy binary from builder
+COPY --from=builder /app/target/release/paradigm-contributor /app/paradigm-contributor
+
+# Set permissions
+RUN chmod +x /app/paradigm-contributor && \
+    chown paradigm:paradigm /app/paradigm-contributor
+
+# Switch to app user
+USER paradigm
+
+# Set working directory
+WORKDIR /app
+
+# Expose ports
+EXPOSE 8547
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8547/health || exit 1
+
+# Default command
+CMD ["./paradigm-contributor", "--worker-threads", "4", "--port", "8547"]

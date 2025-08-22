@@ -1,0 +1,136 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paradigm-contributor
+  namespace: paradigm
+  labels:
+    app: paradigm-contributor
+    component: compute-worker
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: paradigm-contributor
+  template:
+    metadata:
+      labels:
+        app: paradigm-contributor
+        component: compute-worker
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: paradigm-contributor
+        image: paradigm/contributor:latest
+        ports:
+        - containerPort: 8547
+          name: http
+          protocol: TCP
+        env:
+        - name: RUST_LOG
+          value: "info"
+        - name: PARADIGM_CORE_URL
+          value: "http://paradigm-core:8545"
+        - name: WORKER_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: GPU_ENABLED
+          value: "true"
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 2Gi
+            nvidia.com/gpu: 1
+          limits:
+            cpu: 4000m
+            memory: 8Gi
+            nvidia.com/gpu: 1
+        volumeMounts:
+        - name: tasks
+          mountPath: /app/tasks
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8547
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8547
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      volumes:
+      - name: tasks
+        emptyDir: {}
+      nodeSelector:
+        kubernetes.io/arch: amd64
+        node-type: compute
+      tolerations:
+      - key: "gpu"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: paradigm-contributor
+  namespace: paradigm
+  labels:
+    app: paradigm-contributor
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8547
+    targetPort: 8547
+    protocol: TCP
+    name: http
+  selector:
+    app: paradigm-contributor
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: paradigm-contributor-hpa
+  namespace: paradigm
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: paradigm-contributor
+  minReplicas: 5
+  maxReplicas: 50
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60

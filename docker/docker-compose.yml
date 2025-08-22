@@ -1,0 +1,220 @@
+version: '3.8'
+
+services:
+  # Paradigm Core Node
+  paradigm-core:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.core
+    container_name: paradigm-core
+    restart: unless-stopped
+    ports:
+      - "8545:8545"  # RPC
+      - "8546:8546"  # WebSocket
+      - "30303:30303" # P2P
+    volumes:
+      - paradigm-data:/app/data
+      - paradigm-config:/app/config
+      - paradigm-logs:/app/logs
+    environment:
+      - RUST_LOG=info
+      - PARADIGM_NETWORK=mainnet
+      - PARADIGM_NODE_TYPE=full
+    networks:
+      - paradigm-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8545/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Paradigm Wallet Service
+  paradigm-wallet:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.wallet
+    container_name: paradigm-wallet
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - paradigm-wallets:/app/wallets
+      - paradigm-logs:/app/logs
+    environment:
+      - RUST_LOG=info
+      - PARADIGM_RPC_URL=http://paradigm-core:8545
+    networks:
+      - paradigm-network
+    depends_on:
+      - paradigm-core
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Paradigm Contributor Nodes (scalable)
+  paradigm-contributor-1:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.contributor
+    container_name: paradigm-contributor-1
+    restart: unless-stopped
+    ports:
+      - "8547:8547"
+    volumes:
+      - paradigm-tasks:/app/tasks
+      - paradigm-logs:/app/logs
+    environment:
+      - RUST_LOG=info
+      - PARADIGM_CORE_URL=http://paradigm-core:8545
+      - WORKER_ID=contributor-1
+    networks:
+      - paradigm-network
+    depends_on:
+      - paradigm-core
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+
+  paradigm-contributor-2:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.contributor
+    container_name: paradigm-contributor-2
+    restart: unless-stopped
+    ports:
+      - "8548:8547"
+    volumes:
+      - paradigm-tasks:/app/tasks
+      - paradigm-logs:/app/logs
+    environment:
+      - RUST_LOG=info
+      - PARADIGM_CORE_URL=http://paradigm-core:8545
+      - WORKER_ID=contributor-2
+    networks:
+      - paradigm-network
+    depends_on:
+      - paradigm-core
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+
+  # Monitoring and Observability
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: paradigm-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - paradigm-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: paradigm-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=paradigm123
+      - GF_USERS_ALLOW_SIGN_UP=false
+    networks:
+      - paradigm-network
+    depends_on:
+      - prometheus
+
+  # Reverse Proxy / Load Balancer
+  nginx:
+    image: nginx:alpine
+    container_name: paradigm-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+      - nginx-logs:/var/log/nginx
+    networks:
+      - paradigm-network
+    depends_on:
+      - paradigm-core
+      - paradigm-wallet
+
+  # Database for analytics and logs
+  postgres:
+    image: postgres:15-alpine
+    container_name: paradigm-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    environment:
+      - POSTGRES_DB=paradigm
+      - POSTGRES_USER=paradigm
+      - POSTGRES_PASSWORD=paradigm_secure_password
+    networks:
+      - paradigm-network
+
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    container_name: paradigm-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --requirepass paradigm_redis_password
+    networks:
+      - paradigm-network
+
+networks:
+  paradigm-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  paradigm-data:
+    driver: local
+  paradigm-config:
+    driver: local
+  paradigm-wallets:
+    driver: local
+  paradigm-tasks:
+    driver: local
+  paradigm-logs:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  nginx-logs:
+    driver: local

@@ -1,0 +1,115 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ssd-retain
+  labels:
+    app.kubernetes.io/name: paradigm
+    app.kubernetes.io/component: storage
+provisioner: kubernetes.io/gce-pd
+parameters:
+  type: pd-ssd
+  replication-type: regional-pd
+  zones: us-central1-a,us-central1-b,us-central1-c
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ssd-delete
+  labels:
+    app.kubernetes.io/name: paradigm
+    app.kubernetes.io/component: storage
+provisioner: kubernetes.io/gce-pd
+parameters:
+  type: pd-ssd
+  replication-type: regional-pd
+  zones: us-central1-a,us-central1-b,us-central1-c
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: standard-retain
+  labels:
+    app.kubernetes.io/name: paradigm
+    app.kubernetes.io/component: storage
+provisioner: kubernetes.io/gce-pd
+parameters:
+  type: pd-standard
+  replication-type: regional-pd
+  zones: us-central1-a,us-central1-b,us-central1-c
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+
+---
+# AWS EBS Storage Classes
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gp3-retain
+  labels:
+    app.kubernetes.io/name: paradigm
+    app.kubernetes.io/component: storage
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3
+  iops: "3000"
+  throughput: "125"
+  encrypted: "true"
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: io2-retain
+  labels:
+    app.kubernetes.io/name: paradigm
+    app.kubernetes.io/component: storage
+provisioner: ebs.csi.aws.com
+parameters:
+  type: io2
+  iops: "10000"
+  encrypted: "true"
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+
+---
+# Azure Disk Storage Classes
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: premium-ssd-retain
+  labels:
+    app.kubernetes.io/name: paradigm
+    app.kubernetes.io/component: storage
+provisioner: disk.csi.azure.com
+parameters:
+  skuName: Premium_LRS
+  cachingmode: ReadOnly
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+
+---
+# Local NVMe Storage for ultra-high performance
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-nvme
+  labels:
+    app.kubernetes.io/name: paradigm
+    app.kubernetes.io/component: storage
+provisioner: kubernetes.io/no-provisioner
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
