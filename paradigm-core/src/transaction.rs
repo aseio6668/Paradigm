@@ -1,9 +1,9 @@
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
-use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
-use crate::{Keypair, Address};
+use crate::{Address, Keypair};
 use blake3::Hasher;
+use chrono::{DateTime, Utc};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 /// Transaction structure for Paradigm network
@@ -12,8 +12,8 @@ pub struct Transaction {
     pub id: Uuid,
     pub from: Address,
     pub to: Address,
-    pub amount: u64,  // Amount in smallest unit (8 decimal places)
-    pub fee: u64,     // Transaction fee
+    pub amount: u64, // Amount in smallest unit (8 decimal places)
+    pub fee: u64,    // Transaction fee
     pub timestamp: DateTime<Utc>,
     pub signature: Vec<u8>,
     pub nonce: u64,
@@ -31,7 +31,7 @@ impl Transaction {
     ) -> anyhow::Result<Self> {
         let id = Uuid::new_v4();
         let nonce = timestamp.timestamp_nanos_opt().unwrap_or(0) as u64;
-        
+
         // Create transaction without signature first
         let mut transaction = Transaction {
             id,
@@ -82,7 +82,13 @@ impl Transaction {
         hasher.update(self.to.as_bytes());
         hasher.update(&self.amount.to_le_bytes());
         hasher.update(&self.fee.to_le_bytes());
-        hasher.update(&self.timestamp.timestamp_nanos_opt().unwrap_or(0).to_le_bytes());
+        hasher.update(
+            &self
+                .timestamp
+                .timestamp_nanos_opt()
+                .unwrap_or(0)
+                .to_le_bytes(),
+        );
         hasher.update(&self.nonce.to_le_bytes());
         hasher.finalize().as_bytes().to_vec()
     }
@@ -214,7 +220,7 @@ mod tests {
         let keypair = Keypair::generate(&mut thread_rng());
         let from = Address::from_public_key(&keypair.public);
         let to = Address::from_public_key(&keypair.public);
-        
+
         let transaction = Transaction::new(
             from,
             to,
@@ -222,7 +228,8 @@ mod tests {
             10000000,   // 0.1 PAR fee
             Utc::now(),
             &keypair,
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!(transaction.amount, 1000000000);
         assert_eq!(transaction.fee, 10000000);
@@ -234,15 +241,9 @@ mod tests {
         let keypair = Keypair::generate(&mut thread_rng());
         let from = Address::from_public_key(&keypair.public);
         let to = Address::from_public_key(&keypair.public);
-        
-        let transaction = Transaction::new(
-            from,
-            to,
-            1000000000,
-            10000000,
-            Utc::now(),
-            &keypair,
-        ).unwrap();
+
+        let transaction =
+            Transaction::new(from, to, 1000000000, 10000000, Utc::now(), &keypair).unwrap();
 
         assert!(transaction.verify_signature(&keypair.public));
         assert!(transaction.validate(&keypair.public).is_ok());
@@ -254,15 +255,9 @@ mod tests {
         let keypair = Keypair::generate(&mut thread_rng());
         let from = Address::from_public_key(&keypair.public);
         let to = Address::from_public_key(&keypair.public);
-        
-        let transaction = Transaction::new(
-            from.clone(),
-            to,
-            1000000000,
-            10000000,
-            Utc::now(),
-            &keypair,
-        ).unwrap();
+
+        let transaction =
+            Transaction::new(from.clone(), to, 1000000000, 10000000, Utc::now(), &keypair).unwrap();
 
         pool.add_transaction(transaction.clone()).await.unwrap();
         assert_eq!(pool.size(), 1);

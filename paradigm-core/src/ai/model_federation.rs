@@ -1,15 +1,15 @@
 // Model Federation Manager
 // Federated learning and model synchronization system
 
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use anyhow::Result;
 use uuid::Uuid;
-use serde::{Serialize, Deserialize};
 
-use super::{AIModelConfig, AIDecision};
+use super::{AIDecision, AIModelConfig};
 
 /// Model federation manager
 pub struct ModelFederationManager {

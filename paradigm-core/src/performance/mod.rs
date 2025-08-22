@@ -1,28 +1,28 @@
 // Performance optimization modules for Paradigm cryptocurrency
 // Phase 3: Optimization and Scaling
 
-pub mod transaction_batching;
-pub mod memory_pool;
-pub mod parallel_processing;
-pub mod database_optimization;
-pub mod consensus_optimization;
+pub mod auto_scaling;
 pub mod cache_manager;
+pub mod consensus_optimization;
+pub mod database_optimization;
+pub mod memory_pool;
 pub mod metrics_collector;
 pub mod network_scaling;
-pub mod auto_scaling;
+pub mod parallel_processing;
+pub mod transaction_batching;
 
-pub use transaction_batching::*;
-pub use memory_pool::*;
-pub use parallel_processing::*;
-pub use database_optimization::*;
-pub use consensus_optimization::*;
+pub use auto_scaling::*;
 pub use cache_manager::*;
+pub use consensus_optimization::*;
+pub use database_optimization::*;
+pub use memory_pool::*;
 pub use metrics_collector::*;
 pub use network_scaling::*;
-pub use auto_scaling::*;
+pub use parallel_processing::*;
+pub use transaction_batching::*;
 
+use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
-use serde::{Serialize, Deserialize};
 
 /// Performance metrics and monitoring
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,16 +1,15 @@
+use chrono::{DateTime, Duration, Utc};
+use serde::{Deserialize, Serialize};
 /// Real-time Network Analytics Dashboard
 /// Provides comprehensive monitoring, metrics collection, and visualization
 /// for the Paradigm tokenomics network
-
 use std::collections::{HashMap, VecDeque};
-use chrono::{DateTime, Utc, Duration};
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-use tokio::sync::RwLock;
 use std::sync::Arc;
+use tokio::sync::RwLock;
+use uuid::Uuid;
 
+use super::{ContributionType, EconomicParameters, NetworkState};
 use crate::{Address, ParadigmError};
-use super::{NetworkState, EconomicParameters, ContributionType};
 
 pub type Result<T> = std::result::Result<T, ParadigmError>;
 
@@ -51,7 +50,7 @@ impl NetworkAnalyticsDashboard {
         self.alert_system.initialize().await?;
         self.visualization_engine.initialize().await?;
         self.data_retention.initialize().await?;
-        
+
         println!("Network Analytics Dashboard initialized successfully");
         Ok(())
     }
@@ -59,31 +58,40 @@ impl NetworkAnalyticsDashboard {
     /// Update dashboard with new network state
     pub async fn update_network_state(&mut self, network_state: &NetworkState) -> Result<()> {
         // Collect metrics
-        self.metrics_collector.collect_network_metrics(network_state).await?;
-        
+        self.metrics_collector
+            .collect_network_metrics(network_state)
+            .await?;
+
         // Monitor performance
-        self.performance_monitor.update_performance_metrics(network_state).await?;
-        
+        self.performance_monitor
+            .update_performance_metrics(network_state)
+            .await?;
+
         // Track economic health
-        self.economic_tracker.analyze_economic_health(network_state).await?;
-        
+        self.economic_tracker
+            .analyze_economic_health(network_state)
+            .await?;
+
         // Check for alerts
         self.alert_system.check_thresholds(network_state).await?;
-        
+
         // Update visualizations
-        self.visualization_engine.update_charts(network_state).await?;
-        
+        self.visualization_engine
+            .update_charts(network_state)
+            .await?;
+
         // Manage data retention
         self.data_retention.manage_historical_data().await?;
-        
+
         Ok(())
     }
 
     /// Record contribution event
-    pub async fn record_contribution(&mut self, 
-        contributor: &Address, 
+    pub async fn record_contribution(
+        &mut self,
+        contributor: &Address,
         contribution_type: ContributionType,
-        value: u64
+        value: u64,
     ) -> Result<()> {
         let event = ContributionEvent {
             id: Uuid::new_v4(),
@@ -92,8 +100,10 @@ impl NetworkAnalyticsDashboard {
             value,
             timestamp: Utc::now(),
         };
-        
-        self.metrics_collector.record_contribution_event(event).await?;
+
+        self.metrics_collector
+            .record_contribution_event(event)
+            .await?;
         Ok(())
     }
 
@@ -104,7 +114,7 @@ impl NetworkAnalyticsDashboard {
         let economic_health = self.economic_tracker.get_health_indicators().await?;
         let active_alerts = self.alert_system.get_active_alerts().await?;
         let chart_data = self.visualization_engine.get_chart_data().await?;
-        
+
         Ok(DashboardData {
             timestamp: Utc::now(),
             metrics: current_metrics,
@@ -117,10 +127,13 @@ impl NetworkAnalyticsDashboard {
 
     /// Generate analytics report
     pub async fn generate_report(&self, timeframe: TimeFrame) -> Result<AnalyticsReport> {
-        let historical_data = self.data_retention.get_historical_data(timeframe.clone()).await?;
+        let historical_data = self
+            .data_retention
+            .get_historical_data(timeframe.clone())
+            .await?;
         let trends = self.analyze_trends(&historical_data).await?;
         let insights = self.generate_insights(&trends).await?;
-        
+
         Ok(AnalyticsReport {
             timeframe,
             generated_at: Utc::now(),
@@ -136,13 +149,13 @@ impl NetworkAnalyticsDashboard {
         let mut token_supply_trend = Vec::new();
         let mut participation_trend = Vec::new();
         let mut performance_trend = Vec::new();
-        
+
         for point in data {
             token_supply_trend.push((point.timestamp, point.metrics.total_supply as f64));
             participation_trend.push((point.timestamp, point.metrics.active_participants as f64));
             performance_trend.push((point.timestamp, point.performance.throughput));
         }
-        
+
         Ok(TrendAnalysis {
             token_supply_trend: self.calculate_trend_direction(&token_supply_trend),
             participation_trend: self.calculate_trend_direction(&participation_trend),
@@ -155,11 +168,11 @@ impl NetworkAnalyticsDashboard {
         if data.len() < 2 {
             return TrendDirection::Stable;
         }
-        
+
         let start_value = data.first().unwrap().1;
         let end_value = data.last().unwrap().1;
         let change_percent = ((end_value - start_value) / start_value) * 100.0;
-        
+
         if change_percent > 5.0 {
             TrendDirection::Increasing
         } else if change_percent < -5.0 {
@@ -173,19 +186,17 @@ impl NetworkAnalyticsDashboard {
         if data.len() < 2 {
             return 0.0;
         }
-        
+
         let values: Vec<f64> = data.iter().map(|(_, v)| *v).collect();
         let mean = values.iter().sum::<f64>() / values.len() as f64;
-        let variance = values.iter()
-            .map(|v| (v - mean).powi(2))
-            .sum::<f64>() / values.len() as f64;
-        
+        let variance = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / values.len() as f64;
+
         variance.sqrt() / mean
     }
 
     async fn generate_insights(&self, trends: &TrendAnalysis) -> Result<Vec<NetworkInsight>> {
         let mut insights = Vec::new();
-        
+
         // Token supply insights
         match trends.token_supply_trend {
             TrendDirection::Increasing => {
@@ -195,28 +206,33 @@ impl NetworkAnalyticsDashboard {
                     message: "Token supply is increasing, indicating network growth".to_string(),
                     recommendation: "Monitor inflation rate to ensure sustainability".to_string(),
                 });
-            },
+            }
             TrendDirection::Decreasing => {
                 insights.push(NetworkInsight {
                     category: InsightCategory::Tokenomics,
                     severity: InsightSeverity::Warning,
-                    message: "Token supply is decreasing, potential deflationary pressure".to_string(),
-                    recommendation: "Consider adjusting burn rate or increasing rewards".to_string(),
+                    message: "Token supply is decreasing, potential deflationary pressure"
+                        .to_string(),
+                    recommendation: "Consider adjusting burn rate or increasing rewards"
+                        .to_string(),
                 });
-            },
+            }
             _ => {}
         }
-        
+
         // Volatility insights
         if trends.volatility_index > 0.2 {
             insights.push(NetworkInsight {
                 category: InsightCategory::Stability,
                 severity: InsightSeverity::Warning,
-                message: format!("High volatility detected: {:.2}%", trends.volatility_index * 100.0),
+                message: format!(
+                    "High volatility detected: {:.2}%",
+                    trends.volatility_index * 100.0
+                ),
                 recommendation: "Consider implementing stability mechanisms".to_string(),
             });
         }
-        
+
         Ok(insights)
     }
 
@@ -224,21 +240,23 @@ impl NetworkAnalyticsDashboard {
         if data.is_empty() {
             return Ok(ReportSummary::default());
         }
-        
+
         let latest = data.last().unwrap();
         let earliest = data.first().unwrap();
-        
+
         Ok(ReportSummary {
             period_start: earliest.timestamp,
             period_end: latest.timestamp,
             total_data_points: data.len(),
-            average_participants: data.iter()
+            average_participants: data
+                .iter()
                 .map(|d| d.metrics.active_participants as f64)
-                .sum::<f64>() / data.len() as f64,
-            average_throughput: data.iter()
-                .map(|d| d.performance.throughput)
-                .sum::<f64>() / data.len() as f64,
-            total_contributions: data.iter()
+                .sum::<f64>()
+                / data.len() as f64,
+            average_throughput: data.iter().map(|d| d.performance.throughput).sum::<f64>()
+                / data.len() as f64,
+            total_contributions: data
+                .iter()
                 .map(|d| d.metrics.total_contributions)
                 .sum::<u64>(),
         })
@@ -246,25 +264,35 @@ impl NetworkAnalyticsDashboard {
 
     async fn generate_recommendations(&self, insights: &[NetworkInsight]) -> Result<Vec<String>> {
         let mut recommendations = Vec::new();
-        
-        let warning_count = insights.iter()
-            .filter(|i| matches!(i.severity, InsightSeverity::Warning | InsightSeverity::Critical))
+
+        let warning_count = insights
+            .iter()
+            .filter(|i| {
+                matches!(
+                    i.severity,
+                    InsightSeverity::Warning | InsightSeverity::Critical
+                )
+            })
             .count();
-            
+
         if warning_count > 0 {
-            recommendations.push("Review network health indicators and consider parameter adjustments".to_string());
+            recommendations.push(
+                "Review network health indicators and consider parameter adjustments".to_string(),
+            );
         }
-        
-        let tokenomics_issues = insights.iter()
+
+        let tokenomics_issues = insights
+            .iter()
             .filter(|i| matches!(i.category, InsightCategory::Tokenomics))
             .count();
-            
+
         if tokenomics_issues > 0 {
-            recommendations.push("Analyze tokenomics parameters and consider optimization".to_string());
+            recommendations
+                .push("Analyze tokenomics parameters and consider optimization".to_string());
         }
-        
+
         recommendations.push("Continue monitoring network metrics for emerging trends".to_string());
-        
+
         Ok(recommendations)
     }
 }
@@ -320,7 +348,7 @@ impl MetricsCollector {
                 metrics,
                 timestamp: Utc::now(),
             });
-            
+
             // Keep last 1000 entries
             if history.len() > 1000 {
                 history.pop_front();
@@ -333,12 +361,12 @@ impl MetricsCollector {
     pub async fn record_contribution_event(&mut self, event: ContributionEvent) -> Result<()> {
         let mut events = self.contribution_events.write().await;
         events.push_back(event);
-        
+
         // Keep last 500 events
         if events.len() > 500 {
             events.pop_front();
         }
-        
+
         Ok(())
     }
 
@@ -463,7 +491,8 @@ impl EconomicHealthTracker {
     }
 
     fn calculate_treasury_health(&self, network_state: &NetworkState) -> f64 {
-        let treasury_ratio = network_state.treasury_balance as f64 / network_state.total_supply as f64;
+        let treasury_ratio =
+            network_state.treasury_balance as f64 / network_state.total_supply as f64;
         // Healthy treasury should be 5-15% of total supply
         if treasury_ratio >= 0.05 && treasury_ratio <= 0.15 {
             1.0
@@ -489,10 +518,14 @@ impl EconomicHealthTracker {
 
     fn calculate_stability_index(&self, network_state: &NetworkState) -> f64 {
         // Combine multiple factors for stability
-        let inflation_stability = if network_state.inflation_rate <= 0.1 { 1.0 } else { 0.1 / network_state.inflation_rate };
+        let inflation_stability = if network_state.inflation_rate <= 0.1 {
+            1.0
+        } else {
+            0.1 / network_state.inflation_rate
+        };
         let error_stability = 1.0 - network_state.error_rate;
         let uptime_stability = network_state.uptime_percentage;
-        
+
         (inflation_stability + error_stability + uptime_stability) / 3.0
     }
 
@@ -571,11 +604,21 @@ impl AlertSystem {
             }
 
             let triggered = match &rule.condition {
-                AlertCondition::ErrorRateExceeds(threshold) => network_state.error_rate > *threshold,
-                AlertCondition::UptimeBelow(threshold) => network_state.uptime_percentage < *threshold,
-                AlertCondition::InflationExceeds(threshold) => network_state.inflation_rate > *threshold,
-                AlertCondition::ParticipationBelow(threshold) => network_state.governance_participation_rate < *threshold,
-                AlertCondition::ThroughputBelow(threshold) => network_state.transaction_throughput < *threshold,
+                AlertCondition::ErrorRateExceeds(threshold) => {
+                    network_state.error_rate > *threshold
+                }
+                AlertCondition::UptimeBelow(threshold) => {
+                    network_state.uptime_percentage < *threshold
+                }
+                AlertCondition::InflationExceeds(threshold) => {
+                    network_state.inflation_rate > *threshold
+                }
+                AlertCondition::ParticipationBelow(threshold) => {
+                    network_state.governance_participation_rate < *threshold
+                }
+                AlertCondition::ThroughputBelow(threshold) => {
+                    network_state.transaction_throughput < *threshold
+                }
             };
 
             if triggered {
@@ -605,7 +648,7 @@ impl AlertSystem {
                 for alert in new_alerts {
                     history.push_back(alert);
                 }
-                
+
                 // Keep last 1000 alerts
                 while history.len() > 1000 {
                     history.pop_front();
@@ -650,15 +693,23 @@ impl VisualizationEngine {
 
     pub async fn update_charts(&mut self, network_state: &NetworkState) -> Result<()> {
         let timestamp = Utc::now();
-        
+
         let mut charts = self.chart_data.write().await;
-        
+
         // Update time series charts
-        charts.token_supply_chart.push((timestamp, network_state.total_supply as f64));
-        charts.participation_chart.push((timestamp, network_state.active_participants as f64));
-        charts.throughput_chart.push((timestamp, network_state.transaction_throughput));
-        charts.uptime_chart.push((timestamp, network_state.uptime_percentage * 100.0));
-        
+        charts
+            .token_supply_chart
+            .push((timestamp, network_state.total_supply as f64));
+        charts
+            .participation_chart
+            .push((timestamp, network_state.active_participants as f64));
+        charts
+            .throughput_chart
+            .push((timestamp, network_state.transaction_throughput));
+        charts
+            .uptime_chart
+            .push((timestamp, network_state.uptime_percentage * 100.0));
+
         // Keep last 100 data points for each chart
         if charts.token_supply_chart.len() > 100 {
             charts.token_supply_chart.remove(0);
@@ -704,10 +755,10 @@ impl DataRetentionManager {
 
     pub async fn manage_historical_data(&mut self) -> Result<()> {
         let mut data = self.historical_data.write().await;
-        
+
         // Remove data older than retention period
         let cutoff_time = Utc::now() - Duration::days(self.retention_policy.days_to_keep as i64);
-        
+
         while let Some(front) = data.front() {
             if front.timestamp < cutoff_time {
                 data.pop_front();
@@ -719,7 +770,10 @@ impl DataRetentionManager {
         Ok(())
     }
 
-    pub async fn get_historical_data(&self, timeframe: TimeFrame) -> Result<Vec<HistoricalDataPoint>> {
+    pub async fn get_historical_data(
+        &self,
+        timeframe: TimeFrame,
+    ) -> Result<Vec<HistoricalDataPoint>> {
         let data = self.historical_data.read().await;
         let cutoff_time = match timeframe {
             TimeFrame::LastHour => Utc::now() - Duration::hours(1),
@@ -999,7 +1053,7 @@ pub struct RetentionPolicy {
 impl Default for RetentionPolicy {
     fn default() -> Self {
         Self {
-            days_to_keep: 30, // Keep 30 days of data
+            days_to_keep: 30,       // Keep 30 days of data
             max_data_points: 10000, // Maximum 10k data points
         }
     }

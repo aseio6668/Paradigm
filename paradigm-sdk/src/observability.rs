@@ -1,6 +1,6 @@
-use crate::{Hash, Address, Amount, Transaction, Error, Result};
-use crate::monitoring::{MonitoringSystem, MonitoringConfig};
-use crate::telemetry::{TelemetrySystem, TelemetryConfig};
+use crate::monitoring::{MonitoringConfig, MonitoringSystem};
+use crate::telemetry::{TelemetryConfig, TelemetrySystem};
+use crate::{Address, Amount, Error, Hash, Result, Transaction};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, RwLock};
@@ -635,11 +635,22 @@ pub struct NotificationRouter {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum NotificationChannel {
-    Email { smtp_config: SmtpConfig },
-    Slack { webhook_url: String },
-    PagerDuty { api_key: String },
-    Webhook { url: String, headers: HashMap<String, String> },
-    SMS { provider: SmsProvider },
+    Email {
+        smtp_config: SmtpConfig,
+    },
+    Slack {
+        webhook_url: String,
+    },
+    PagerDuty {
+        api_key: String,
+    },
+    Webhook {
+        url: String,
+        headers: HashMap<String, String>,
+    },
+    SMS {
+        provider: SmsProvider,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -688,7 +699,7 @@ impl ObservabilityPlatform {
         let analytics = Arc::new(AnalyticsEngine::new(config.analytics_config.clone()));
         let dashboard = Arc::new(DashboardManager::new(config.dashboard_config.clone()));
         let alerting = Arc::new(AdvancedAlerting::new(config.alerting_config.clone()));
-        
+
         ObservabilityPlatform {
             monitoring,
             telemetry,
@@ -698,7 +709,7 @@ impl ObservabilityPlatform {
             config,
         }
     }
-    
+
     /// Start the observability platform
     pub async fn start(&self) -> Result<()> {
         // Start all subsystems
@@ -707,48 +718,64 @@ impl ObservabilityPlatform {
         self.analytics.start().await?;
         self.dashboard.start().await?;
         self.alerting.start().await?;
-        
+
         Ok(())
     }
-    
+
     /// Record blockchain transaction with full observability
     pub async fn observe_transaction(&self, transaction: &Transaction) -> Result<String> {
-        let observation_id = format!("obs_{}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
-        
+        let observation_id = format!(
+            "obs_{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+
         // Start distributed trace
-        let span = self.telemetry.start_span("blockchain_transaction")
+        let span = self
+            .telemetry
+            .start_span("blockchain_transaction")
             .with_tag("tx.hash", &transaction.hash.to_hex())
             .with_tag("tx.from", &transaction.from.to_hex())
             .with_tag("tx.to", &transaction.to.to_hex())
             .with_tag("observation.id", &observation_id)
             .start();
-        
+
         // Record metrics
         let start_time = Instant::now();
-        self.monitoring.record_transaction(transaction, Duration::from_millis(0), true).await;
-        
+        self.monitoring
+            .record_transaction(transaction, Duration::from_millis(0), true)
+            .await;
+
         // Store in time series database
-        self.analytics.record_transaction_metrics(transaction).await?;
-        
+        self.analytics
+            .record_transaction_metrics(transaction)
+            .await?;
+
         // Analyze for anomalies
-        self.analytics.analyze_transaction_anomalies(transaction).await?;
-        
+        self.analytics
+            .analyze_transaction_anomalies(transaction)
+            .await?;
+
         // Log structured event
-        self.telemetry.log_structured(
-            crate::telemetry::LogLevel::Info,
-            "Transaction observed",
-            &[
-                ("observation.id", &observation_id),
-                ("tx.hash", &transaction.hash.to_hex()),
-                ("tx.amount", &transaction.amount.to_paradigm().to_string()),
-            ],
-        ).await;
-        
+        self.telemetry
+            .log_structured(
+                crate::telemetry::LogLevel::Info,
+                "Transaction observed",
+                &[
+                    ("observation.id", &observation_id),
+                    ("tx.hash", &transaction.hash.to_hex()),
+                    ("tx.amount", &transaction.amount.to_paradigm().to_string()),
+                ],
+            )
+            .await;
+
         span.finish();
-        
+
         Ok(observation_id)
     }
-    
+
     /// Get comprehensive system insights
     pub async fn get_system_insights(&self) -> SystemInsights {
         let health = self.monitoring.get_system_health().await;
@@ -756,7 +783,7 @@ impl ObservabilityPlatform {
         let anomalies = self.analytics.get_recent_anomalies(50).await;
         let trends = self.analytics.get_trend_analysis().await;
         let alerts = self.alerting.get_active_alerts().await;
-        
+
         SystemInsights {
             timestamp: SystemTime::now(),
             health_status: health.overall_status,
@@ -764,14 +791,22 @@ impl ObservabilityPlatform {
             anomaly_count: anomalies.len(),
             active_alert_count: alerts.len(),
             key_trends: trends.into_iter().take(10).collect(),
-            system_score: self.calculate_system_score(&health, &performance, &anomalies).await,
+            system_score: self
+                .calculate_system_score(&health, &performance, &anomalies)
+                .await,
         }
     }
-    
+
     /// Create real-time dashboard
     pub async fn create_dashboard(&self, name: &str, widgets: Vec<Widget>) -> Result<String> {
         let dashboard = Dashboard {
-            id: format!("dash_{}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()),
+            id: format!(
+                "dash_{}",
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ),
             name: name.to_string(),
             description: String::new(),
             widgets,
@@ -788,13 +823,13 @@ impl ObservabilityPlatform {
             created_at: SystemTime::now(),
             last_modified: SystemTime::now(),
         };
-        
+
         let dashboard_id = dashboard.id.clone();
         self.dashboard.add_dashboard(dashboard).await?;
-        
+
         Ok(dashboard_id)
     }
-    
+
     /// Export comprehensive observability report
     pub async fn export_observability_report(&self, format: ReportFormat) -> Result<String> {
         let insights = self.get_system_insights().await;
@@ -803,7 +838,7 @@ impl ObservabilityPlatform {
         let anomalies = self.analytics.get_recent_anomalies(100).await;
         let trends = self.analytics.get_trend_analysis().await;
         let alerts = self.alerting.get_active_alerts().await;
-        
+
         let report = ObservabilityReport {
             generated_at: SystemTime::now(),
             report_period: Duration::from_secs(3600), // Last hour
@@ -815,7 +850,7 @@ impl ObservabilityPlatform {
             alerts,
             recommendations: self.generate_recommendations().await,
         };
-        
+
         match format {
             ReportFormat::Json => serde_json::to_string_pretty(&report)
                 .map_err(|e| Error::SerializationError(e.to_string())),
@@ -823,7 +858,7 @@ impl ObservabilityPlatform {
             ReportFormat::Pdf => self.generate_pdf_report(&report).await,
         }
     }
-    
+
     async fn calculate_system_score(
         &self,
         health: &crate::monitoring::HealthSnapshot,
@@ -831,7 +866,7 @@ impl ObservabilityPlatform {
         anomalies: &[Anomaly],
     ) -> f64 {
         let mut score = 100.0;
-        
+
         // Health impact
         match health.overall_status {
             crate::monitoring::HealthStatus::Healthy => score -= 0.0,
@@ -839,22 +874,25 @@ impl ObservabilityPlatform {
             crate::monitoring::HealthStatus::Unhealthy => score -= 50.0,
             crate::monitoring::HealthStatus::Unknown => score -= 30.0,
         }
-        
+
         // Performance impact
-        let avg_error_rate = performance.values()
+        let avg_error_rate = performance
+            .values()
             .map(|m| m.error_count as f64 / m.total_count as f64)
-            .sum::<f64>() / performance.len() as f64;
+            .sum::<f64>()
+            / performance.len() as f64;
         score -= avg_error_rate * 30.0;
-        
+
         // Anomaly impact
-        let recent_anomalies = anomalies.iter()
+        let recent_anomalies = anomalies
+            .iter()
             .filter(|a| a.timestamp > SystemTime::now() - Duration::from_secs(3600))
             .count();
         score -= (recent_anomalies as f64) * 2.0;
-        
+
         score.max(0.0).min(100.0)
     }
-    
+
     async fn generate_recommendations(&self) -> Vec<String> {
         vec![
             "Consider increasing monitoring frequency for critical metrics".to_string(),
@@ -863,12 +901,15 @@ impl ObservabilityPlatform {
             "Implement circuit breakers for external dependencies".to_string(),
         ]
     }
-    
+
     async fn generate_html_report(&self, _report: &ObservabilityReport) -> Result<String> {
         // Mock HTML report generation
-        Ok("<html><body><h1>Observability Report</h1><p>Generated successfully</p></body></html>".to_string())
+        Ok(
+            "<html><body><h1>Observability Report</h1><p>Generated successfully</p></body></html>"
+                .to_string(),
+        )
     }
-    
+
     async fn generate_pdf_report(&self, _report: &ObservabilityReport) -> Result<String> {
         // Mock PDF report generation
         Ok("PDF report generated (base64 encoded content would go here)".to_string())
@@ -901,33 +942,29 @@ impl PerformanceSummary {
         let avg_response_time = if metrics.is_empty() {
             Duration::from_millis(0)
         } else {
-            let total_duration: Duration = metrics.values()
-                .map(|m| m.avg_duration)
-                .sum();
+            let total_duration: Duration = metrics.values().map(|m| m.avg_duration).sum();
             total_duration / metrics.len() as u32
         };
-        
+
         let error_rate = if metrics.is_empty() {
             0.0
         } else {
-            metrics.values()
+            metrics
+                .values()
                 .map(|m| m.error_count as f64 / m.total_count as f64)
-                .sum::<f64>() / metrics.len() as f64
+                .sum::<f64>()
+                / metrics.len() as f64
         };
-        
-        let throughput = metrics.values()
-            .map(|m| m.throughput)
-            .sum::<f64>();
-        
-        let mut slow_ops: Vec<_> = metrics.iter()
+
+        let throughput = metrics.values().map(|m| m.throughput).sum::<f64>();
+
+        let mut slow_ops: Vec<_> = metrics
+            .iter()
             .map(|(name, metrics)| (name.clone(), metrics.avg_duration))
             .collect();
         slow_ops.sort_by(|a, b| b.1.cmp(&a.1));
-        let top_slow_operations = slow_ops.into_iter()
-            .take(5)
-            .map(|(name, _)| name)
-            .collect();
-        
+        let top_slow_operations = slow_ops.into_iter().take(5).map(|(name, _)| name).collect();
+
         PerformanceSummary {
             avg_response_time,
             error_rate,
@@ -970,23 +1007,23 @@ impl AnalyticsEngine {
             prediction_models: RwLock::new(HashMap::new()),
         }
     }
-    
+
     async fn start(&self) -> Result<()> {
         Ok(())
     }
-    
+
     async fn record_transaction_metrics(&self, _transaction: &Transaction) -> Result<()> {
         Ok(())
     }
-    
+
     async fn analyze_transaction_anomalies(&self, _transaction: &Transaction) -> Result<()> {
         Ok(())
     }
-    
+
     async fn get_recent_anomalies(&self, _limit: usize) -> Vec<Anomaly> {
         Vec::new()
     }
-    
+
     async fn get_trend_analysis(&self) -> Vec<TrendModel> {
         Vec::new()
     }
@@ -1064,7 +1101,7 @@ impl CorrelationEngine {
 impl DashboardManager {
     fn new(_config: DashboardConfig) -> Self {
         let (real_time_updates, _) = broadcast::channel(1000);
-        
+
         DashboardManager {
             dashboards: RwLock::new(HashMap::new()),
             widget_registry: WidgetRegistry {
@@ -1073,11 +1110,11 @@ impl DashboardManager {
             real_time_updates,
         }
     }
-    
+
     async fn start(&self) -> Result<()> {
         Ok(())
     }
-    
+
     async fn add_dashboard(&self, dashboard: Dashboard) -> Result<()> {
         let mut dashboards = self.dashboards.write().unwrap();
         dashboards.insert(dashboard.id.clone(), dashboard);
@@ -1101,11 +1138,11 @@ impl AdvancedAlerting {
             },
         }
     }
-    
+
     async fn start(&self) -> Result<()> {
         Ok(())
     }
-    
+
     async fn get_active_alerts(&self) -> Vec<crate::monitoring::SecurityAudit> {
         Vec::new() // Mock implementation
     }
@@ -1188,23 +1225,26 @@ impl Default for ObservabilityConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_observability_platform_creation() {
         let config = ObservabilityConfig::default();
         let platform = ObservabilityPlatform::new(config);
-        
+
         // Platform should be created successfully
         assert!(platform.start().await.is_ok());
     }
-    
+
     #[tokio::test]
     async fn test_transaction_observation() {
         let config = ObservabilityConfig::default();
         let platform = ObservabilityPlatform::new(config);
-        
+
         let transaction = Transaction {
-            hash: Hash::from_hex("deadbeef000000000000000000000000000000000000000000000000deadbeef").unwrap(),
+            hash: Hash::from_hex(
+                "deadbeef000000000000000000000000000000000000000000000000deadbeef",
+            )
+            .unwrap(),
             from: Address::from_hex("1111111111111111111111111111111111111111").unwrap(),
             to: Address::from_hex("2222222222222222222222222222222222222222").unwrap(),
             amount: Amount::from_paradigm(1.0),
@@ -1216,72 +1256,82 @@ mod tests {
             transaction_index: None,
             input: vec![],
         };
-        
+
         let observation_id = platform.observe_transaction(&transaction).await.unwrap();
         assert!(!observation_id.is_empty());
         assert!(observation_id.starts_with("obs_"));
     }
-    
+
     #[tokio::test]
     async fn test_system_insights() {
         let config = ObservabilityConfig::default();
         let platform = ObservabilityPlatform::new(config);
-        
+
         let insights = platform.get_system_insights().await;
-        
+
         assert!(insights.system_score >= 0.0 && insights.system_score <= 100.0);
         assert_eq!(insights.anomaly_count, 0); // No anomalies in fresh system
         assert_eq!(insights.active_alert_count, 0); // No alerts in fresh system
     }
-    
+
     #[tokio::test]
     async fn test_dashboard_creation() {
         let config = ObservabilityConfig::default();
         let platform = ObservabilityPlatform::new(config);
-        
-        let widgets = vec![
-            Widget {
-                id: "widget_1".to_string(),
-                widget_type: WidgetType::LineChart,
-                title: "Transaction Volume".to_string(),
-                data_source: DataSource {
-                    source_type: DataSourceType::Metrics,
-                    query: "transaction_count".to_string(),
-                    parameters: HashMap::new(),
-                    refresh_interval: Duration::from_secs(30),
-                },
-                visualization_config: VisualizationConfig {
-                    colors: vec!["#FF6B6B".to_string(), "#4ECDC4".to_string()],
-                    axes: HashMap::new(),
-                    legend: LegendConfig {
-                        show: true,
-                        position: LegendPosition::Bottom,
-                    },
-                    custom_options: HashMap::new(),
-                },
-                position: WidgetPosition { x: 0, y: 0 },
-                size: WidgetSize { width: 6, height: 4 },
+
+        let widgets = vec![Widget {
+            id: "widget_1".to_string(),
+            widget_type: WidgetType::LineChart,
+            title: "Transaction Volume".to_string(),
+            data_source: DataSource {
+                source_type: DataSourceType::Metrics,
+                query: "transaction_count".to_string(),
+                parameters: HashMap::new(),
+                refresh_interval: Duration::from_secs(30),
             },
-        ];
-        
-        let dashboard_id = platform.create_dashboard("Test Dashboard", widgets).await.unwrap();
+            visualization_config: VisualizationConfig {
+                colors: vec!["#FF6B6B".to_string(), "#4ECDC4".to_string()],
+                axes: HashMap::new(),
+                legend: LegendConfig {
+                    show: true,
+                    position: LegendPosition::Bottom,
+                },
+                custom_options: HashMap::new(),
+            },
+            position: WidgetPosition { x: 0, y: 0 },
+            size: WidgetSize {
+                width: 6,
+                height: 4,
+            },
+        }];
+
+        let dashboard_id = platform
+            .create_dashboard("Test Dashboard", widgets)
+            .await
+            .unwrap();
         assert!(!dashboard_id.is_empty());
         assert!(dashboard_id.starts_with("dash_"));
     }
-    
+
     #[tokio::test]
     async fn test_observability_report_export() {
         let config = ObservabilityConfig::default();
         let platform = ObservabilityPlatform::new(config);
-        
-        let json_report = platform.export_observability_report(ReportFormat::Json).await.unwrap();
+
+        let json_report = platform
+            .export_observability_report(ReportFormat::Json)
+            .await
+            .unwrap();
         assert!(!json_report.is_empty());
-        
+
         // Should be valid JSON
         let parsed: serde_json::Value = serde_json::from_str(&json_report).unwrap();
         assert!(parsed.is_object());
-        
-        let html_report = platform.export_observability_report(ReportFormat::Html).await.unwrap();
+
+        let html_report = platform
+            .export_observability_report(ReportFormat::Html)
+            .await
+            .unwrap();
         assert!(html_report.contains("<html>"));
     }
 }

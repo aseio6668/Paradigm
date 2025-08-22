@@ -1,8 +1,8 @@
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
-use uuid::Uuid;
 use crate::Address;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use uuid::Uuid;
 
 /// Privacy-preserving contribution mechanisms using federated learning and homomorphic encryption
 /// Enables contributors in sensitive domains to prove work without exposing raw data
@@ -21,7 +21,7 @@ pub struct PrivacyPreserving {
 }
 
 impl PrivacyPreserving {
-    pub fn new() -> Self { 
+    pub fn new() -> Self {
         PrivacyPreserving {
             federated_coordinator: FederatedLearningCoordinator::new(),
             he_manager: HomomorphicEncryptionManager::new(),
@@ -30,27 +30,27 @@ impl PrivacyPreserving {
             dp_calibrator: DifferentialPrivacyCalibrator::new(),
         }
     }
-    
-    pub async fn initialize(&mut self) -> anyhow::Result<()> { 
+
+    pub async fn initialize(&mut self) -> anyhow::Result<()> {
         tracing::info!("Initializing privacy-preserving contribution system");
-        
+
         // Initialize federated learning
         self.federated_coordinator.initialize().await?;
-        
+
         // Initialize homomorphic encryption
         self.he_manager.initialize().await?;
-        
+
         // Initialize secure aggregation
         self.secure_aggregator.initialize().await?;
-        
+
         // Initialize ZK private compute
         self.zk_private_compute.initialize().await?;
-        
+
         // Initialize differential privacy
         self.dp_calibrator.initialize().await?;
-        
+
         tracing::info!("Privacy-preserving system initialized successfully");
-        Ok(()) 
+        Ok(())
     }
 
     /// Create a federated learning task that preserves data privacy
@@ -70,14 +70,18 @@ impl PrivacyPreserving {
         encrypted_data: EncryptedContribution,
     ) -> anyhow::Result<ContributionReceipt> {
         // Validate encrypted contribution
-        let validation = self.he_manager.validate_encrypted_data(&encrypted_data).await?;
-        
+        let validation = self
+            .he_manager
+            .validate_encrypted_data(&encrypted_data)
+            .await?;
+
         if !validation.is_valid {
             return Err(anyhow::anyhow!("Invalid encrypted contribution"));
         }
 
         // Process the contribution without decrypting
-        let computation_result = self.he_manager
+        let computation_result = self
+            .he_manager
             .compute_on_encrypted_data(&encrypted_data)
             .await?;
 
@@ -91,7 +95,10 @@ impl PrivacyPreserving {
             estimated_contribution_value: computation_result.estimated_value,
         };
 
-        tracing::info!("Processed encrypted contribution from {}", contributor.to_string());
+        tracing::info!(
+            "Processed encrypted contribution from {}",
+            contributor.to_string()
+        );
         Ok(receipt)
     }
 
@@ -102,17 +109,20 @@ impl PrivacyPreserving {
         participant_updates: Vec<FederatedUpdate>,
     ) -> anyhow::Result<GlobalModel> {
         // Apply differential privacy to updates
-        let private_updates = self.dp_calibrator
+        let private_updates = self
+            .dp_calibrator
             .apply_differential_privacy(participant_updates)
             .await?;
 
         // Securely aggregate updates
-        let aggregated_model = self.secure_aggregator
+        let aggregated_model = self
+            .secure_aggregator
             .aggregate_updates(private_updates)
             .await?;
 
         // Update global model
-        let global_model = self.federated_coordinator
+        let global_model = self
+            .federated_coordinator
             .update_global_model(task_id, aggregated_model)
             .await?;
 
@@ -125,7 +135,8 @@ impl PrivacyPreserving {
         &self,
         computation_spec: PrivateComputationSpec,
     ) -> anyhow::Result<ZKProof> {
-        let proof = self.zk_private_compute
+        let proof = self
+            .zk_private_compute
             .generate_proof(computation_spec)
             .await?;
 
@@ -138,17 +149,20 @@ impl PrivacyPreserving {
         contribution_proof: &PrivateContributionProof,
     ) -> anyhow::Result<VerificationResult> {
         // Verify zero-knowledge proofs
-        let zk_valid = self.zk_private_compute
+        let zk_valid = self
+            .zk_private_compute
             .verify_proof(&contribution_proof.zk_proof)
             .await?;
 
         // Verify differential privacy guarantees
-        let dp_valid = self.dp_calibrator
+        let dp_valid = self
+            .dp_calibrator
             .verify_privacy_guarantees(&contribution_proof.dp_parameters)
             .await?;
 
         // Verify secure aggregation integrity
-        let aggregation_valid = self.secure_aggregator
+        let aggregation_valid = self
+            .secure_aggregator
             .verify_aggregation(&contribution_proof.aggregation_proof)
             .await?;
 
@@ -332,10 +346,7 @@ impl ZKPrivateCompute {
         Ok(())
     }
 
-    pub async fn generate_proof(
-        &self,
-        _spec: PrivateComputationSpec,
-    ) -> anyhow::Result<ZKProof> {
+    pub async fn generate_proof(&self, _spec: PrivateComputationSpec) -> anyhow::Result<ZKProof> {
         // Simplified ZK proof generation
         Ok(ZKProof {
             proof_data: vec![9, 10, 11, 12],
@@ -616,7 +627,10 @@ mod tests {
             max_rounds: 10,
         };
 
-        let task_id = privacy_system.create_federated_task(task_spec).await.unwrap();
+        let task_id = privacy_system
+            .create_federated_task(task_spec)
+            .await
+            .unwrap();
         assert!(!task_id.to_string().is_empty());
     }
 

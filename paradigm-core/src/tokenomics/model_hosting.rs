@@ -1,10 +1,10 @@
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
-use uuid::Uuid;
 use crate::Address;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use uuid::Uuid;
 
-/// Decentralized model hosting marketplace where contributors host models 
+/// Decentralized model hosting marketplace where contributors host models
 /// and earn tokens for serving inference requests
 #[derive(Debug)]
 pub struct ModelHosting {
@@ -25,7 +25,7 @@ pub struct ModelHosting {
 }
 
 impl ModelHosting {
-    pub fn new() -> Self { 
+    pub fn new() -> Self {
         ModelHosting {
             model_registry: HashMap::new(),
             hosting_providers: HashMap::new(),
@@ -36,24 +36,24 @@ impl ModelHosting {
             quality_assurance: QualityAssuranceSystem::new(),
         }
     }
-    
-    pub async fn initialize(&mut self) -> anyhow::Result<()> { 
+
+    pub async fn initialize(&mut self) -> anyhow::Result<()> {
         tracing::info!("Initializing decentralized model hosting marketplace");
-        
+
         // Initialize load balancer
         self.load_balancer.initialize().await?;
-        
+
         // Initialize performance tracker
         self.performance_tracker.initialize().await?;
-        
+
         // Initialize pricing engine
         self.pricing_engine.initialize().await?;
-        
+
         // Initialize quality assurance
         self.quality_assurance.initialize().await?;
-        
+
         tracing::info!("Model hosting marketplace initialized successfully");
-        Ok(()) 
+        Ok(())
     }
 
     /// Register a new model for hosting
@@ -63,8 +63,10 @@ impl ModelHosting {
         model_spec: ModelSpec,
     ) -> anyhow::Result<Uuid> {
         // Validate model specification
-        self.quality_assurance.validate_model_spec(&model_spec).await?;
-        
+        self.quality_assurance
+            .validate_model_spec(&model_spec)
+            .await?;
+
         let model_id = Uuid::new_v4();
         let hosted_model = HostedModel {
             id: model_id,
@@ -73,7 +75,10 @@ impl ModelHosting {
             status: ModelStatus::Validating,
             registered_at: Utc::now(),
             performance_metrics: ModelMetrics::default(),
-            pricing: self.pricing_engine.calculate_initial_pricing(&model_spec).await?,
+            pricing: self
+                .pricing_engine
+                .calculate_initial_pricing(&model_spec)
+                .await?,
             total_inferences: 0,
             total_earnings: 0,
             reputation_score: 0.5, // Start with neutral reputation
@@ -81,7 +86,7 @@ impl ModelHosting {
 
         // Add to registry
         self.model_registry.insert(model_id, hosted_model);
-        
+
         // Register provider if new
         if !self.hosting_providers.contains_key(&provider) {
             let hosting_provider = HostingProvider {
@@ -94,7 +99,8 @@ impl ModelHosting {
                 compute_capabilities: model_spec.compute_requirements.clone(),
                 availability_zone: model_spec.availability_zone.clone(),
             };
-            self.hosting_providers.insert(provider.clone(), hosting_provider);
+            self.hosting_providers
+                .insert(provider.clone(), hosting_provider);
         } else {
             // Add model to existing provider
             if let Some(provider_info) = self.hosting_providers.get_mut(&provider) {
@@ -103,9 +109,15 @@ impl ModelHosting {
         }
 
         // Start quality assurance process
-        self.quality_assurance.start_model_validation(model_id).await?;
-        
-        tracing::info!("Model {} registered by provider {}", model_id, provider.to_string());
+        self.quality_assurance
+            .start_model_validation(model_id)
+            .await?;
+
+        tracing::info!(
+            "Model {} registered by provider {}",
+            model_id,
+            provider.to_string()
+        );
         Ok(model_id)
     }
 
@@ -116,24 +128,28 @@ impl ModelHosting {
         request_spec: InferenceRequestSpec,
     ) -> anyhow::Result<Uuid> {
         let request_id = Uuid::new_v4();
-        
+
         // Find suitable models for this request
         let suitable_models = self.find_suitable_models(&request_spec).await?;
-        
+
         if suitable_models.is_empty() {
-            return Err(anyhow::anyhow!("No suitable models available for this request"));
+            return Err(anyhow::anyhow!(
+                "No suitable models available for this request"
+            ));
         }
 
         // Select optimal model based on load balancing strategy
-        let selected_model = self.load_balancer
+        let selected_model = self
+            .load_balancer
             .select_model(&suitable_models, &request_spec)
             .await?;
 
         // Calculate pricing for this request (clone values to avoid borrow issues)
         let selected_model_id = selected_model.id;
         let selected_provider = selected_model.provider.clone();
-        
-        let pricing = self.pricing_engine
+
+        let pricing = self
+            .pricing_engine
             .calculate_request_pricing(&selected_model, &request_spec)
             .await?;
 
@@ -153,9 +169,12 @@ impl ModelHosting {
 
         // Add to inference queue
         self.inference_queue.insert(request_id, inference_request);
-        
-        tracing::info!("Inference request {} submitted for model {}", 
-                     request_id, selected_model_id);
+
+        tracing::info!(
+            "Inference request {} submitted for model {}",
+            request_id,
+            selected_model_id
+        );
         Ok(request_id)
     }
 
@@ -167,7 +186,8 @@ impl ModelHosting {
         result: InferenceResult,
     ) -> anyhow::Result<u64> {
         // Validate provider is authorized for this request
-        let (earnings, model_id) = if let Some(request) = self.inference_queue.get_mut(&request_id) {
+        let (earnings, model_id) = if let Some(request) = self.inference_queue.get_mut(&request_id)
+        {
             if request.provider != *provider {
                 return Err(anyhow::anyhow!("Provider not authorized for this request"));
             }
@@ -180,13 +200,15 @@ impl ModelHosting {
             // Store values we need before releasing the borrow
             let request_clone = request.clone();
             let model_id = request.model_id;
-            
+
             // Release the mutable borrow by dropping the reference
             drop(request);
 
             // Calculate earnings for provider
-            let earnings = self.calculate_inference_earnings(&request_clone, &result).await?;
-            
+            let earnings = self
+                .calculate_inference_earnings(&request_clone, &result)
+                .await?;
+
             (earnings, model_id)
         } else {
             return Err(anyhow::anyhow!("Inference request not found"));
@@ -197,7 +219,7 @@ impl ModelHosting {
             model.total_inferences += 1;
             model.total_earnings += earnings;
         }
-        
+
         // Update performance metrics
         self.performance_tracker
             .update_model_performance(&model_id, &result)
@@ -209,9 +231,12 @@ impl ModelHosting {
             provider_info.total_earnings += earnings;
         }
 
-        tracing::info!("Inference request {} completed, {} PAR earned", 
-                     request_id, earnings as f64 / 100_000_000.0);
-        
+        tracing::info!(
+            "Inference request {} completed, {} PAR earned",
+            request_id,
+            earnings as f64 / 100_000_000.0
+        );
+
         Ok(earnings)
     }
 
@@ -223,8 +248,9 @@ impl ModelHosting {
         let mut suitable_models = Vec::new();
 
         for model in self.model_registry.values() {
-            if model.status == ModelStatus::Active && 
-               self.is_model_compatible(model, request_spec).await? {
+            if model.status == ModelStatus::Active
+                && self.is_model_compatible(model, request_spec).await?
+            {
                 suitable_models.push(model);
             }
         }
@@ -233,7 +259,9 @@ impl ModelHosting {
         suitable_models.sort_by(|a, b| {
             let score_a = a.reputation_score * a.performance_metrics.average_latency_score();
             let score_b = b.reputation_score * b.performance_metrics.average_latency_score();
-            score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
+            score_b
+                .partial_cmp(&score_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         Ok(suitable_models)
@@ -250,8 +278,9 @@ impl ModelHosting {
         }
 
         // Check compute requirements
-        if request_spec.max_latency_ms > 0 && 
-           model.performance_metrics.average_latency_ms > request_spec.max_latency_ms as f64 {
+        if request_spec.max_latency_ms > 0
+            && model.performance_metrics.average_latency_ms > request_spec.max_latency_ms as f64
+        {
             return Ok(false);
         }
 
@@ -273,7 +302,7 @@ impl ModelHosting {
         result: &InferenceResult,
     ) -> anyhow::Result<u64> {
         let base_earnings = request.pricing.base_cost;
-        
+
         // Apply quality multiplier based on result quality
         let quality_multiplier = if result.confidence_score > 0.9 {
             1.2
@@ -292,23 +321,26 @@ impl ModelHosting {
             1.0
         };
 
-        let final_earnings = (base_earnings as f64 * quality_multiplier * latency_multiplier) as u64;
+        let final_earnings =
+            (base_earnings as f64 * quality_multiplier * latency_multiplier) as u64;
         Ok(final_earnings)
     }
 
     /// Get marketplace statistics
     pub fn get_marketplace_stats(&self) -> MarketplaceStats {
         let total_models = self.model_registry.len();
-        let active_models = self.model_registry.values()
+        let active_models = self
+            .model_registry
+            .values()
             .filter(|m| m.status == ModelStatus::Active)
             .count();
         let total_providers = self.hosting_providers.len();
-        let total_inferences = self.model_registry.values()
+        let total_inferences = self
+            .model_registry
+            .values()
             .map(|m| m.total_inferences)
             .sum();
-        let total_earnings = self.model_registry.values()
-            .map(|m| m.total_earnings)
-            .sum();
+        let total_earnings = self.model_registry.values().map(|m| m.total_earnings).sum();
 
         MarketplaceStats {
             total_models,
@@ -328,26 +360,31 @@ impl ModelHosting {
     ) -> anyhow::Result<()> {
         if let Some(model) = self.model_registry.get_mut(&model_id) {
             // Update reputation using weighted average
-            let new_reputation = (model.reputation_score * 0.9) + 
-                                (reputation_update.score * 0.1);
+            let new_reputation = (model.reputation_score * 0.9) + (reputation_update.score * 0.1);
             model.reputation_score = new_reputation.max(0.0).min(1.0);
 
             // Store values before releasing borrow
             let provider_address = model.provider.clone();
             let updated_reputation = model.reputation_score;
-            
-            tracing::debug!("Updated reputation for model {} to {:.3}", 
-                           model_id, updated_reputation);
+
+            tracing::debug!(
+                "Updated reputation for model {} to {:.3}",
+                model_id,
+                updated_reputation
+            );
         }
 
         // Update provider reputation separately to avoid borrow conflicts
         if let Some(model) = self.model_registry.get(&model_id) {
             let provider_address = &model.provider;
             if let Some(provider) = self.hosting_providers.get_mut(provider_address) {
-                let avg_model_reputation: f64 = provider.hosted_models.iter()
+                let avg_model_reputation: f64 = provider
+                    .hosted_models
+                    .iter()
                     .filter_map(|id| self.model_registry.get(id))
                     .map(|m| m.reputation_score)
-                    .sum::<f64>() / provider.hosted_models.len() as f64;
+                    .sum::<f64>()
+                    / provider.hosted_models.len() as f64;
                 provider.reputation_score = avg_model_reputation;
             }
         }
@@ -390,16 +427,22 @@ impl LoadBalancer {
             }
             LoadBalancingStrategy::ReputationWeighted => {
                 // Select based on reputation score
-                let best_model = suitable_models.iter()
+                let best_model = suitable_models
+                    .iter()
                     .max_by(|a, b| a.reputation_score.partial_cmp(&b.reputation_score).unwrap())
                     .unwrap();
                 Ok(best_model)
             }
             LoadBalancingStrategy::LatencyOptimized => {
                 // Select model with best latency
-                let fastest_model = suitable_models.iter()
-                    .min_by(|a, b| a.performance_metrics.average_latency_ms
-                             .partial_cmp(&b.performance_metrics.average_latency_ms).unwrap())
+                let fastest_model = suitable_models
+                    .iter()
+                    .min_by(|a, b| {
+                        a.performance_metrics
+                            .average_latency_ms
+                            .partial_cmp(&b.performance_metrics.average_latency_ms)
+                            .unwrap()
+                    })
                     .unwrap();
                 Ok(fastest_model)
             }
@@ -479,13 +522,19 @@ impl ModelPricingEngine {
         Ok(())
     }
 
-    pub async fn calculate_initial_pricing(&self, model_spec: &ModelSpec) -> anyhow::Result<ModelPricing> {
-        let base_rate = *self.base_pricing_rates.get(&model_spec.model_type)
+    pub async fn calculate_initial_pricing(
+        &self,
+        model_spec: &ModelSpec,
+    ) -> anyhow::Result<ModelPricing> {
+        let base_rate = *self
+            .base_pricing_rates
+            .get(&model_spec.model_type)
             .unwrap_or(&1_000_000);
 
         // Adjust pricing based on compute requirements
-        let compute_multiplier = self.calculate_compute_multiplier(&model_spec.compute_requirements);
-        
+        let compute_multiplier =
+            self.calculate_compute_multiplier(&model_spec.compute_requirements);
+
         let adjusted_rate = (base_rate as f64 * compute_multiplier) as u64;
 
         Ok(ModelPricing {
@@ -502,7 +551,7 @@ impl ModelPricingEngine {
         request_spec: &InferenceRequestSpec,
     ) -> anyhow::Result<RequestPricing> {
         let base_cost = model.pricing.base_cost_per_request;
-        
+
         // Apply urgency multiplier
         let urgency_multiplier = if request_spec.max_latency_ms < 1000 {
             1.5 // Premium for low latency
@@ -585,7 +634,7 @@ impl QualityAssuranceSystem {
         };
 
         self.validation_queue.insert(model_id, validation_process);
-        
+
         // In real implementation, this would start automated testing
         tracing::info!("Started validation process for model {}", model_id);
         Ok(())
@@ -835,7 +884,10 @@ mod tests {
             api_endpoint: "https://api.example.com/chat".to_string(),
         };
 
-        let model_id = model_hosting.register_model(provider, model_spec).await.unwrap();
+        let model_id = model_hosting
+            .register_model(provider, model_spec)
+            .await
+            .unwrap();
         assert!(!model_id.to_string().is_empty());
 
         let stats = model_hosting.get_marketplace_stats();
@@ -871,7 +923,10 @@ mod tests {
             api_endpoint: "https://api.example.com/classify".to_string(),
         };
 
-        let model_id = model_hosting.register_model(provider, model_spec).await.unwrap();
+        let model_id = model_hosting
+            .register_model(provider, model_spec)
+            .await
+            .unwrap();
 
         // Manually set model as active for testing
         if let Some(model) = model_hosting.model_registry.get_mut(&model_id) {
@@ -896,7 +951,10 @@ mod tests {
             },
         };
 
-        let request_id = model_hosting.submit_inference_request(requester, request_spec).await.unwrap();
+        let request_id = model_hosting
+            .submit_inference_request(requester, request_spec)
+            .await
+            .unwrap();
         assert!(!request_id.to_string().is_empty());
 
         let stats = model_hosting.get_marketplace_stats();

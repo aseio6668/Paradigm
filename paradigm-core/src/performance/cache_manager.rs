@@ -1,13 +1,13 @@
 // Advanced Cache Manager with Intelligent Policies
 // Manages multi-tier caching for optimal performance
 
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use anyhow::Result;
-use serde::{Serialize, Deserialize};
-use tracing::{info, debug};
+use tracing::{debug, info};
 
 /// Cache management configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -100,10 +100,10 @@ impl CacheManager {
     /// Get item from cache with intelligent prefetching
     pub async fn get(&self, key: &str) -> Option<Vec<u8>> {
         let start_time = Instant::now();
-        
+
         // Record access pattern
         self.record_access(key).await;
-        
+
         let result = {
             let mut cache = self.cache_entries.write().await;
             if let Some(entry) = cache.get_mut(key) {
@@ -114,14 +114,14 @@ impl CacheManager {
                 None
             }
         };
-        
+
         // Update metrics
         let mut metrics = self.metrics.write().await;
         let access_time = start_time.elapsed();
-        
+
         if result.is_some() {
             metrics.hits += 1;
-            
+
             // Trigger prefetching based on patterns
             if self.config.enable_prefetching {
                 let cache_manager = self.clone();
@@ -133,32 +133,32 @@ impl CacheManager {
         } else {
             metrics.misses += 1;
         }
-        
+
         metrics.average_access_time = self.update_average_time(
-            metrics.average_access_time, 
-            access_time, 
-            metrics.hits + metrics.misses
+            metrics.average_access_time,
+            access_time,
+            metrics.hits + metrics.misses,
         );
-        
+
         result
     }
 
     /// Put item in cache with intelligent placement
     pub async fn put(&self, key: String, data: Vec<u8>, priority: CachePriority) -> Result<()> {
         let size_bytes = data.len();
-        
+
         // Check if we need to evict entries
         if self.should_evict(size_bytes).await {
             self.evict_entries(size_bytes).await?;
         }
-        
+
         // Compress large entries if configured
         let final_data = if size_bytes > self.config.compression_threshold {
             self.compress_data(&data)?
         } else {
             data
         };
-        
+
         let entry = CacheEntry {
             data: final_data,
             created_at: Instant::now(),
@@ -168,17 +168,17 @@ impl CacheManager {
             priority,
             ttl: self.calculate_ttl(&priority),
         };
-        
+
         {
             let mut cache = self.cache_entries.write().await;
             cache.insert(key, entry);
         }
-        
+
         {
             let mut memory_usage = self.memory_usage.write().await;
             *memory_usage += size_bytes;
         }
-        
+
         Ok(())
     }
 
@@ -187,22 +187,23 @@ impl CacheManager {
         if !self.config.enable_prefetching {
             return;
         }
-        
+
         let mut analyzer = self.access_patterns.write().await;
-        
+
         // Record recent access
         analyzer.recent_accesses.push_back(key.to_string());
         if analyzer.recent_accesses.len() > 1000 {
             analyzer.recent_accesses.pop_front();
         }
-        
+
         // Update frequency
         *analyzer.frequency_map.entry(key.to_string()).or_insert(0) += 1;
-        
+
         // Analyze sequential patterns
         if analyzer.recent_accesses.len() >= 2 {
             let prev_key = analyzer.recent_accesses[analyzer.recent_accesses.len() - 2].clone();
-            analyzer.sequential_patterns
+            analyzer
+                .sequential_patterns
                 .entry(prev_key)
                 .or_insert_with(Vec::new)
                 .push(key.to_string());
@@ -213,22 +214,23 @@ impl CacheManager {
     async fn prefetch_related(&self, key: &str) {
         let related_keys = {
             let analyzer = self.access_patterns.read().await;
-            analyzer.sequential_patterns
+            analyzer
+                .sequential_patterns
                 .get(key)
                 .cloned()
                 .unwrap_or_default()
         };
-        
+
         for related_key in related_keys.into_iter().take(self.config.prefetch_window) {
             // Check if already cached
             let cache = self.cache_entries.read().await;
             if !cache.contains_key(&related_key) {
                 drop(cache);
-                
+
                 // Simulate prefetch from storage
                 if let Ok(data) = self.fetch_from_storage(&related_key).await {
                     let _ = self.put(related_key, data, CachePriority::Low).await;
-                    
+
                     let mut metrics = self.metrics.write().await;
                     metrics.prefetch_hits += 1;
                 }
@@ -240,7 +242,7 @@ impl CacheManager {
     async fn should_evict(&self, new_entry_size: usize) -> bool {
         let memory_usage = self.memory_usage.read().await;
         let max_memory_bytes = self.config.max_memory_mb * 1024 * 1024;
-        
+
         *memory_usage + new_entry_size > max_memory_bytes
     }
 
@@ -248,42 +250,42 @@ impl CacheManager {
     async fn evict_entries(&self, space_needed: usize) -> Result<()> {
         let mut space_freed = 0;
         let mut to_remove = Vec::new();
-        
+
         match self.config.eviction_policy {
             EvictionPolicy::LRU => {
                 to_remove = self.get_lru_candidates().await;
-            },
+            }
             EvictionPolicy::LFU => {
                 to_remove = self.get_lfu_candidates().await;
-            },
+            }
             EvictionPolicy::TTL => {
                 to_remove = self.get_expired_candidates().await;
-            },
+            }
             EvictionPolicy::Adaptive => {
                 to_remove = self.get_adaptive_candidates().await;
-            },
+            }
         }
-        
+
         // Remove candidates until we have enough space
         {
             let mut cache = self.cache_entries.write().await;
             let mut memory_usage = self.memory_usage.write().await;
-            
+
             for key in to_remove {
                 if space_freed >= space_needed {
                     break;
                 }
-                
+
                 if let Some(entry) = cache.remove(&key) {
                     space_freed += entry.size_bytes;
                     *memory_usage = memory_usage.saturating_sub(entry.size_bytes);
-                    
+
                     let mut metrics = self.metrics.write().await;
                     metrics.evictions += 1;
                 }
             }
         }
-        
+
         debug!("Evicted entries freeing {} bytes", space_freed);
         Ok(())
     }
@@ -292,9 +294,10 @@ impl CacheManager {
     async fn get_lru_candidates(&self) -> Vec<String> {
         let cache = self.cache_entries.read().await;
         let mut candidates: Vec<_> = cache.iter().collect();
-        
+
         candidates.sort_by_key(|(_, entry)| entry.last_accessed);
-        candidates.into_iter()
+        candidates
+            .into_iter()
             .take(10) // Evict up to 10 entries
             .map(|(key, _)| key.clone())
             .collect()
@@ -304,9 +307,10 @@ impl CacheManager {
     async fn get_lfu_candidates(&self) -> Vec<String> {
         let cache = self.cache_entries.read().await;
         let mut candidates: Vec<_> = cache.iter().collect();
-        
+
         candidates.sort_by_key(|(_, entry)| entry.access_count);
-        candidates.into_iter()
+        candidates
+            .into_iter()
             .take(10)
             .map(|(key, _)| key.clone())
             .collect()
@@ -316,8 +320,9 @@ impl CacheManager {
     async fn get_expired_candidates(&self) -> Vec<String> {
         let cache = self.cache_entries.read().await;
         let now = Instant::now();
-        
-        cache.iter()
+
+        cache
+            .iter()
             .filter(|(_, entry)| {
                 if let Some(ttl) = entry.ttl {
                     now.duration_since(entry.created_at) > ttl
@@ -333,20 +338,21 @@ impl CacheManager {
     async fn get_adaptive_candidates(&self) -> Vec<String> {
         let cache = self.cache_entries.read().await;
         let analyzer = self.access_patterns.read().await;
-        
+
         let mut candidates: Vec<_> = cache.iter().collect();
-        
+
         // Score based on multiple factors
         candidates.sort_by_key(|(key, entry)| {
             let frequency_score = analyzer.frequency_map.get(*key).unwrap_or(&0);
             let recency_score = entry.last_accessed.elapsed().as_secs();
             let priority_score = entry.priority as u64;
-            
+
             // Lower score = better candidate for eviction
             frequency_score * 1000 + priority_score * 10000 - recency_score
         });
-        
-        candidates.into_iter()
+
+        candidates
+            .into_iter()
             .take(10)
             .map(|(key, _)| key.clone())
             .collect()
@@ -376,8 +382,14 @@ impl CacheManager {
     }
 
     /// Update average time metric
-    fn update_average_time(&self, current_avg: Duration, new_time: Duration, count: u64) -> Duration {
-        let total_nanos = current_avg.as_nanos() as f64 * (count - 1) as f64 + new_time.as_nanos() as f64;
+    fn update_average_time(
+        &self,
+        current_avg: Duration,
+        new_time: Duration,
+        count: u64,
+    ) -> Duration {
+        let total_nanos =
+            current_avg.as_nanos() as f64 * (count - 1) as f64 + new_time.as_nanos() as f64;
         Duration::from_nanos((total_nanos / count as f64) as u64)
     }
 
@@ -393,10 +405,10 @@ impl CacheManager {
     pub async fn clear(&self) {
         let mut cache = self.cache_entries.write().await;
         cache.clear();
-        
+
         let mut memory_usage = self.memory_usage.write().await;
         *memory_usage = 0;
-        
+
         info!("Cache cleared");
     }
 }

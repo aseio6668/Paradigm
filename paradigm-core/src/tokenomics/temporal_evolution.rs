@@ -1,16 +1,15 @@
+use chrono::{DateTime, Duration, Utc};
+use serde::{Deserialize, Serialize};
 /// Temporal Token Evolution Mechanics
 /// Advanced token dynamics that evolve over time, including adaptive decay,
 /// reputation-based multipliers, temporal staking, and dynamic token utility
-
 use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-use chrono::{DateTime, Utc, Duration};
-use tokio::sync::RwLock;
 use std::sync::Arc;
+use tokio::sync::RwLock;
+use uuid::Uuid;
 
+use super::{ContributionProof, ContributionType, NetworkState};
 use crate::{Address, ParadigmError};
-use super::{ContributionType, NetworkState, ContributionProof};
 
 pub type Result<T> = std::result::Result<T, ParadigmError>;
 
@@ -63,34 +62,58 @@ impl TemporalTokenEvolution {
     }
 
     /// Process token evolution for a specific address
-    pub async fn evolve_tokens(&mut self, address: &Address, network_state: &NetworkState) -> Result<EvolutionResult> {
+    pub async fn evolve_tokens(
+        &mut self,
+        address: &Address,
+        network_state: &NetworkState,
+    ) -> Result<EvolutionResult> {
         let mut token_states = self.token_states.write().await;
-        let token_state = token_states.entry(address.clone()).or_insert_with(|| TokenState::new(address.clone()));
+        let token_state = token_states
+            .entry(address.clone())
+            .or_insert_with(|| TokenState::new(address.clone()));
 
         // Apply adaptive decay
-        let decay_result = self.decay_mechanism.apply_decay(token_state, network_state).await?;
-        
+        let decay_result = self
+            .decay_mechanism
+            .apply_decay(token_state, network_state)
+            .await?;
+
         // Calculate reputation multipliers
-        let reputation_multiplier = self.reputation_multiplier.calculate_multiplier(address, token_state).await?;
-        
+        let reputation_multiplier = self
+            .reputation_multiplier
+            .calculate_multiplier(address, token_state)
+            .await?;
+
         // Evolve token utility
-        let utility_evolution = self.utility_evolution.evolve_utility(token_state, network_state).await?;
-        
+        let utility_evolution = self
+            .utility_evolution
+            .evolve_utility(token_state, network_state)
+            .await?;
+
         // Process temporal staking effects
-        let staking_effects = self.staking_system.process_staking_effects(token_state, network_state).await?;
-        
+        let staking_effects = self
+            .staking_system
+            .process_staking_effects(token_state, network_state)
+            .await?;
+
         // Update lifecycle stage
-        let lifecycle_update = self.lifecycle_manager.update_lifecycle(token_state, network_state).await?;
+        let lifecycle_update = self
+            .lifecycle_manager
+            .update_lifecycle(token_state, network_state)
+            .await?;
 
         // Apply all evolutions
-        let evolution_result = self.evolution_engine.apply_evolution(
-            token_state,
-            &decay_result,
-            reputation_multiplier,
-            &utility_evolution,
-            &staking_effects,
-            &lifecycle_update,
-        ).await?;
+        let evolution_result = self
+            .evolution_engine
+            .apply_evolution(
+                token_state,
+                &decay_result,
+                reputation_multiplier,
+                &utility_evolution,
+                &staking_effects,
+                &lifecycle_update,
+            )
+            .await?;
 
         // Update metrics
         self.update_metrics(&evolution_result).await?;
@@ -99,19 +122,37 @@ impl TemporalTokenEvolution {
     }
 
     /// Stake tokens with temporal evolution benefits
-    pub async fn stake_tokens(&mut self, address: &Address, amount: u64, staking_type: TemporalStakingType) -> Result<StakingResult> {
-        self.staking_system.stake_tokens(address, amount, staking_type).await
+    pub async fn stake_tokens(
+        &mut self,
+        address: &Address,
+        amount: u64,
+        staking_type: TemporalStakingType,
+    ) -> Result<StakingResult> {
+        self.staking_system
+            .stake_tokens(address, amount, staking_type)
+            .await
     }
 
     /// Unstake tokens with evolution consideration
-    pub async fn unstake_tokens(&mut self, address: &Address, stake_id: Uuid) -> Result<UnstakingResult> {
+    pub async fn unstake_tokens(
+        &mut self,
+        address: &Address,
+        stake_id: Uuid,
+    ) -> Result<UnstakingResult> {
         self.staking_system.unstake_tokens(address, stake_id).await
     }
 
     /// Record contribution for temporal token rewards
-    pub async fn record_contribution_for_evolution(&mut self, address: &Address, contribution: &ContributionProof, contribution_value: u64) -> Result<()> {
+    pub async fn record_contribution_for_evolution(
+        &mut self,
+        address: &Address,
+        contribution: &ContributionProof,
+        contribution_value: u64,
+    ) -> Result<()> {
         let mut token_states = self.token_states.write().await;
-        let token_state = token_states.entry(address.clone()).or_insert_with(|| TokenState::new(address.clone()));
+        let token_state = token_states
+            .entry(address.clone())
+            .or_insert_with(|| TokenState::new(address.clone()));
 
         // Record contribution in token state
         token_state.contribution_history.push(ContributionRecord {
@@ -119,11 +160,14 @@ impl TemporalTokenEvolution {
             contribution_type: contribution.contribution_type.clone(),
             value: contribution_value,
             timestamp: Utc::now(),
-            evolution_bonus: self.calculate_evolution_bonus(token_state, &contribution.contribution_type).await?,
+            evolution_bonus: self
+                .calculate_evolution_bonus(token_state, &contribution.contribution_type)
+                .await?,
         });
 
         // Update evolution factors
-        self.update_evolution_factors(token_state, contribution).await?;
+        self.update_evolution_factors(token_state, contribution)
+            .await?;
 
         Ok(())
     }
@@ -146,17 +190,26 @@ impl TemporalTokenEvolution {
     }
 
     /// Predict future token evolution
-    pub async fn predict_evolution(&self, address: &Address, time_horizon: Duration) -> Result<EvolutionPrediction> {
+    pub async fn predict_evolution(
+        &self,
+        address: &Address,
+        time_horizon: Duration,
+    ) -> Result<EvolutionPrediction> {
         let token_states = self.token_states.read().await;
         if let Some(token_state) = token_states.get(address) {
-            self.evolution_engine.predict_evolution(token_state, time_horizon).await
+            self.evolution_engine
+                .predict_evolution(token_state, time_horizon)
+                .await
         } else {
             Ok(EvolutionPrediction::default())
         }
     }
 
     /// Process evolution for all active tokens
-    pub async fn process_global_evolution(&mut self, network_state: &NetworkState) -> Result<GlobalEvolutionResult> {
+    pub async fn process_global_evolution(
+        &mut self,
+        network_state: &NetworkState,
+    ) -> Result<GlobalEvolutionResult> {
         let addresses: Vec<Address> = {
             let token_states = self.token_states.read().await;
             token_states.keys().cloned().collect()
@@ -172,7 +225,7 @@ impl TemporalTokenEvolution {
                     total_decay_applied += result.decay_amount;
                     total_bonuses_applied += result.bonus_amount;
                     evolution_results.push(result);
-                },
+                }
                 Err(e) => {
                     println!("Evolution failed for address {:?}: {:?}", address, e);
                 }
@@ -190,7 +243,11 @@ impl TemporalTokenEvolution {
 
     // Private helper methods
 
-    async fn calculate_evolution_bonus(&self, token_state: &TokenState, contribution_type: &ContributionType) -> Result<f64> {
+    async fn calculate_evolution_bonus(
+        &self,
+        token_state: &TokenState,
+        contribution_type: &ContributionType,
+    ) -> Result<f64> {
         let base_bonus = match contribution_type {
             ContributionType::MLTraining => 1.2,
             ContributionType::InferenceServing => 1.1,
@@ -225,10 +282,14 @@ impl TemporalTokenEvolution {
         Ok(base_bonus * stage_multiplier * streak_bonus)
     }
 
-    async fn update_evolution_factors(&self, token_state: &mut TokenState, contribution: &ContributionProof) -> Result<()> {
+    async fn update_evolution_factors(
+        &self,
+        token_state: &mut TokenState,
+        contribution: &ContributionProof,
+    ) -> Result<()> {
         // Update activity metrics
         token_state.last_activity = Utc::now();
-        
+
         // Update activity streak
         let days_since_last = (Utc::now() - token_state.streak_start_date).num_days();
         if days_since_last <= 1 {
@@ -244,17 +305,37 @@ impl TemporalTokenEvolution {
 
         match contribution.contribution_type {
             ContributionType::MLTraining => token_state.evolution_factors.ml_specialization += 0.2,
-            ContributionType::InferenceServing => token_state.evolution_factors.ml_specialization += 0.15,
-            ContributionType::DataValidation => token_state.evolution_factors.validation_expertise += 0.2,
-            ContributionType::ModelOptimization => token_state.evolution_factors.analytical_depth += 0.25,
-            ContributionType::NetworkMaintenance => token_state.evolution_factors.network_contribution += 0.2,
-            ContributionType::GovernanceParticipation => token_state.evolution_factors.governance_participation += 0.2,
-            ContributionType::CrossPlatformCompute => token_state.evolution_factors.computational_power += 0.15,
-            ContributionType::StorageProvision => token_state.evolution_factors.network_contribution += 0.1,
-            ContributionType::GenerativeMedia => token_state.evolution_factors.creative_output += 0.2,
+            ContributionType::InferenceServing => {
+                token_state.evolution_factors.ml_specialization += 0.15
+            }
+            ContributionType::DataValidation => {
+                token_state.evolution_factors.validation_expertise += 0.2
+            }
+            ContributionType::ModelOptimization => {
+                token_state.evolution_factors.analytical_depth += 0.25
+            }
+            ContributionType::NetworkMaintenance => {
+                token_state.evolution_factors.network_contribution += 0.2
+            }
+            ContributionType::GovernanceParticipation => {
+                token_state.evolution_factors.governance_participation += 0.2
+            }
+            ContributionType::CrossPlatformCompute => {
+                token_state.evolution_factors.computational_power += 0.15
+            }
+            ContributionType::StorageProvision => {
+                token_state.evolution_factors.network_contribution += 0.1
+            }
+            ContributionType::GenerativeMedia => {
+                token_state.evolution_factors.creative_output += 0.2
+            }
             ContributionType::SymbolicMath => token_state.evolution_factors.analytical_depth += 0.2,
-            ContributionType::Simulation => token_state.evolution_factors.computational_power += 0.2,
-            ContributionType::MediaGeneration => token_state.evolution_factors.creative_output += 0.2,
+            ContributionType::Simulation => {
+                token_state.evolution_factors.computational_power += 0.2
+            }
+            ContributionType::MediaGeneration => {
+                token_state.evolution_factors.creative_output += 0.2
+            }
         }
 
         Ok(())
@@ -262,15 +343,15 @@ impl TemporalTokenEvolution {
 
     async fn update_metrics(&self, evolution_result: &EvolutionResult) -> Result<()> {
         let mut metrics = self.performance_metrics.write().await;
-        
+
         metrics.total_evolutions_processed += 1;
         metrics.total_decay_applied += evolution_result.decay_amount;
         metrics.total_bonuses_applied += evolution_result.bonus_amount;
-        
+
         if evolution_result.decay_amount > 0.0 {
             metrics.addresses_with_decay += 1;
         }
-        
+
         if evolution_result.bonus_amount > 0.0 {
             metrics.addresses_with_bonuses += 1;
         }
@@ -308,10 +389,10 @@ impl EvolutionEngine {
         staking_effects: &StakingEffects,
         lifecycle_update: &LifecycleUpdate,
     ) -> Result<EvolutionResult> {
-        
         // Calculate total evolution effect
         let decay_amount = decay_result.decay_amount;
-        let reputation_bonus = (token_state.total_balance as f64 * (reputation_multiplier - 1.0)).max(0.0);
+        let reputation_bonus =
+            (token_state.total_balance as f64 * (reputation_multiplier - 1.0)).max(0.0);
         let utility_bonus = utility_evolution.utility_bonus;
         let staking_bonus = staking_effects.bonus_amount;
         let lifecycle_bonus = lifecycle_update.stage_bonus;
@@ -349,17 +430,27 @@ impl EvolutionEngine {
         })
     }
 
-    pub async fn predict_evolution(&self, token_state: &TokenState, time_horizon: Duration) -> Result<EvolutionPrediction> {
+    pub async fn predict_evolution(
+        &self,
+        token_state: &TokenState,
+        time_horizon: Duration,
+    ) -> Result<EvolutionPrediction> {
         let days = time_horizon.num_days() as f64;
-        
+
         // Predict decay based on current rate
         let predicted_decay = token_state.total_balance as f64 * 0.001 * days; // 0.1% per day base rate
-        
+
         // Predict bonuses based on activity pattern
-        let activity_factor = if token_state.activity_streak > 0 { 1.2 } else { 0.8 };
+        let activity_factor = if token_state.activity_streak > 0 {
+            1.2
+        } else {
+            0.8
+        };
         let predicted_bonuses = token_state.total_balance as f64 * 0.002 * days * activity_factor;
-        
-        let predicted_balance = (token_state.total_balance as f64 + predicted_bonuses - predicted_decay).max(0.0) as u64;
+
+        let predicted_balance = (token_state.total_balance as f64 + predicted_bonuses
+            - predicted_decay)
+            .max(0.0) as u64;
 
         Ok(EvolutionPrediction {
             current_balance: token_state.total_balance,
@@ -393,7 +484,12 @@ impl TemporalStakingSystem {
         Ok(())
     }
 
-    pub async fn stake_tokens(&mut self, address: &Address, amount: u64, staking_type: TemporalStakingType) -> Result<StakingResult> {
+    pub async fn stake_tokens(
+        &mut self,
+        address: &Address,
+        amount: u64,
+        staking_type: TemporalStakingType,
+    ) -> Result<StakingResult> {
         let stake = TemporalStake {
             id: Uuid::new_v4(),
             staker: address.clone(),
@@ -419,13 +515,17 @@ impl TemporalStakingSystem {
         })
     }
 
-    pub async fn unstake_tokens(&mut self, address: &Address, stake_id: Uuid) -> Result<UnstakingResult> {
+    pub async fn unstake_tokens(
+        &mut self,
+        address: &Address,
+        stake_id: Uuid,
+    ) -> Result<UnstakingResult> {
         let mut stakes = self.stakes.write().await;
-        
+
         if let Some(user_stakes) = stakes.get_mut(address) {
             if let Some(stake_index) = user_stakes.iter().position(|s| s.id == stake_id) {
                 let mut stake = user_stakes.remove(stake_index);
-                
+
                 let now = Utc::now();
                 let penalty = if now < stake.maturity_date {
                     // Early withdrawal penalty
@@ -454,17 +554,26 @@ impl TemporalStakingSystem {
         Err(ParadigmError::InvalidInput("Stake not found".to_string()))
     }
 
-    pub async fn process_staking_effects(&self, token_state: &TokenState, _network_state: &NetworkState) -> Result<StakingEffects> {
+    pub async fn process_staking_effects(
+        &self,
+        token_state: &TokenState,
+        _network_state: &NetworkState,
+    ) -> Result<StakingEffects> {
         let stakes = self.stakes.read().await;
-        
+
         if let Some(user_stakes) = stakes.get(&token_state.address) {
-            let active_stakes: Vec<&TemporalStake> = user_stakes.iter()
+            let active_stakes: Vec<&TemporalStake> = user_stakes
+                .iter()
                 .filter(|s| s.status == StakingStatus::Active)
                 .collect();
 
             let total_staked = active_stakes.iter().map(|s| s.amount).sum::<u64>();
             let average_multiplier = if !active_stakes.is_empty() {
-                active_stakes.iter().map(|s| s.evolution_multiplier).sum::<f64>() / active_stakes.len() as f64
+                active_stakes
+                    .iter()
+                    .map(|s| s.evolution_multiplier)
+                    .sum::<f64>()
+                    / active_stakes.len() as f64
             } else {
                 1.0
             };
@@ -509,7 +618,8 @@ impl TemporalStakingSystem {
     fn estimate_staking_rewards(&self, stake: &TemporalStake) -> u64 {
         let duration_days = (stake.maturity_date - stake.staked_at).num_days() as f64;
         let daily_rate = 0.001; // 0.1% daily
-        let estimated_rewards = stake.amount as f64 * daily_rate * duration_days * stake.evolution_multiplier;
+        let estimated_rewards =
+            stake.amount as f64 * daily_rate * duration_days * stake.evolution_multiplier;
         estimated_rewards as u64
     }
 
@@ -521,7 +631,8 @@ impl TemporalStakingSystem {
     }
 
     fn calculate_staking_power(&self, active_stakes: &[&TemporalStake]) -> f64 {
-        active_stakes.iter()
+        active_stakes
+            .iter()
             .map(|s| s.amount as f64 * s.evolution_multiplier)
             .sum::<f64>()
     }
@@ -545,13 +656,18 @@ impl AdaptiveDecayMechanism {
         Ok(())
     }
 
-    pub async fn apply_decay(&mut self, token_state: &TokenState, network_state: &NetworkState) -> Result<DecayResult> {
+    pub async fn apply_decay(
+        &mut self,
+        token_state: &TokenState,
+        network_state: &NetworkState,
+    ) -> Result<DecayResult> {
         let base_decay_rate = self.calculate_base_decay_rate(network_state);
         let activity_modifier = self.calculate_activity_modifier(token_state);
         let stage_modifier = self.calculate_stage_modifier(&token_state.evolution_stage);
         let network_modifier = self.calculate_network_modifier(network_state);
 
-        let final_decay_rate = base_decay_rate * activity_modifier * stage_modifier * network_modifier;
+        let final_decay_rate =
+            base_decay_rate * activity_modifier * stage_modifier * network_modifier;
         let decay_amount = token_state.total_balance as f64 * final_decay_rate;
 
         Ok(DecayResult {
@@ -578,7 +694,7 @@ impl AdaptiveDecayMechanism {
 
     fn calculate_activity_modifier(&self, token_state: &TokenState) -> f64 {
         let days_inactive = (Utc::now() - token_state.last_activity).num_days();
-        
+
         if days_inactive == 0 {
             0.5 // Active today - reduced decay
         } else if days_inactive <= 7 {
@@ -592,11 +708,11 @@ impl AdaptiveDecayMechanism {
 
     fn calculate_stage_modifier(&self, stage: &EvolutionStage) -> f64 {
         match stage {
-            EvolutionStage::Genesis => 0.5,    // Reduced decay for new tokens
-            EvolutionStage::Growth => 0.8,     // Slightly reduced decay
-            EvolutionStage::Maturity => 1.0,   // Normal decay
-            EvolutionStage::Decline => 1.3,    // Increased decay
-            EvolutionStage::Rebirth => 0.7,    // Reduced decay for rebirth
+            EvolutionStage::Genesis => 0.5,  // Reduced decay for new tokens
+            EvolutionStage::Growth => 0.8,   // Slightly reduced decay
+            EvolutionStage::Maturity => 1.0, // Normal decay
+            EvolutionStage::Decline => 1.3,  // Increased decay
+            EvolutionStage::Rebirth => 0.7,  // Reduced decay for rebirth
         }
     }
 
@@ -604,7 +720,7 @@ impl AdaptiveDecayMechanism {
         // Decay rate affected by network health
         let health_factor = network_state.uptime_percentage;
         let participation_factor = network_state.governance_participation_rate;
-        
+
         // Better network health = reduced decay
         0.5 + (2.0 - health_factor - participation_factor)
     }
@@ -628,13 +744,17 @@ impl ReputationMultiplierSystem {
         Ok(())
     }
 
-    pub async fn calculate_multiplier(&mut self, address: &Address, token_state: &TokenState) -> Result<f64> {
+    pub async fn calculate_multiplier(
+        &mut self,
+        address: &Address,
+        token_state: &TokenState,
+    ) -> Result<f64> {
         // Simulate reputation calculation (would integrate with actual reputation system)
         let base_reputation = 0.75; // Default reputation score
-        
+
         // Contribution diversity bonus
         let diversity_bonus = (token_state.evolution_factors.contribution_diversity * 0.1).min(0.3);
-        
+
         // Activity streak bonus
         let streak_bonus = if token_state.activity_streak > 10 {
             0.2
@@ -643,7 +763,7 @@ impl ReputationMultiplierSystem {
         } else {
             0.0
         };
-        
+
         // Evolution stage bonus
         let stage_bonus = match token_state.evolution_stage {
             EvolutionStage::Genesis => 0.1,
@@ -654,17 +774,20 @@ impl ReputationMultiplierSystem {
         };
 
         let total_multiplier = 1.0 + base_reputation + diversity_bonus + streak_bonus + stage_bonus;
-        
+
         // Cache reputation data
         let mut cache = self.reputation_cache.write().await;
-        cache.insert(address.clone(), ReputationData {
-            base_score: base_reputation,
-            diversity_bonus,
-            streak_bonus,
-            stage_bonus,
-            total_multiplier,
-            last_updated: Utc::now(),
-        });
+        cache.insert(
+            address.clone(),
+            ReputationData {
+                base_score: base_reputation,
+                diversity_bonus,
+                streak_bonus,
+                stage_bonus,
+                total_multiplier,
+                last_updated: Utc::now(),
+            },
+        );
 
         Ok(total_multiplier)
     }
@@ -688,7 +811,11 @@ impl TokenUtilityEvolution {
         Ok(())
     }
 
-    pub async fn evolve_utility(&mut self, token_state: &TokenState, network_state: &NetworkState) -> Result<UtilityEvolution> {
+    pub async fn evolve_utility(
+        &mut self,
+        token_state: &TokenState,
+        network_state: &NetworkState,
+    ) -> Result<UtilityEvolution> {
         let mut new_utility_scores = token_state.utility_scores.clone();
         let mut utility_changes = HashMap::new();
 
@@ -713,7 +840,8 @@ impl TokenUtilityEvolution {
         utility_changes.insert("computing".to_string(), computing_change);
 
         // Calculate utility bonus
-        let utility_bonus = utility_changes.values().sum::<f64>() * token_state.total_balance as f64 * 0.001;
+        let utility_bonus =
+            utility_changes.values().sum::<f64>() * token_state.total_balance as f64 * 0.001;
 
         Ok(UtilityEvolution {
             new_utility_scores,
@@ -723,28 +851,49 @@ impl TokenUtilityEvolution {
         })
     }
 
-    fn evolve_governance_utility(&self, token_state: &TokenState, network_state: &NetworkState) -> f64 {
+    fn evolve_governance_utility(
+        &self,
+        token_state: &TokenState,
+        network_state: &NetworkState,
+    ) -> f64 {
         // Governance utility increases with participation
         let participation_factor = network_state.governance_participation_rate;
-        let activity_factor = if token_state.activity_streak > 5 { 0.02 } else { 0.0 };
-        
+        let activity_factor = if token_state.activity_streak > 5 {
+            0.02
+        } else {
+            0.0
+        };
+
         participation_factor * 0.05 + activity_factor
     }
 
-    fn evolve_staking_utility(&self, token_state: &TokenState, _network_state: &NetworkState) -> f64 {
+    fn evolve_staking_utility(
+        &self,
+        token_state: &TokenState,
+        _network_state: &NetworkState,
+    ) -> f64 {
         // Staking utility evolves with temporal consistency
         token_state.evolution_factors.temporal_consistency * 0.03
     }
 
-    fn evolve_trading_utility(&self, _token_state: &TokenState, network_state: &NetworkState) -> f64 {
+    fn evolve_trading_utility(
+        &self,
+        _token_state: &TokenState,
+        network_state: &NetworkState,
+    ) -> f64 {
         // Trading utility increases with network liquidity
         network_state.token_velocity * 0.02
     }
 
-    fn evolve_computing_utility(&self, token_state: &TokenState, _network_state: &NetworkState) -> f64 {
+    fn evolve_computing_utility(
+        &self,
+        token_state: &TokenState,
+        _network_state: &NetworkState,
+    ) -> f64 {
         // Computing utility increases with technical contributions
-        (token_state.evolution_factors.ml_specialization + 
-         token_state.evolution_factors.computational_power) * 0.01
+        (token_state.evolution_factors.ml_specialization
+            + token_state.evolution_factors.computational_power)
+            * 0.01
     }
 }
 
@@ -766,10 +915,14 @@ impl TokenLifecycleManager {
         Ok(())
     }
 
-    pub async fn update_lifecycle(&self, token_state: &TokenState, network_state: &NetworkState) -> Result<LifecycleUpdate> {
+    pub async fn update_lifecycle(
+        &self,
+        token_state: &TokenState,
+        network_state: &NetworkState,
+    ) -> Result<LifecycleUpdate> {
         let current_stage = &token_state.evolution_stage;
         let new_stage = self.determine_evolution_stage(token_state, network_state);
-        
+
         let stage_bonus = if new_stage != *current_stage {
             self.calculate_stage_transition_bonus(current_stage, &new_stage)
         } else {
@@ -778,7 +931,11 @@ impl TokenLifecycleManager {
 
         Ok(LifecycleUpdate {
             current_stage: current_stage.clone(),
-            new_stage: if new_stage != *current_stage { Some(new_stage) } else { None },
+            new_stage: if new_stage != *current_stage {
+                Some(new_stage)
+            } else {
+                None
+            },
             stage_bonus,
             lifecycle_factors: LifecycleFactors {
                 time_in_stage: (Utc::now() - token_state.stage_entered_at).num_days(),
@@ -789,7 +946,11 @@ impl TokenLifecycleManager {
         })
     }
 
-    fn determine_evolution_stage(&self, token_state: &TokenState, network_state: &NetworkState) -> EvolutionStage {
+    fn determine_evolution_stage(
+        &self,
+        token_state: &TokenState,
+        network_state: &NetworkState,
+    ) -> EvolutionStage {
         let balance = token_state.total_balance as f64;
         let activity_days = token_state.activity_streak;
         let time_in_stage = (Utc::now() - token_state.stage_entered_at).num_days();
@@ -804,7 +965,7 @@ impl TokenLifecycleManager {
                 } else {
                     EvolutionStage::Genesis
                 }
-            },
+            }
             EvolutionStage::Growth => {
                 if balance > 100000.0 && activity_days > 30 {
                     EvolutionStage::Maturity
@@ -813,7 +974,7 @@ impl TokenLifecycleManager {
                 } else {
                     EvolutionStage::Growth
                 }
-            },
+            }
             EvolutionStage::Maturity => {
                 if activity_days == 0 && time_in_stage > 90 {
                     EvolutionStage::Decline
@@ -822,7 +983,7 @@ impl TokenLifecycleManager {
                 } else {
                     EvolutionStage::Maturity
                 }
-            },
+            }
             EvolutionStage::Decline => {
                 if activity_days > 14 && network_health > 0.9 {
                     EvolutionStage::Rebirth
@@ -831,7 +992,7 @@ impl TokenLifecycleManager {
                 } else {
                     EvolutionStage::Decline
                 }
-            },
+            }
             EvolutionStage::Rebirth => {
                 if activity_days > 30 && balance > 50000.0 {
                     EvolutionStage::Growth
@@ -840,7 +1001,7 @@ impl TokenLifecycleManager {
                 } else {
                     EvolutionStage::Rebirth
                 }
-            },
+            }
         }
     }
 
@@ -878,7 +1039,7 @@ impl TokenLifecycleManager {
 
     fn calculate_activity_level(&self, token_state: &TokenState) -> f64 {
         let days_since_activity = (Utc::now() - token_state.last_activity).num_days() as f64;
-        
+
         if days_since_activity == 0.0 {
             1.0
         } else if days_since_activity <= 7.0 {
@@ -890,11 +1051,15 @@ impl TokenLifecycleManager {
         }
     }
 
-    fn calculate_network_integration(&self, token_state: &TokenState, network_state: &NetworkState) -> f64 {
+    fn calculate_network_integration(
+        &self,
+        token_state: &TokenState,
+        network_state: &NetworkState,
+    ) -> f64 {
         let contribution_factor = token_state.evolution_factors.contribution_diversity;
         let network_health = network_state.uptime_percentage;
         let participation = network_state.governance_participation_rate;
-        
+
         (contribution_factor + network_health + participation) / 3.0
     }
 }
@@ -936,19 +1101,19 @@ impl TokenState {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum EvolutionStage {
-    Genesis,    // New token holder
-    Growth,     // Actively growing
-    Maturity,   // Established and stable
-    Decline,    // Decreasing activity/balance
-    Rebirth,    // Recovery after decline
+    Genesis,  // New token holder
+    Growth,   // Actively growing
+    Maturity, // Established and stable
+    Decline,  // Decreasing activity/balance
+    Rebirth,  // Recovery after decline
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TemporalStakingType {
-    ShortTerm,   // 30 days
-    MediumTerm,  // 90 days
-    LongTerm,    // 365 days
-    Evolution,   // 180 days with evolution bonuses
+    ShortTerm,  // 30 days
+    MediumTerm, // 90 days
+    LongTerm,   // 365 days
+    Evolution,  // 180 days with evolution bonuses
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

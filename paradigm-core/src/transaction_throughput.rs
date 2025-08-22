@@ -1,19 +1,19 @@
+use anyhow::Result;
+use dashmap::DashMap;
+use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 /// High-throughput transaction processing optimization for Paradigm
-use std::collections::{HashMap, VecDeque, BTreeMap};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use anyhow::Result;
-use serde::{Deserialize, Serialize};
-use tokio::sync::{RwLock, Semaphore, mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, RwLock, Semaphore};
 use tokio::time::timeout;
 use uuid::Uuid;
-use rayon::prelude::*;
-use dashmap::DashMap;
 
-use crate::transaction::Transaction;
-use crate::Address;
 use crate::crypto_optimization::OptimizedSignatureEngine;
 use crate::storage::ParadigmStorage;
+use crate::transaction::Transaction;
+use crate::Address;
 
 /// Transaction processing pipeline stages
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -43,7 +43,7 @@ pub struct TransactionResult {
 pub struct TransactionPool {
     pending: Arc<DashMap<Uuid, PendingTransaction>>,
     by_nonce: Arc<DashMap<Address, BTreeMap<u64, Uuid>>>, // Address -> nonce -> tx_id
-    by_gas_price: Arc<RwLock<BTreeMap<u64, Vec<Uuid>>>>, // gas_price -> tx_ids (sorted)
+    by_gas_price: Arc<RwLock<BTreeMap<u64, Vec<Uuid>>>>,  // gas_price -> tx_ids (sorted)
     max_pool_size: usize,
     max_per_account: usize,
     stats: Arc<RwLock<PoolStats>>,
@@ -95,20 +95,21 @@ impl TransactionPool {
         }
 
         // Check for duplicate nonce (replace-by-fee logic)
-        let should_replace = if let Some(mut account_nonces) = self.by_nonce.get_mut(&transaction.from) {
-            if let Some(existing_tx_id) = account_nonces.get(&transaction.nonce) {
-                // Check if new transaction has higher gas price
-                if let Some(existing_tx) = self.pending.get(existing_tx_id) {
-                    transaction.fee > existing_tx.gas_price
+        let should_replace =
+            if let Some(mut account_nonces) = self.by_nonce.get_mut(&transaction.from) {
+                if let Some(existing_tx_id) = account_nonces.get(&transaction.nonce) {
+                    // Check if new transaction has higher gas price
+                    if let Some(existing_tx) = self.pending.get(existing_tx_id) {
+                        transaction.fee > existing_tx.gas_price
+                    } else {
+                        true
+                    }
                 } else {
-                    true
+                    false
                 }
             } else {
                 false
-            }
-        } else {
-            false
-        };
+            };
 
         if should_replace {
             // Remove existing transaction
@@ -129,15 +130,17 @@ impl TransactionPool {
         };
 
         self.pending.insert(transaction.id, pending_tx);
-        
+
         // Update nonce mapping
-        self.by_nonce.entry(transaction.from.clone())
+        self.by_nonce
+            .entry(transaction.from.clone())
             .or_insert_with(BTreeMap::new)
             .insert(transaction.nonce, transaction.id);
 
         // Update gas price index
         let mut gas_price_index = self.by_gas_price.write().await;
-        gas_price_index.entry(transaction.fee)
+        gas_price_index
+            .entry(transaction.fee)
             .or_insert_with(Vec::new)
             .push(transaction.id);
 
@@ -153,7 +156,7 @@ impl TransactionPool {
     pub async fn get_ready_transactions(&self, limit: usize) -> Vec<Transaction> {
         let mut ready_transactions = Vec::new();
         let gas_price_index = self.by_gas_price.read().await;
-        
+
         // Iterate from highest gas price to lowest
         for (_, tx_ids) in gas_price_index.iter().rev() {
             for tx_id in tx_ids {
@@ -195,7 +198,7 @@ impl TransactionPool {
     async fn remove_transaction_internal(&self, tx_id: &Uuid) -> Option<Transaction> {
         if let Some((_, pending_tx)) = self.pending.remove(tx_id) {
             let transaction = pending_tx.transaction.clone();
-            
+
             // Remove from nonce mapping
             if let Some(mut account_nonces) = self.by_nonce.get_mut(&transaction.from) {
                 account_nonces.remove(&transaction.nonce);
@@ -320,7 +323,7 @@ impl ParallelTransactionProcessor {
     ) -> Result<Self> {
         let pool = Arc::new(TransactionPool::new(10000, 100));
         let (result_sender, result_receiver) = mpsc::unbounded_channel();
-        
+
         Ok(Self {
             pool,
             storage,
@@ -337,15 +340,15 @@ impl ParallelTransactionProcessor {
     /// Start the parallel processing pipeline
     pub async fn start(&self) -> Result<()> {
         *self.is_running.write().await = true;
-        
+
         // Start transaction processing pipeline
         self.start_validation_pipeline().await?;
         self.start_execution_pipeline().await?;
         self.start_cleanup_task().await?;
-        
+
         tracing::info!("Parallel transaction processor started with {} validation workers and {} execution workers",
             self.config.validation_workers, self.config.execution_workers);
-        
+
         Ok(())
     }
 
@@ -380,14 +383,14 @@ impl ParallelTransactionProcessor {
             let is_running_worker = is_running.clone();
             let stats_worker = stats.clone();
             let batch_size = config.batch_size;
-            
+
             tokio::spawn(async move {
                 tracing::debug!("Validation worker {} started", worker_id);
-                
+
                 while *is_running_worker.read().await {
                     // Get batch of ready transactions
                     let transactions = pool_worker.get_ready_transactions(batch_size).await;
-                    
+
                     if transactions.is_empty() {
                         tokio::time::sleep(Duration::from_millis(10)).await;
                         continue;
@@ -395,13 +398,11 @@ impl ParallelTransactionProcessor {
 
                     // Parallel validation
                     let validation_start = Instant::now();
-                    let validation_results = Self::validate_transactions_batch(
-                        &transactions,
-                        &sig_engine_worker,
-                    ).await;
-                    
+                    let validation_results =
+                        Self::validate_transactions_batch(&transactions, &sig_engine_worker).await;
+
                     let validation_time = validation_start.elapsed();
-                    
+
                     // Update transaction stages based on validation results
                     for (i, result) in validation_results.iter().enumerate() {
                         let tx = &transactions[i];
@@ -410,16 +411,19 @@ impl ParallelTransactionProcessor {
                         } else {
                             ProcessingStage::Failed
                         };
-                        pool_worker.update_transaction_stage(&tx.id, new_stage).await;
+                        pool_worker
+                            .update_transaction_stage(&tx.id, new_stage)
+                            .await;
                     }
-                    
+
                     // Update stats
                     {
                         let mut stats_guard = stats_worker.write().await;
-                        stats_guard.validation_rate = transactions.len() as f64 / validation_time.as_secs_f64();
+                        stats_guard.validation_rate =
+                            transactions.len() as f64 / validation_time.as_secs_f64();
                     }
                 }
-                
+
                 tracing::debug!("Validation worker {} stopped", worker_id);
             });
         }
@@ -445,14 +449,14 @@ impl ParallelTransactionProcessor {
             let is_running_worker = is_running.clone();
             let stats_worker = stats.clone();
             let timeout_duration = Duration::from_millis(config.processing_timeout_ms);
-            
+
             tokio::spawn(async move {
                 tracing::debug!("Execution worker {} started", worker_id);
-                
+
                 while *is_running_worker.read().await {
                     // Get validated transactions
                     let transactions = pool_worker.get_ready_transactions(10).await; // Smaller batches for execution
-                    
+
                     if transactions.is_empty() {
                         tokio::time::sleep(Duration::from_millis(10)).await;
                         continue;
@@ -479,24 +483,32 @@ impl ParallelTransactionProcessor {
                         let result_sender_exec = result_sender_worker.clone();
                         let stats_exec = stats_worker.clone();
                         let tx_id = transaction.id;
-                        
+
                         tokio::spawn(async move {
                             let execution_start = Instant::now();
-                            
+
                             // Update stage to processing
-                            pool_exec.update_transaction_stage(&tx_id, ProcessingStage::Processing).await;
-                            
+                            pool_exec
+                                .update_transaction_stage(&tx_id, ProcessingStage::Processing)
+                                .await;
+
                             // Execute transaction with timeout
                             let result = timeout(
                                 timeout_duration,
-                                Self::execute_transaction(transaction.clone(), &storage_exec)
-                            ).await;
-                            
+                                Self::execute_transaction(transaction.clone(), &storage_exec),
+                            )
+                            .await;
+
                             let execution_time = execution_start.elapsed();
-                            
+
                             let tx_result = match result {
                                 Ok(Ok(_)) => {
-                                    pool_exec.update_transaction_stage(&tx_id, ProcessingStage::Completed).await;
+                                    pool_exec
+                                        .update_transaction_stage(
+                                            &tx_id,
+                                            ProcessingStage::Completed,
+                                        )
+                                        .await;
                                     TransactionResult {
                                         transaction_id: tx_id,
                                         success: true,
@@ -506,9 +518,11 @@ impl ParallelTransactionProcessor {
                                         error_message: None,
                                         block_number: Some(1), // Simplified
                                     }
-                                },
+                                }
                                 Ok(Err(e)) => {
-                                    pool_exec.update_transaction_stage(&tx_id, ProcessingStage::Failed).await;
+                                    pool_exec
+                                        .update_transaction_stage(&tx_id, ProcessingStage::Failed)
+                                        .await;
                                     TransactionResult {
                                         transaction_id: tx_id,
                                         success: false,
@@ -518,9 +532,11 @@ impl ParallelTransactionProcessor {
                                         error_message: Some(e.to_string()),
                                         block_number: None,
                                     }
-                                },
+                                }
                                 Err(_) => {
-                                    pool_exec.update_transaction_stage(&tx_id, ProcessingStage::Failed).await;
+                                    pool_exec
+                                        .update_transaction_stage(&tx_id, ProcessingStage::Failed)
+                                        .await;
                                     TransactionResult {
                                         transaction_id: tx_id,
                                         success: false,
@@ -530,12 +546,12 @@ impl ParallelTransactionProcessor {
                                         error_message: Some("Execution timeout".to_string()),
                                         block_number: None,
                                     }
-                                },
+                                }
                             };
-                            
+
                             // Remove from pool
                             pool_exec.remove_transaction(&tx_id).await;
-                            
+
                             // Update stats
                             {
                                 let mut stats_guard = stats_exec.write().await;
@@ -544,24 +560,27 @@ impl ParallelTransactionProcessor {
                                 } else {
                                     stats_guard.transactions_failed += 1;
                                 }
-                                
-                                let total_processed = stats_guard.transactions_processed + stats_guard.transactions_failed;
+
+                                let total_processed = stats_guard.transactions_processed
+                                    + stats_guard.transactions_failed;
                                 if total_processed > 0 {
-                                    stats_guard.average_processing_time_ms = 
-                                        (stats_guard.average_processing_time_ms * (total_processed - 1) as f64 + 
-                                         execution_time.as_millis() as f64) / total_processed as f64;
+                                    stats_guard.average_processing_time_ms = (stats_guard
+                                        .average_processing_time_ms
+                                        * (total_processed - 1) as f64
+                                        + execution_time.as_millis() as f64)
+                                        / total_processed as f64;
                                 }
                             }
-                            
+
                             // Send result
                             let _ = result_sender_exec.send(tx_result);
-                            
+
                             // Release permit
                             drop(permit);
                         });
                     }
                 }
-                
+
                 tracing::debug!("Execution worker {} stopped", worker_id);
             });
         }
@@ -573,7 +592,7 @@ impl ParallelTransactionProcessor {
     async fn start_cleanup_task(&self) -> Result<()> {
         let pool = self.pool.clone();
         let is_running = self.is_running.clone();
-        
+
         tokio::spawn(async move {
             while *is_running.read().await {
                 // Clean up transactions older than 5 minutes
@@ -581,7 +600,7 @@ impl ParallelTransactionProcessor {
                 if expired_count > 0 {
                     tracing::debug!("Cleaned up {} expired transactions", expired_count);
                 }
-                
+
                 tokio::time::sleep(Duration::from_secs(60)).await; // Run every minute
             }
         });
@@ -595,16 +614,23 @@ impl ParallelTransactionProcessor {
         signature_engine: &OptimizedSignatureEngine,
     ) -> Vec<bool> {
         // Create verification data for batch processing
-        let verifications: Vec<_> = transactions.iter()
+        let verifications: Vec<_> = transactions
+            .iter()
             .map(|tx| {
                 // Create message to verify (simplified)
-                let message = format!("{}:{}:{}:{}", tx.from, tx.to, tx.amount, tx.nonce).into_bytes();
-                (message, tx.signature.clone(), get_public_key_for_address(&tx.from))
+                let message =
+                    format!("{}:{}:{}:{}", tx.from, tx.to, tx.amount, tx.nonce).into_bytes();
+                (
+                    message,
+                    tx.signature.clone(),
+                    get_public_key_for_address(&tx.from),
+                )
             })
             .collect();
 
         // Batch verify signatures
-        signature_engine.batch_verify_signatures(&verifications)
+        signature_engine
+            .batch_verify_signatures(&verifications)
             .await
             .unwrap_or_else(|_| vec![false; transactions.len()])
     }
@@ -616,17 +642,24 @@ impl ParallelTransactionProcessor {
     ) -> Result<()> {
         // Simulate transaction execution
         tokio::time::sleep(Duration::from_millis(1)).await;
-        
+
         // Store transaction in database
         storage.store_transaction_optimized(&transaction).await?;
-        
+
         // Update balances (simplified)
         let from_balance = storage.get_balance(&transaction.from).await?;
         let to_balance = storage.get_balance(&transaction.to).await?;
-        
+
         if from_balance >= transaction.amount + transaction.fee {
-            storage.update_balance(&transaction.from, from_balance - transaction.amount - transaction.fee).await?;
-            storage.update_balance(&transaction.to, to_balance + transaction.amount).await?;
+            storage
+                .update_balance(
+                    &transaction.from,
+                    from_balance - transaction.amount - transaction.fee,
+                )
+                .await?;
+            storage
+                .update_balance(&transaction.to, to_balance + transaction.amount)
+                .await?;
             Ok(())
         } else {
             Err(anyhow::anyhow!("Insufficient balance"))
@@ -647,11 +680,11 @@ impl ParallelTransactionProcessor {
     pub async fn force_process_all(&self) -> Result<usize> {
         let transactions = self.pool.get_ready_transactions(usize::MAX).await;
         let count = transactions.len();
-        
+
         for transaction in transactions {
             self.submit_transaction(transaction).await?;
         }
-        
+
         Ok(count)
     }
 }
@@ -667,22 +700,22 @@ fn get_public_key_for_address(_address: &Address) -> ed25519_dalek::VerifyingKey
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::storage::{ParadigmStorage, StorageConfig};
     use crate::crypto_optimization::CryptoEngine;
+    use crate::storage::{ParadigmStorage, StorageConfig};
 
     #[tokio::test]
     async fn test_transaction_pool() {
         let pool = TransactionPool::new(10, 5);
-        
+
         let tx1 = create_test_transaction(1);
         let tx2 = create_test_transaction(2);
-        
+
         assert!(pool.add_transaction(tx1.clone()).await.unwrap());
         assert!(pool.add_transaction(tx2.clone()).await.unwrap());
-        
+
         let ready = pool.get_ready_transactions(10).await;
         assert_eq!(ready.len(), 2);
-        
+
         let stats = pool.get_stats().await;
         assert_eq!(stats.total_received, 2);
         assert_eq!(stats.current_pool_size, 2);
@@ -692,16 +725,16 @@ mod tests {
     async fn test_transaction_pool_nonce_ordering() {
         let pool = TransactionPool::new(10, 5);
         let address = Address([1u8; 32]);
-        
+
         // Add transactions with nonces 2, 1, 3 (out of order)
         let tx2 = create_test_transaction_with_nonce(address.clone(), 2);
         let tx1 = create_test_transaction_with_nonce(address.clone(), 1);
         let tx3 = create_test_transaction_with_nonce(address.clone(), 3);
-        
+
         pool.add_transaction(tx2).await.unwrap();
         pool.add_transaction(tx1).await.unwrap();
         pool.add_transaction(tx3).await.unwrap();
-        
+
         let ready = pool.get_ready_transactions(1).await;
         assert_eq!(ready.len(), 1);
         assert_eq!(ready[0].nonce, 1); // Should get the lowest nonce first
@@ -709,35 +742,32 @@ mod tests {
 
     #[tokio::test]
     async fn test_parallel_processor() {
-        let storage = Arc::new(
-            ParadigmStorage::new("sqlite::memory:").await.unwrap()
-        );
+        let storage = Arc::new(ParadigmStorage::new("sqlite::memory:").await.unwrap());
         let crypto_engine = Arc::new(CryptoEngine::new(2).unwrap());
         let config = ProcessorConfig::default();
-        
-        let processor = ParallelTransactionProcessor::new(
-            storage,
-            crypto_engine.signatures.clone(),
-            config,
-        ).await.unwrap();
+
+        let processor =
+            ParallelTransactionProcessor::new(storage, crypto_engine.signatures.clone(), config)
+                .await
+                .unwrap();
 
         processor.start().await.unwrap();
-        
+
         // Submit test transactions
         let tx1 = create_test_transaction(1);
         let tx2 = create_test_transaction(2);
-        
+
         assert!(processor.submit_transaction(tx1).await.unwrap());
         assert!(processor.submit_transaction(tx2).await.unwrap());
-        
+
         // Wait a bit for processing
         tokio::time::sleep(Duration::from_millis(100)).await;
-        
+
         let stats = processor.get_stats().await;
         let pool_stats = processor.get_pool_stats().await;
-        
+
         assert!(pool_stats.total_received >= 2);
-        
+
         processor.stop().await;
     }
 

@@ -1,4 +1,4 @@
-use crate::{Hash, Address, Amount, Error, Result};
+use crate::{Address, Amount, Error, Hash, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, RwLock};
@@ -92,11 +92,21 @@ pub struct SpanProcessor {
 /// Span exporter interface
 #[derive(Debug, Clone)]
 pub enum SpanExporter {
-    Jaeger { endpoint: String, service_name: String },
-    Zipkin { endpoint: String },
+    Jaeger {
+        endpoint: String,
+        service_name: String,
+    },
+    Zipkin {
+        endpoint: String,
+    },
     Console,
-    File { path: String },
-    Custom { name: String, endpoint: String },
+    File {
+        path: String,
+    },
+    Custom {
+        name: String,
+        endpoint: String,
+    },
 }
 
 /// Metrics export system
@@ -110,11 +120,25 @@ pub struct MetricsExporter {
 /// Types of metrics exporters
 #[derive(Debug, Clone)]
 pub enum MetricsExporterType {
-    Prometheus { endpoint: String, port: u16 },
-    StatsD { host: String, port: u16 },
-    InfluxDB { endpoint: String, database: String },
-    CloudWatch { region: String },
-    Custom { name: String, config: HashMap<String, String> },
+    Prometheus {
+        endpoint: String,
+        port: u16,
+    },
+    StatsD {
+        host: String,
+        port: u16,
+    },
+    InfluxDB {
+        endpoint: String,
+        database: String,
+    },
+    CloudWatch {
+        region: String,
+    },
+    Custom {
+        name: String,
+        config: HashMap<String, String>,
+    },
 }
 
 /// Log aggregation and correlation
@@ -155,12 +179,30 @@ pub struct LogSource {
 /// Log export destinations
 #[derive(Debug, Clone)]
 pub enum LogExporter {
-    ElasticSearch { endpoint: String, index: String },
-    Fluentd { host: String, port: u16, tag: String },
-    Syslog { facility: String, severity: String },
-    File { path: String, rotation: FileRotation },
-    Console { format: ConsoleFormat },
-    Custom { name: String, config: HashMap<String, String> },
+    ElasticSearch {
+        endpoint: String,
+        index: String,
+    },
+    Fluentd {
+        host: String,
+        port: u16,
+        tag: String,
+    },
+    Syslog {
+        facility: String,
+        severity: String,
+    },
+    File {
+        path: String,
+        rotation: FileRotation,
+    },
+    Console {
+        format: ConsoleFormat,
+    },
+    Custom {
+        name: String,
+        config: HashMap<String, String>,
+    },
 }
 
 /// File rotation configuration
@@ -370,7 +412,7 @@ impl TelemetrySystem {
     /// Create a new telemetry system
     pub fn new(config: TelemetryConfig) -> Self {
         let (span_sender, _) = broadcast::channel(1000);
-        
+
         TelemetrySystem {
             tracer: Arc::new(DistributedTracer::new(config.sampling_config.clone())),
             span_processor: Arc::new(SpanProcessor::new(config.batch_config.clone(), span_sender)),
@@ -379,21 +421,21 @@ impl TelemetrySystem {
             config,
         }
     }
-    
+
     /// Start the telemetry system
     pub async fn start(&self) -> Result<()> {
         // Start span processing
         self.span_processor.start().await?;
-        
+
         // Start metrics export
         self.metrics_exporter.start().await?;
-        
+
         // Start log aggregation
         self.log_aggregator.start().await?;
-        
+
         Ok(())
     }
-    
+
     /// Create a new span
     pub fn start_span(&self, operation_name: &str) -> SpanBuilder {
         SpanBuilder::new(
@@ -402,25 +444,30 @@ impl TelemetrySystem {
             self.config.service_name.clone(),
         )
     }
-    
+
     /// Record a transaction trace
-    pub async fn trace_transaction(&self, transaction_hash: Hash, trace_fn: impl FnOnce() -> Result<()>) -> Result<TransactionTrace> {
+    pub async fn trace_transaction(
+        &self,
+        transaction_hash: Hash,
+        trace_fn: impl FnOnce() -> Result<()>,
+    ) -> Result<TransactionTrace> {
         let trace_start = Instant::now();
         let trace_id = self.tracer.generate_trace_id();
-        
-        let span = self.start_span("transaction_processing")
+
+        let span = self
+            .start_span("transaction_processing")
             .with_tag("transaction.hash", &transaction_hash.to_hex())
             .with_tag("transaction.type", "transfer")
             .start();
-        
+
         let result = trace_fn();
         let duration = trace_start.elapsed();
-        
+
         span.finish();
-        
+
         let success = result.is_ok();
         let error_message = result.as_ref().err().map(|e| e.to_string());
-        
+
         // Create transaction trace
         let transaction_trace = TransactionTrace {
             transaction_hash,
@@ -430,7 +477,8 @@ impl TelemetrySystem {
             success,
             error_message,
             network_info: NetworkTraceInfo {
-                from_address: Address::from_hex("0000000000000000000000000000000000000000").unwrap(),
+                from_address: Address::from_hex("0000000000000000000000000000000000000000")
+                    .unwrap(),
                 to_address: Address::from_hex("1111111111111111111111111111111111111111").unwrap(),
                 amount: Amount::zero(),
                 gas_used: 21000,
@@ -439,21 +487,26 @@ impl TelemetrySystem {
                 network_propagation_time: None,
             },
         };
-        
+
         // Log the trace
-        self.log_structured(LogLevel::Info, "Transaction trace completed", &[
-            ("trace_id", &trace_id),
-            ("success", &success.to_string()),
-            ("duration_ms", &duration.as_millis().to_string()),
-        ]).await;
-        
+        self.log_structured(
+            LogLevel::Info,
+            "Transaction trace completed",
+            &[
+                ("trace_id", &trace_id),
+                ("success", &success.to_string()),
+                ("duration_ms", &duration.as_millis().to_string()),
+            ],
+        )
+        .await;
+
         result.map(|_| transaction_trace)
     }
-    
+
     /// Log structured data with correlation
     pub async fn log_structured(&self, level: LogLevel, message: &str, fields: &[(&str, &str)]) {
         let current_span = self.tracer.current_span().await;
-        
+
         let log_entry = StructuredLog {
             id: self.generate_log_id(),
             timestamp: SystemTime::now(),
@@ -464,7 +517,8 @@ impl TelemetrySystem {
             span_id: current_span.as_ref().map(|s| s.span_id.clone()),
             user_id: None,
             session_id: None,
-            fields: fields.iter()
+            fields: fields
+                .iter()
                 .map(|(k, v)| (k.to_string(), serde_json::Value::String(v.to_string())))
                 .collect(),
             tags: HashMap::new(),
@@ -475,10 +529,10 @@ impl TelemetrySystem {
                 module: "paradigm_sdk::telemetry".to_string(),
             },
         };
-        
+
         self.log_aggregator.add_log(log_entry).await;
     }
-    
+
     /// Collect performance profile
     pub async fn collect_profile(&self) -> ProfileData {
         ProfileData {
@@ -489,7 +543,7 @@ impl TelemetrySystem {
             custom_profiles: HashMap::new(),
         }
     }
-    
+
     /// Export telemetry data
     pub async fn export_telemetry_data(&self, format: TelemetryExportFormat) -> Result<String> {
         match format {
@@ -498,29 +552,33 @@ impl TelemetrySystem {
             TelemetryExportFormat::Jaeger => self.export_jaeger().await,
         }
     }
-    
+
     fn generate_log_id(&self) -> String {
-        format!("log_{}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos())
+        format!(
+            "log_{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        )
     }
-    
+
     async fn collect_cpu_profile(&self) -> CpuProfile {
         // Mock CPU profile collection
         CpuProfile {
-            samples: vec![
-                CpuSample {
-                    stack_trace: vec![
-                        "paradigm_sdk::transaction::sign".to_string(),
-                        "paradigm_sdk::crypto::ed25519_sign".to_string(),
-                    ],
-                    count: 150,
-                    duration: Duration::from_millis(50),
-                },
-            ],
+            samples: vec![CpuSample {
+                stack_trace: vec![
+                    "paradigm_sdk::transaction::sign".to_string(),
+                    "paradigm_sdk::crypto::ed25519_sign".to_string(),
+                ],
+                count: 150,
+                duration: Duration::from_millis(50),
+            }],
             duration: Duration::from_secs(60),
             sampling_rate: 100, // 100 Hz
         }
     }
-    
+
     async fn collect_memory_profile(&self) -> MemoryProfile {
         // Mock memory profile collection
         MemoryProfile {
@@ -528,36 +586,32 @@ impl TelemetrySystem {
             heap_size: 50 * 1024 * 1024, // 50 MB
             gc_cycles: 25,
             allocation_rate: 1024.0 * 1024.0, // 1 MB/s
-            top_allocators: vec![
-                MemoryAllocator {
-                    function: "paradigm_sdk::types::Transaction::new".to_string(),
-                    allocations: 50000,
-                    bytes_allocated: 5 * 1024 * 1024,
-                },
-            ],
+            top_allocators: vec![MemoryAllocator {
+                function: "paradigm_sdk::types::Transaction::new".to_string(),
+                allocations: 50000,
+                bytes_allocated: 5 * 1024 * 1024,
+            }],
         }
     }
-    
+
     async fn collect_goroutine_profile(&self) -> GoroutineProfile {
         // Mock goroutine/task profile collection
         GoroutineProfile {
             active_tasks: 10,
             blocked_tasks: 2,
             waiting_tasks: 5,
-            task_stack_traces: vec![
-                TaskStackTrace {
-                    task_id: 12345,
-                    state: TaskState::Blocked,
-                    stack_frames: vec![
-                        "tokio::sync::mutex::acquire".to_string(),
-                        "paradigm_sdk::monitoring::MetricsCollector::increment_counter".to_string(),
-                    ],
-                    blocked_duration: Some(Duration::from_millis(100)),
-                },
-            ],
+            task_stack_traces: vec![TaskStackTrace {
+                task_id: 12345,
+                state: TaskState::Blocked,
+                stack_frames: vec![
+                    "tokio::sync::mutex::acquire".to_string(),
+                    "paradigm_sdk::monitoring::MetricsCollector::increment_counter".to_string(),
+                ],
+                blocked_duration: Some(Duration::from_millis(100)),
+            }],
         }
     }
-    
+
     async fn export_json(&self) -> Result<String> {
         let export_data = TelemetryExportData {
             service_info: ServiceInfo {
@@ -570,16 +624,16 @@ impl TelemetrySystem {
             logs: self.log_aggregator.get_recent_logs(100).await,
             metrics: HashMap::new(), // Would include metrics data
         };
-        
+
         serde_json::to_string_pretty(&export_data)
             .map_err(|e| Error::SerializationError(e.to_string()))
     }
-    
+
     async fn export_opentelemetry(&self) -> Result<String> {
         // Mock OpenTelemetry format export
         Ok("OpenTelemetry export format not implemented".to_string())
     }
-    
+
     async fn export_jaeger(&self) -> Result<String> {
         // Mock Jaeger format export
         Ok("Jaeger export format not implemented".to_string())
@@ -631,17 +685,17 @@ impl SpanBuilder {
             parent_span_id: None,
         }
     }
-    
+
     pub fn with_tag(mut self, key: &str, value: &str) -> Self {
         self.tags.insert(key.to_string(), value.to_string());
         self
     }
-    
+
     pub fn with_parent(mut self, parent_span_id: String) -> Self {
         self.parent_span_id = Some(parent_span_id);
         self
     }
-    
+
     pub fn start(self) -> SpanGuard {
         let span = Span {
             trace_id: self.tracer.generate_trace_id(),
@@ -657,7 +711,7 @@ impl SpanBuilder {
             service_name: self.service_name,
             resource: None,
         };
-        
+
         SpanGuard::new(span, Arc::clone(&self.tracer))
     }
 }
@@ -673,18 +727,18 @@ impl SpanGuard {
     fn new(span: Span, tracer: Arc<DistributedTracer>) -> Self {
         let span_id = span.span_id.clone();
         tracer.add_active_span(span.clone());
-        
+
         SpanGuard {
             span,
             tracer,
             finished: false,
         }
     }
-    
+
     pub fn add_tag(&mut self, key: &str, value: &str) {
         self.span.tags.insert(key.to_string(), value.to_string());
     }
-    
+
     pub fn log(&mut self, level: LogLevel, message: &str) {
         self.span.logs.push(SpanLog {
             timestamp: SystemTime::now(),
@@ -693,22 +747,24 @@ impl SpanGuard {
             fields: HashMap::new(),
         });
     }
-    
+
     pub fn set_status(&mut self, status: SpanStatus) {
         self.span.status = status;
     }
-    
+
     pub fn finish(mut self) {
         if !self.finished {
             self.span.end_time = Some(SystemTime::now());
-            self.span.duration = self.span.end_time
+            self.span.duration = self
+                .span
+                .end_time
                 .and_then(|end| end.duration_since(self.span.start_time).ok());
-            
+
             self.tracer.finish_span(self.span.clone());
             self.finished = true;
         }
     }
-    
+
     pub fn clone(&self) -> Span {
         self.span.clone()
     }
@@ -718,9 +774,11 @@ impl Drop for SpanGuard {
     fn drop(&mut self) {
         if !self.finished {
             self.span.end_time = Some(SystemTime::now());
-            self.span.duration = self.span.end_time
+            self.span.duration = self
+                .span
+                .end_time
                 .and_then(|end| end.duration_since(self.span.start_time).ok());
-            
+
             self.tracer.finish_span(self.span.clone());
         }
     }
@@ -735,27 +793,27 @@ impl DistributedTracer {
             sampling_config,
         }
     }
-    
+
     fn generate_trace_id(&self) -> String {
         self.trace_id_generator.generate()
     }
-    
+
     fn generate_span_id(&self) -> String {
         format!("span_{:016x}", rand::random::<u64>())
     }
-    
+
     fn add_active_span(&self, span: Span) {
         let mut active_spans = self.active_spans.write().unwrap();
         active_spans.insert(span.span_id.clone(), span);
     }
-    
+
     fn finish_span(&self, span: Span) {
         let mut active_spans = self.active_spans.write().unwrap();
         active_spans.remove(&span.span_id);
-        
+
         // Would send to span processor here
     }
-    
+
     async fn current_span(&self) -> Option<Span> {
         // Would get current span from task-local storage
         None
@@ -769,17 +827,17 @@ impl TraceIdGenerator {
             sequence: Mutex::new(0),
         }
     }
-    
+
     fn generate(&self) -> String {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_millis() as u64;
-        
+
         let mut sequence = self.sequence.lock().unwrap();
         *sequence += 1;
         let seq = *sequence & 0xFFF; // 12 bits
-        
+
         format!("{:016x}{:04x}{:04x}", timestamp, self.node_id, seq)
     }
 }
@@ -793,40 +851,44 @@ impl SpanProcessor {
             span_sender,
         }
     }
-    
+
     async fn start(&self) -> Result<()> {
         // Start batch processing
         let batch_config = self.batch_config.clone();
         let completed_spans = Arc::new(Mutex::new(VecDeque::new()));
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(batch_config.max_batch_timeout);
             loop {
                 interval.tick().await;
-                
+
                 let batch = {
                     let mut spans = completed_spans.lock().unwrap();
                     if spans.len() >= batch_config.max_batch_size {
-                        Some(spans.drain(..batch_config.max_batch_size).collect::<Vec<_>>())
+                        Some(
+                            spans
+                                .drain(..batch_config.max_batch_size)
+                                .collect::<Vec<_>>(),
+                        )
                     } else {
                         None
                     }
                 };
-                
+
                 if let Some(batch) = batch {
                     // Export batch
                     Self::export_spans(batch).await;
                 }
             }
         });
-        
+
         Ok(())
     }
-    
+
     async fn export_spans(_spans: Vec<Span>) {
         // Mock span export
     }
-    
+
     async fn get_recent_spans(&self, limit: usize) -> Vec<Span> {
         let spans = self.completed_spans.lock().unwrap();
         spans.iter().rev().take(limit).cloned().collect()
@@ -841,11 +903,11 @@ impl MetricsExporter {
             last_export: Mutex::new(SystemTime::now()),
         }
     }
-    
+
     async fn start(&self) -> Result<()> {
         // Start metrics export
         let export_interval = self.export_interval;
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(export_interval);
             loop {
@@ -853,7 +915,7 @@ impl MetricsExporter {
                 // Export metrics
             }
         });
-        
+
         Ok(())
     }
 }
@@ -867,11 +929,11 @@ impl LogAggregator {
             buffer_config,
         }
     }
-    
+
     async fn start(&self) -> Result<()> {
         // Start log processing
         let flush_interval = self.buffer_config.flush_interval;
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(flush_interval);
             loop {
@@ -879,27 +941,30 @@ impl LogAggregator {
                 // Flush logs
             }
         });
-        
+
         Ok(())
     }
-    
+
     async fn add_log(&self, log: StructuredLog) {
         // Add to correlation index
         if let Some(ref trace_id) = log.trace_id {
             let mut index = self.correlation_index.write().unwrap();
-            index.entry(trace_id.clone()).or_insert_with(Vec::new).push(log.id.clone());
+            index
+                .entry(trace_id.clone())
+                .or_insert_with(Vec::new)
+                .push(log.id.clone());
         }
-        
+
         // Add to buffer
         let mut buffer = self.log_buffer.lock().unwrap();
         buffer.push_back(log);
-        
+
         // Trim buffer if needed
         if buffer.len() > self.buffer_config.max_buffer_size {
             buffer.pop_front();
         }
     }
-    
+
     async fn get_recent_logs(&self, limit: usize) -> Vec<StructuredLog> {
         let buffer = self.log_buffer.lock().unwrap();
         buffer.iter().rev().take(limit).cloned().collect()
@@ -942,115 +1007,125 @@ impl Default for TelemetryConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_distributed_tracing() {
         let config = TelemetryConfig::default();
         let telemetry = TelemetrySystem::new(config);
-        
-        let span = telemetry.start_span("test_operation")
+
+        let span = telemetry
+            .start_span("test_operation")
             .with_tag("test.key", "test.value")
             .start();
-        
+
         // Simulate some work
         tokio::time::sleep(Duration::from_millis(10)).await;
-        
+
         span.finish();
-        
+
         // Span should be completed
         assert!(true); // Placeholder assertion
     }
-    
+
     #[tokio::test]
     async fn test_structured_logging() {
         let config = TelemetryConfig::default();
         let telemetry = TelemetrySystem::new(config);
-        
-        telemetry.log_structured(
-            LogLevel::Info,
-            "Test log message",
-            &[("key1", "value1"), ("key2", "value2")],
-        ).await;
-        
+
+        telemetry
+            .log_structured(
+                LogLevel::Info,
+                "Test log message",
+                &[("key1", "value1"), ("key2", "value2")],
+            )
+            .await;
+
         // Log should be recorded
         assert!(true); // Placeholder assertion
     }
-    
+
     #[tokio::test]
     async fn test_transaction_tracing() {
         let config = TelemetryConfig::default();
         let telemetry = TelemetrySystem::new(config);
-        
-        let transaction_hash = Hash::from_hex("deadbeef000000000000000000000000000000000000000000000000deadbeef").unwrap();
-        
-        let trace_result = telemetry.trace_transaction(transaction_hash, || {
-            // Simulate transaction processing
-            Ok(())
-        }).await;
-        
+
+        let transaction_hash =
+            Hash::from_hex("deadbeef000000000000000000000000000000000000000000000000deadbeef")
+                .unwrap();
+
+        let trace_result = telemetry
+            .trace_transaction(transaction_hash, || {
+                // Simulate transaction processing
+                Ok(())
+            })
+            .await;
+
         assert!(trace_result.is_ok());
         let trace = trace_result.unwrap();
         assert_eq!(trace.transaction_hash, transaction_hash);
         assert!(trace.success);
     }
-    
+
     #[tokio::test]
     async fn test_performance_profiling() {
         let config = TelemetryConfig::default();
         let telemetry = TelemetrySystem::new(config);
-        
+
         let profile = telemetry.collect_profile().await;
-        
+
         assert!(profile.cpu_profile.samples.len() > 0);
         assert!(profile.memory_profile.heap_size > 0);
         assert!(profile.goroutine_profile.is_some());
     }
-    
+
     #[tokio::test]
     async fn test_telemetry_export() {
         let config = TelemetryConfig::default();
         let telemetry = TelemetrySystem::new(config);
-        
-        let json_export = telemetry.export_telemetry_data(TelemetryExportFormat::Json).await;
+
+        let json_export = telemetry
+            .export_telemetry_data(TelemetryExportFormat::Json)
+            .await;
         assert!(json_export.is_ok());
-        
+
         let json_data = json_export.unwrap();
         assert!(!json_data.is_empty());
-        
+
         // Should be valid JSON
         let parsed: serde_json::Value = serde_json::from_str(&json_data).unwrap();
         assert!(parsed.is_object());
     }
-    
+
     #[test]
     fn test_trace_id_generation() {
         let generator = TraceIdGenerator::new();
-        
+
         let id1 = generator.generate();
         let id2 = generator.generate();
-        
+
         assert_ne!(id1, id2);
         assert_eq!(id1.len(), 32); // 128-bit hex string
         assert_eq!(id2.len(), 32);
     }
-    
+
     #[tokio::test]
     async fn test_span_lifecycle() {
         let config = TelemetryConfig::default();
         let telemetry = TelemetrySystem::new(config);
-        
-        let mut span = telemetry.start_span("test_span")
+
+        let mut span = telemetry
+            .start_span("test_span")
             .with_tag("component", "test")
             .start();
-        
+
         span.add_tag("custom.tag", "custom.value");
         span.log(LogLevel::Info, "Test log in span");
         span.set_status(SpanStatus::Ok);
-        
+
         let span_clone = span.clone();
         assert_eq!(span_clone.operation_name, "test_span");
         assert_eq!(span_clone.tags.get("component"), Some(&"test".to_string()));
-        
+
         span.finish();
     }
 }

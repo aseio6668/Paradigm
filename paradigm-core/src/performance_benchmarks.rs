@@ -1,18 +1,18 @@
+use anyhow::Result;
+use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 /// Comprehensive performance benchmarking suite for Paradigm
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use anyhow::Result;
-use serde::{Deserialize, Serialize};
+use sysinfo::{Pid, System};
 use tokio::sync::RwLock;
-use rayon::prelude::*;
 use uuid::Uuid;
-use sysinfo::{System, Pid};
 
-use crate::storage::{ParadigmStorage, StorageConfig};
-use crate::crypto_optimization::{CryptoEngine, BenchmarkResults as CryptoBenchmarks};
-use crate::parallel_ml::{ParallelMLProcessor, TaskPriority, WorkerNode};
 use crate::consensus::{MLTask, MLTaskType, TaskCapabilities};
+use crate::crypto_optimization::{BenchmarkResults as CryptoBenchmarks, CryptoEngine};
+use crate::parallel_ml::{ParallelMLProcessor, TaskPriority, WorkerNode};
+use crate::storage::{ParadigmStorage, StorageConfig};
 use crate::transaction::Transaction;
 use crate::Address;
 
@@ -80,9 +80,9 @@ pub struct TransactionBenchmarks {
 /// Overall system performance metrics
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemBenchmarks {
-    pub overall_tps: f64, // Transactions per second
+    pub overall_tps: f64,       // Transactions per second
     pub system_load_score: f64, // 0-100 scale
-    pub stability_score: f64, // 0-100 scale  
+    pub stability_score: f64,   // 0-100 scale
     pub scalability_factor: f64,
     pub resource_efficiency: f64,
     pub error_rate: f64,
@@ -136,7 +136,7 @@ impl PerformanceBenchmarker {
     ) -> Self {
         let mut system = System::new_all();
         system.refresh_all();
-        
+
         Self {
             storage,
             crypto_engine,
@@ -150,14 +150,14 @@ impl PerformanceBenchmarker {
     /// Run comprehensive performance benchmarks
     pub async fn run_full_benchmark(&self, duration_secs: u64) -> Result<BenchmarkSuite> {
         let start_time = Instant::now();
-        
+
         // Gather system information
         let system_info = self.gather_system_info().await;
-        
+
         // Run all benchmark categories in parallel for efficiency
         let (database_bench, crypto_bench, ml_bench, network_bench, transaction_bench) = tokio::join!(
             self.benchmark_database(duration_secs / 5),
-            self.benchmark_crypto(1000), // 1000 iterations
+            self.benchmark_crypto(1000),       // 1000 iterations
             self.benchmark_ml_processing(100), // 100 tasks
             self.benchmark_network(duration_secs / 5),
             self.benchmark_transactions(duration_secs / 5)
@@ -168,10 +168,10 @@ impl PerformanceBenchmarker {
         let ml_bench = ml_bench?;
         let network_bench = network_bench?;
         let transaction_bench = transaction_bench?;
-        
+
         // Gather resource metrics during benchmark
         let resource_metrics = self.gather_resource_metrics().await;
-        
+
         // Calculate overall system performance
         let system_overall = self.calculate_system_metrics(
             &database_bench,
@@ -199,7 +199,7 @@ impl PerformanceBenchmarker {
         // Store in history
         let mut history = self.benchmark_history.write().await;
         history.push(benchmark_suite.clone());
-        
+
         // Keep only last 100 benchmark results
         if history.len() > 100 {
             history.truncate(100);
@@ -216,11 +216,10 @@ impl PerformanceBenchmarker {
         let mut select_count = 0;
         let mut update_count = 0;
         let mut batch_insert_count = 0;
-        
+
         // Create test data
-        let test_transactions: Vec<Transaction> = (0..1000)
-            .map(|i| self.create_test_transaction(i))
-            .collect();
+        let test_transactions: Vec<Transaction> =
+            (0..1000).map(|i| self.create_test_transaction(i)).collect();
 
         // Insert benchmark
         let insert_start = Instant::now();
@@ -294,7 +293,7 @@ impl PerformanceBenchmarker {
     /// ML processing benchmarks
     async fn benchmark_ml_processing(&self, num_tasks: usize) -> Result<MLBenchmarks> {
         let start_time = Instant::now();
-        
+
         // Create test worker
         let worker = WorkerNode::new(
             "bench_worker".to_string(),
@@ -306,7 +305,7 @@ impl PerformanceBenchmarker {
                 supports_large_dataset: true,
                 max_difficulty: 10,
             },
-            4
+            4,
         );
         self.ml_processor.register_worker(worker);
 
@@ -318,7 +317,11 @@ impl PerformanceBenchmarker {
         for i in 0..num_tasks {
             let task = MLTask {
                 id: Uuid::new_v4(),
-                task_type: if i % 2 == 0 { MLTaskType::ImageClassification } else { MLTaskType::NaturalLanguageProcessing },
+                task_type: if i % 2 == 0 {
+                    MLTaskType::ImageClassification
+                } else {
+                    MLTaskType::NaturalLanguageProcessing
+                },
                 data: vec![i as u8; 1024], // 1KB test data
                 difficulty: (i % 10) as u8 + 1,
                 reward: 100,
@@ -328,8 +331,10 @@ impl PerformanceBenchmarker {
                 completed: false,
                 result: None,
             };
-            
-            self.ml_processor.submit_task(task.clone(), TaskPriority::Normal).await?;
+
+            self.ml_processor
+                .submit_task(task.clone(), TaskPriority::Normal)
+                .await?;
             tasks.push(task);
         }
 
@@ -337,7 +342,7 @@ impl PerformanceBenchmarker {
         let mut completed = 0;
         let mut total_time = 0u64;
         let mut successes = 0;
-        
+
         while completed < num_tasks && start_time.elapsed() < Duration::from_secs(60) {
             if let Some(result) = self.ml_processor.get_result().await {
                 completed += 1;
@@ -352,11 +357,19 @@ impl PerformanceBenchmarker {
 
         let total_benchmark_time = start_time.elapsed();
         let tasks_per_sec = completed as f64 / total_benchmark_time.as_secs_f64();
-        let average_task_time_ms = if completed > 0 { total_time as f64 / completed as f64 } else { 0.0 };
-        let success_rate = if completed > 0 { successes as f64 / completed as f64 } else { 0.0 };
+        let average_task_time_ms = if completed > 0 {
+            total_time as f64 / completed as f64
+        } else {
+            0.0
+        };
+        let success_rate = if completed > 0 {
+            successes as f64 / completed as f64
+        } else {
+            0.0
+        };
 
         let stats = self.ml_processor.get_stats().await;
-        
+
         Ok(MLBenchmarks {
             tasks_per_sec,
             average_task_time_ms,
@@ -371,9 +384,10 @@ impl PerformanceBenchmarker {
     /// Network performance benchmarks
     async fn benchmark_network(&self, duration_secs: u64) -> Result<NetworkBenchmarks> {
         let start_time = Instant::now();
-        
+
         // Simulate network operations
-        let connection_times = (0..10).into_par_iter()
+        let connection_times = (0..10)
+            .into_par_iter()
             .map(|_| {
                 let start = Instant::now();
                 // Simulate connection setup
@@ -382,56 +396,56 @@ impl PerformanceBenchmarker {
             })
             .collect::<Vec<f64>>();
 
-        let avg_connection_time = connection_times.iter().sum::<f64>() / connection_times.len() as f64;
+        let avg_connection_time =
+            connection_times.iter().sum::<f64>() / connection_times.len() as f64;
 
         // Simulate message throughput
         let message_count = 1000;
         let throughput_start = Instant::now();
-        (0..message_count).into_par_iter()
-            .for_each(|_| {
-                // Simulate message processing
-                std::thread::sleep(Duration::from_micros(100));
-            });
+        (0..message_count).into_par_iter().for_each(|_| {
+            // Simulate message processing
+            std::thread::sleep(Duration::from_micros(100));
+        });
         let throughput_time = throughput_start.elapsed();
         let message_throughput = message_count as f64 / throughput_time.as_secs_f64();
 
         Ok(NetworkBenchmarks {
             connection_setup_time_ms: avg_connection_time,
             message_throughput_per_sec: message_throughput,
-            average_latency_ms: 25.0, // Simulated average latency
-            peer_discovery_time_ms: 150.0, // Simulated peer discovery time
+            average_latency_ms: 25.0,        // Simulated average latency
+            peer_discovery_time_ms: 150.0,   // Simulated peer discovery time
             data_sync_rate_mb_per_sec: 50.0, // Simulated sync rate
-            concurrent_connections: 20, // Simulated concurrent connections
+            concurrent_connections: 20,      // Simulated concurrent connections
         })
     }
 
     /// Transaction processing benchmarks
     async fn benchmark_transactions(&self, duration_secs: u64) -> Result<TransactionBenchmarks> {
         let start_time = Instant::now();
-        
+
         // Create test transactions
-        let test_transactions: Vec<Transaction> = (0..1000)
-            .map(|i| self.create_test_transaction(i))
-            .collect();
+        let test_transactions: Vec<Transaction> =
+            (0..1000).map(|i| self.create_test_transaction(i)).collect();
 
         // Transaction processing benchmark
         let mut processed = 0;
         let mut validation_times = Vec::new();
-        
+
         for tx in &test_transactions[..500] {
             let validation_start = Instant::now();
-            
+
             // Simulate transaction validation
             if self.validate_test_transaction(tx) {
                 processed += 1;
             }
-            
+
             validation_times.push(validation_start.elapsed().as_millis() as f64);
         }
 
         let total_time = start_time.elapsed();
         let tps = processed as f64 / total_time.as_secs_f64();
-        let avg_validation_time = validation_times.iter().sum::<f64>() / validation_times.len() as f64;
+        let avg_validation_time =
+            validation_times.iter().sum::<f64>() / validation_times.len() as f64;
 
         // Signature verification benchmark
         let sig_verify_start = Instant::now();
@@ -458,7 +472,9 @@ impl PerformanceBenchmarker {
         let mut system = self.system.write().await;
         system.refresh_all();
 
-        let cpu_brand = system.cpus().first()
+        let cpu_brand = system
+            .cpus()
+            .first()
             .map(|cpu| cpu.brand().to_string())
             .unwrap_or_else(|| "Unknown".to_string());
 
@@ -491,7 +507,7 @@ impl PerformanceBenchmarker {
             network_rx_mb_per_sec: 2.0, // Simplified - would use actual network metrics
             network_tx_mb_per_sec: 1.5, // Simplified
             open_file_descriptors: 150, // Simplified
-            thread_count: 25, // Simplified
+            thread_count: 25,           // Simplified
         }
     }
 
@@ -506,27 +522,31 @@ impl PerformanceBenchmarker {
         resources: &ResourceMetrics,
     ) -> SystemBenchmarks {
         // Calculate overall TPS (weighted average of different subsystems)
-        let overall_tps = (tx.transactions_per_sec * 0.4) + 
-                         (db.insert_ops_per_sec * 0.3) + 
-                         (ml.tasks_per_sec * 0.2) + 
-                         (network.message_throughput_per_sec * 0.1);
+        let overall_tps = (tx.transactions_per_sec * 0.4)
+            + (db.insert_ops_per_sec * 0.3)
+            + (ml.tasks_per_sec * 0.2)
+            + (network.message_throughput_per_sec * 0.1);
 
         // System load score (0-100, lower CPU/memory usage = higher score)
         let cpu_score = (100.0 - resources.cpu_usage_percent).max(0.0);
-        let memory_score = (100.0 - (resources.memory_used_mb as f64 / resources.memory_total_mb as f64 * 100.0)).max(0.0);
+        let memory_score = (100.0
+            - (resources.memory_used_mb as f64 / resources.memory_total_mb as f64 * 100.0))
+            .max(0.0);
         let system_load_score = (cpu_score + memory_score) / 2.0;
 
         // Stability score based on success rates
-        let stability_score = (tx.transactions_per_sec / 1000.0 * 30.0 + 
-                              ml.success_rate * 40.0 + 
-                              crypto.verify_ops_per_sec / 1000.0 * 30.0).min(100.0);
+        let stability_score = (tx.transactions_per_sec / 1000.0 * 30.0
+            + ml.success_rate * 40.0
+            + crypto.verify_ops_per_sec / 1000.0 * 30.0)
+            .min(100.0);
 
         // Scalability factor (how well the system utilizes available resources)
         let scalability_factor = (overall_tps / 1000.0).min(10.0);
 
         // Resource efficiency (performance per resource unit)
-        let resource_efficiency = overall_tps / (resources.cpu_usage_percent / 100.0 + 
-                                               resources.memory_used_mb as f64 / resources.memory_total_mb as f64);
+        let resource_efficiency = overall_tps
+            / (resources.cpu_usage_percent / 100.0
+                + resources.memory_used_mb as f64 / resources.memory_total_mb as f64);
 
         // Error rate (simplified calculation)
         let error_rate = (1.0 - ml.success_rate) * 100.0;
@@ -544,20 +564,22 @@ impl PerformanceBenchmarker {
     /// Start continuous performance monitoring
     pub async fn start_monitoring(&self, interval_secs: u64) -> Result<()> {
         *self.monitoring_active.write().await = true;
-        
+
         let benchmarker = Arc::new(self.clone());
         let monitoring_active = self.monitoring_active.clone();
-        
+
         tokio::spawn(async move {
             while *monitoring_active.read().await {
                 if let Ok(benchmark) = benchmarker.run_lightweight_benchmark().await {
                     // Store or process monitoring data
-                    tracing::info!("Monitoring - TPS: {:.2}, CPU: {:.1}%, Memory: {}MB", 
+                    tracing::info!(
+                        "Monitoring - TPS: {:.2}, CPU: {:.1}%, Memory: {}MB",
                         benchmark.system_overall.overall_tps,
                         benchmark.resource_metrics.cpu_usage_percent,
-                        benchmark.resource_metrics.memory_used_mb);
+                        benchmark.resource_metrics.memory_used_mb
+                    );
                 }
-                
+
                 tokio::time::sleep(Duration::from_secs(interval_secs)).await;
             }
         });
@@ -574,13 +596,13 @@ impl PerformanceBenchmarker {
     async fn run_lightweight_benchmark(&self) -> Result<BenchmarkSuite> {
         // Simplified benchmark for monitoring (less intensive)
         let start_time = Instant::now();
-        
+
         let system_info = self.gather_system_info().await;
         let resource_metrics = self.gather_resource_metrics().await;
-        
+
         // Quick crypto test
         let crypto_bench = self.crypto_engine.benchmark_operations(100).await?;
-        
+
         // Simplified benchmarks for monitoring
         let database_bench = DatabaseBenchmarks {
             insert_ops_per_sec: 500.0, // Placeholder for monitoring
@@ -653,13 +675,13 @@ impl PerformanceBenchmarker {
     /// Generate performance report
     pub async fn generate_performance_report(&self) -> Result<String> {
         let history = self.benchmark_history.read().await;
-        
+
         if history.is_empty() {
             return Ok("No benchmark data available".to_string());
         }
 
         let latest = &history[history.len() - 1];
-        
+
         let report = format!(
             r#"
 # Paradigm Performance Report
@@ -756,7 +778,9 @@ Generated: {}
             latest.transactions.batch_processing_efficiency * 100.0,
             latest.resource_metrics.cpu_usage_percent,
             latest.resource_metrics.memory_used_mb,
-            latest.resource_metrics.memory_used_mb as f64 / latest.resource_metrics.memory_total_mb as f64 * 100.0,
+            latest.resource_metrics.memory_used_mb as f64
+                / latest.resource_metrics.memory_total_mb as f64
+                * 100.0,
             latest.resource_metrics.disk_read_mb_per_sec,
             latest.resource_metrics.disk_write_mb_per_sec,
             latest.resource_metrics.network_rx_mb_per_sec,
@@ -766,9 +790,13 @@ Generated: {}
         // Add trend analysis if we have multiple data points
         let trend_analysis = if history.len() >= 2 {
             let previous = &history[history.len() - 2];
-            let tps_change = ((latest.system_overall.overall_tps - previous.system_overall.overall_tps) / previous.system_overall.overall_tps) * 100.0;
-            let load_change = latest.system_overall.system_load_score - previous.system_overall.system_load_score;
-            
+            let tps_change = ((latest.system_overall.overall_tps
+                - previous.system_overall.overall_tps)
+                / previous.system_overall.overall_tps)
+                * 100.0;
+            let load_change =
+                latest.system_overall.system_load_score - previous.system_overall.system_load_score;
+
             format!(
                 "- TPS Change: {:.1}% from previous benchmark\n- Load Score Change: {:.1} points\n- Trend: {}\n",
                 tps_change,
@@ -820,9 +848,9 @@ impl Clone for PerformanceBenchmarker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::storage::{ParadigmStorage, StorageConfig};
     use crate::crypto_optimization::CryptoEngine;
     use crate::parallel_ml::ParallelMLProcessor;
+    use crate::storage::{ParadigmStorage, StorageConfig};
 
     #[tokio::test]
     async fn test_performance_benchmarker() {
@@ -834,17 +862,11 @@ mod tests {
     #[tokio::test]
     async fn test_system_metrics_calculation() {
         // Test the system metrics calculation with mock data
-        let storage = Arc::new(
-            ParadigmStorage::new("sqlite::memory:").await.unwrap()
-        );
+        let storage = Arc::new(ParadigmStorage::new("sqlite::memory:").await.unwrap());
         let crypto_engine = Arc::new(CryptoEngine::new(2).unwrap());
         let ml_processor = Arc::new(ParallelMLProcessor::new(4, 30));
-        
-        let benchmarker = PerformanceBenchmarker::new(
-            storage,
-            crypto_engine,
-            ml_processor,
-        ).await;
+
+        let benchmarker = PerformanceBenchmarker::new(storage, crypto_engine, ml_processor).await;
 
         // Create mock benchmark data
         let db_bench = DatabaseBenchmarks {

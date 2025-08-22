@@ -1,41 +1,40 @@
 // Advanced Decision Engine
 // Sophisticated AI decision-making system with multi-criteria analysis
 
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use anyhow::Result;
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
-use serde::{Serialize, Deserialize};
-use tracing::{info, debug, warn, error};
 
-use super::{
-    AIModelConfig, DecisionContext, AIDecision, Recommendation, 
-    ReasoningStep, Evidence, PredictedOutcome, RiskAssessment,
-    ImplementationPlan, MonitoringRequirement, LearningUpdate
-};
 use super::neural_consensus::NeuralAnalysisResult;
 use super::predictive_governance::GovernancePrediction;
+use super::{
+    AIDecision, AIModelConfig, DecisionContext, Evidence, ImplementationPlan, LearningUpdate,
+    MonitoringRequirement, PredictedOutcome, ReasoningStep, Recommendation, RiskAssessment,
+};
 
 /// Advanced multi-criteria decision engine
 pub struct AdvancedDecisionEngine {
     config: AIModelConfig,
-    
+
     // Decision-making components
     criteria_analyzer: Arc<RwLock<MultiCriteriaAnalyzer>>,
     risk_assessor: Arc<RwLock<RiskAssessmentEngine>>,
     outcome_predictor: Arc<RwLock<OutcomePredictionEngine>>,
     implementation_planner: Arc<RwLock<ImplementationPlanner>>,
-    
+
     // Decision state
     active_decisions: Arc<RwLock<HashMap<Uuid, DecisionProcess>>>,
     decision_history: Arc<RwLock<Vec<DecisionRecord>>>,
-    
+
     // Learning and optimization
     decision_optimizer: Arc<RwLock<DecisionOptimizer>>,
     performance_tracker: Arc<RwLock<PerformanceTracker>>,
-    
+
     // Metrics
     decision_metrics: Arc<RwLock<DecisionMetrics>>,
 }
@@ -68,8 +67,8 @@ pub enum EvaluationMethod {
     UtilityFunction(UtilityFunction),
     FuzzyLogic(FuzzyLogicSystem),
     AHP(AnalyticHierarchyProcess), // Analytic Hierarchy Process
-    TOPSIS(TOPSISMethod), // Technique for Order Preference by Similarity
-    ELECTRE(ELECTREMethod), // Elimination and Choice Expressing Reality
+    TOPSIS(TOPSISMethod),          // Technique for Order Preference by Similarity
+    ELECTRE(ELECTREMethod),        // Elimination and Choice Expressing Reality
 }
 
 #[derive(Debug, Clone)]
@@ -110,9 +109,9 @@ pub struct FuzzySet {
 
 #[derive(Debug, Clone)]
 pub enum MembershipFunction {
-    Triangular(f64, f64, f64), // (a, b, c) where b is peak
+    Triangular(f64, f64, f64),       // (a, b, c) where b is peak
     Trapezoidal(f64, f64, f64, f64), // (a, b, c, d)
-    Gaussian(f64, f64), // (mean, std_dev)
+    Gaussian(f64, f64),              // (mean, std_dev)
 }
 
 #[derive(Debug, Clone)]
@@ -257,12 +256,12 @@ pub struct RiskModel {
 
 #[derive(Debug, Clone)]
 pub enum ProbabilityDistribution {
-    Normal(f64, f64), // mean, std_dev
-    Uniform(f64, f64), // min, max
-    Exponential(f64), // lambda
-    Beta(f64, f64), // alpha, beta
+    Normal(f64, f64),          // mean, std_dev
+    Uniform(f64, f64),         // min, max
+    Exponential(f64),          // lambda
+    Beta(f64, f64),            // alpha, beta
     Triangular(f64, f64, f64), // min, mode, max
-    LogNormal(f64, f64), // mu, sigma
+    LogNormal(f64, f64),       // mu, sigma
 }
 
 #[derive(Debug, Clone)]
@@ -582,10 +581,10 @@ pub struct DependencyManager {
 
 #[derive(Debug, Clone)]
 pub struct PlanningObjectives {
-    pub minimize_time: f64,      // Weight
-    pub minimize_cost: f64,      // Weight
-    pub maximize_quality: f64,   // Weight
-    pub minimize_risk: f64,      // Weight
+    pub minimize_time: f64,        // Weight
+    pub minimize_cost: f64,        // Weight
+    pub maximize_quality: f64,     // Weight
+    pub minimize_risk: f64,        // Weight
     pub maximize_flexibility: f64, // Weight
 }
 
@@ -789,34 +788,34 @@ impl AdvancedDecisionEngine {
     /// Initialize the decision engine
     pub async fn initialize(&self) -> Result<()> {
         info!("Initializing Advanced Decision Engine");
-        
+
         // Initialize criteria analyzer
         {
             let mut analyzer = self.criteria_analyzer.write().await;
             analyzer.initialize_criteria_weights()?;
         }
-        
+
         // Initialize risk assessor
         {
             let mut assessor = self.risk_assessor.write().await;
             assessor.initialize_risk_models()?;
         }
-        
+
         // Initialize outcome predictor
         {
             let mut predictor = self.outcome_predictor.write().await;
             predictor.initialize_prediction_models()?;
         }
-        
+
         // Initialize implementation planner
         {
             let mut planner = self.implementation_planner.write().await;
             planner.initialize_planning_algorithms()?;
         }
-        
+
         // Start optimization process
         self.start_continuous_optimization().await?;
-        
+
         info!("Advanced Decision Engine initialized successfully");
         Ok(())
     }
@@ -830,9 +829,9 @@ impl AdvancedDecisionEngine {
     ) -> Result<AIDecision> {
         let start_time = Instant::now();
         let decision_id = context.decision_id;
-        
+
         debug!("Making decision for context: {:?}", decision_id);
-        
+
         // Create decision process
         let mut process = DecisionProcess {
             process_id: Uuid::new_v4(),
@@ -870,13 +869,17 @@ impl AdvancedDecisionEngine {
 
         // Stage 4: Implementation Planning
         process.current_stage = DecisionStage::ImplementationPlanning;
-        let implementation_plan = self.create_implementation_plan(&context, &risk_assessment).await?;
+        let implementation_plan = self
+            .create_implementation_plan(&context, &risk_assessment)
+            .await?;
         process.implementation_plan = Some(implementation_plan.clone());
 
         // Stage 5: Final Recommendation
         process.current_stage = DecisionStage::FinalRecommendation;
-        let recommendation = self.generate_recommendation(&process, &neural_input).await?;
-        
+        let recommendation = self
+            .generate_recommendation(&process, &neural_input)
+            .await?;
+
         // Calculate confidence
         let confidence = self.calculate_confidence(&process, &neural_input).await?;
         process.confidence_level = confidence;
@@ -885,7 +888,9 @@ impl AdvancedDecisionEngine {
         let reasoning = self.generate_reasoning(&process, &neural_input).await?;
 
         // Create monitoring requirements
-        let monitoring = self.create_monitoring_requirements(&context, &implementation_plan).await?;
+        let monitoring = self
+            .create_monitoring_requirements(&context, &implementation_plan)
+            .await?;
 
         // Finalize decision
         process.current_stage = DecisionStage::Completed;
@@ -903,7 +908,8 @@ impl AdvancedDecisionEngine {
         };
 
         // Record decision
-        self.record_decision(&process, &decision, start_time.elapsed()).await;
+        self.record_decision(&process, &decision, start_time.elapsed())
+            .await;
 
         // Remove from active decisions
         {
@@ -911,7 +917,10 @@ impl AdvancedDecisionEngine {
             active.remove(&decision_id);
         }
 
-        info!("Decision completed for context: {:?} with confidence: {:.2}", decision_id, confidence);
+        info!(
+            "Decision completed for context: {:?} with confidence: {:.2}",
+            decision_id, confidence
+        );
         Ok(decision)
     }
 
@@ -921,13 +930,13 @@ impl AdvancedDecisionEngine {
             match update.update_type {
                 super::neural_consensus::LearningUpdateType::WeightAdjustment => {
                     self.update_criteria_weights(&update.data).await?;
-                },
+                }
                 super::neural_consensus::LearningUpdateType::ArchitectureChange => {
                     self.update_decision_architecture(&update.data).await?;
-                },
+                }
                 super::neural_consensus::LearningUpdateType::HyperparameterTuning => {
                     self.update_hyperparameters(&update.data).await?;
-                },
+                }
             }
         }
         Ok(())
@@ -939,29 +948,52 @@ impl AdvancedDecisionEngine {
     }
 
     // Private helper methods
-    async fn evaluate_criteria(&self, context: &DecisionContext, neural_input: &NeuralAnalysisResult) -> Result<HashMap<DecisionCriteria, f64>> {
+    async fn evaluate_criteria(
+        &self,
+        context: &DecisionContext,
+        neural_input: &NeuralAnalysisResult,
+    ) -> Result<HashMap<DecisionCriteria, f64>> {
         let analyzer = self.criteria_analyzer.read().await;
         analyzer.evaluate_all_criteria(context, neural_input).await
     }
 
-    async fn assess_risks(&self, context: &DecisionContext, neural_input: &NeuralAnalysisResult) -> Result<RiskAssessment> {
+    async fn assess_risks(
+        &self,
+        context: &DecisionContext,
+        neural_input: &NeuralAnalysisResult,
+    ) -> Result<RiskAssessment> {
         let assessor = self.risk_assessor.read().await;
-        assessor.assess_comprehensive_risk(context, neural_input).await
+        assessor
+            .assess_comprehensive_risk(context, neural_input)
+            .await
     }
 
-    async fn predict_outcomes(&self, context: &DecisionContext, prediction: &GovernancePrediction) -> Result<Vec<PredictedOutcome>> {
+    async fn predict_outcomes(
+        &self,
+        context: &DecisionContext,
+        prediction: &GovernancePrediction,
+    ) -> Result<Vec<PredictedOutcome>> {
         let predictor = self.outcome_predictor.read().await;
         predictor.predict_all_outcomes(context, prediction).await
     }
 
-    async fn create_implementation_plan(&self, context: &DecisionContext, risk_assessment: &RiskAssessment) -> Result<ImplementationPlan> {
+    async fn create_implementation_plan(
+        &self,
+        context: &DecisionContext,
+        risk_assessment: &RiskAssessment,
+    ) -> Result<ImplementationPlan> {
         let planner = self.implementation_planner.read().await;
         planner.create_optimal_plan(context, risk_assessment).await
     }
 
-    async fn generate_recommendation(&self, process: &DecisionProcess, neural_input: &NeuralAnalysisResult) -> Result<Recommendation> {
+    async fn generate_recommendation(
+        &self,
+        process: &DecisionProcess,
+        neural_input: &NeuralAnalysisResult,
+    ) -> Result<Recommendation> {
         // Combine all analysis results to generate final recommendation
-        let criteria_score: f64 = process.criteria_evaluation.values().sum::<f64>() / process.criteria_evaluation.len() as f64;
+        let criteria_score: f64 = process.criteria_evaluation.values().sum::<f64>()
+            / process.criteria_evaluation.len() as f64;
         let risk_score = if let Some(ref risk) = process.risk_assessment {
             self.risk_to_score(risk)
         } else {
@@ -982,16 +1014,36 @@ impl AdvancedDecisionEngine {
         })
     }
 
-    async fn calculate_confidence(&self, process: &DecisionProcess, neural_input: &NeuralAnalysisResult) -> Result<f64> {
-        let criteria_confidence = if !process.criteria_evaluation.is_empty() { 0.9 } else { 0.0 };
-        let risk_confidence = if process.risk_assessment.is_some() { 0.85 } else { 0.0 };
+    async fn calculate_confidence(
+        &self,
+        process: &DecisionProcess,
+        neural_input: &NeuralAnalysisResult,
+    ) -> Result<f64> {
+        let criteria_confidence = if !process.criteria_evaluation.is_empty() {
+            0.9
+        } else {
+            0.0
+        };
+        let risk_confidence = if process.risk_assessment.is_some() {
+            0.85
+        } else {
+            0.0
+        };
         let neural_confidence = neural_input.consensus_score;
-        let outcome_confidence = if !process.predicted_outcomes.is_empty() { 0.8 } else { 0.0 };
+        let outcome_confidence = if !process.predicted_outcomes.is_empty() {
+            0.8
+        } else {
+            0.0
+        };
 
         Ok((criteria_confidence + risk_confidence + neural_confidence + outcome_confidence) / 4.0)
     }
 
-    async fn generate_reasoning(&self, process: &DecisionProcess, neural_input: &NeuralAnalysisResult) -> Result<Vec<ReasoningStep>> {
+    async fn generate_reasoning(
+        &self,
+        process: &DecisionProcess,
+        neural_input: &NeuralAnalysisResult,
+    ) -> Result<Vec<ReasoningStep>> {
         let mut reasoning = Vec::new();
 
         // Add criteria reasoning
@@ -1015,7 +1067,10 @@ impl AdvancedDecisionEngine {
         // Add neural reasoning
         reasoning.push(ReasoningStep {
             step_id: 3,
-            description: format!("Neural consensus analysis with score: {:.2}", neural_input.consensus_score),
+            description: format!(
+                "Neural consensus analysis with score: {:.2}",
+                neural_input.consensus_score
+            ),
             evidence: vec![],
             weight: 0.3,
         });
@@ -1023,18 +1078,25 @@ impl AdvancedDecisionEngine {
         Ok(reasoning)
     }
 
-    async fn create_monitoring_requirements(&self, _context: &DecisionContext, _plan: &ImplementationPlan) -> Result<Vec<MonitoringRequirement>> {
-        Ok(vec![
-            MonitoringRequirement {
-                metric_name: "Implementation Progress".to_string(),
-                monitoring_frequency: Duration::from_secs(86400), // Daily
-                alert_thresholds: HashMap::from([("completion_rate".to_string(), 0.8)]),
-                data_sources: vec!["implementation_tracker".to_string()],
-            }
-        ])
+    async fn create_monitoring_requirements(
+        &self,
+        _context: &DecisionContext,
+        _plan: &ImplementationPlan,
+    ) -> Result<Vec<MonitoringRequirement>> {
+        Ok(vec![MonitoringRequirement {
+            metric_name: "Implementation Progress".to_string(),
+            monitoring_frequency: Duration::from_secs(86400), // Daily
+            alert_thresholds: HashMap::from([("completion_rate".to_string(), 0.8)]),
+            data_sources: vec!["implementation_tracker".to_string()],
+        }])
     }
 
-    async fn record_decision(&self, process: &DecisionProcess, decision: &AIDecision, processing_time: Duration) {
+    async fn record_decision(
+        &self,
+        process: &DecisionProcess,
+        decision: &AIDecision,
+        processing_time: Duration,
+    ) {
         let record = DecisionRecord {
             decision_id: process.decision_context.decision_id,
             decision_context: process.decision_context.clone(),
@@ -1052,7 +1114,8 @@ impl AdvancedDecisionEngine {
         let mut metrics = self.decision_metrics.write().await;
         metrics.total_decisions += 1;
         metrics.average_decision_time = Duration::from_millis(
-            (metrics.average_decision_time.as_millis() as u64 + processing_time.as_millis() as u64) / 2
+            (metrics.average_decision_time.as_millis() as u64 + processing_time.as_millis() as u64)
+                / 2,
         );
         metrics.recommendation_accuracy = decision.confidence; // Simplified
     }
@@ -1064,34 +1127,34 @@ impl AdvancedDecisionEngine {
 
     async fn start_continuous_optimization(&self) -> Result<()> {
         let engine = Arc::new(self.clone());
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(3600)); // Hourly optimization
-            
+
             loop {
                 interval.tick().await;
-                
+
                 if let Err(e) = engine.optimization_cycle().await {
                     error!("Decision optimization cycle error: {}", e);
                 }
             }
         });
-        
+
         Ok(())
     }
 
     async fn optimization_cycle(&self) -> Result<()> {
         debug!("Starting decision engine optimization cycle");
-        
+
         // Optimize criteria weights
         self.optimize_criteria_weights().await?;
-        
+
         // Optimize risk models
         self.optimize_risk_models().await?;
-        
+
         // Optimize prediction models
         self.optimize_prediction_models().await?;
-        
+
         debug!("Completed decision engine optimization cycle");
         Ok(())
     }
@@ -1140,23 +1203,33 @@ impl MultiCriteriaAnalyzer {
 
     pub fn initialize_criteria_weights(&mut self) -> Result<()> {
         // Initialize default weights
-        self.criteria_weights.insert(DecisionCriteria::TechnicalFeasibility, 0.15);
-        self.criteria_weights.insert(DecisionCriteria::EconomicImpact, 0.20);
-        self.criteria_weights.insert(DecisionCriteria::SocialAcceptance, 0.15);
-        self.criteria_weights.insert(DecisionCriteria::SecurityImplications, 0.15);
-        self.criteria_weights.insert(DecisionCriteria::RiskLevel, 0.15);
-        self.criteria_weights.insert(DecisionCriteria::AlignmentWithGoals, 0.20);
+        self.criteria_weights
+            .insert(DecisionCriteria::TechnicalFeasibility, 0.15);
+        self.criteria_weights
+            .insert(DecisionCriteria::EconomicImpact, 0.20);
+        self.criteria_weights
+            .insert(DecisionCriteria::SocialAcceptance, 0.15);
+        self.criteria_weights
+            .insert(DecisionCriteria::SecurityImplications, 0.15);
+        self.criteria_weights
+            .insert(DecisionCriteria::RiskLevel, 0.15);
+        self.criteria_weights
+            .insert(DecisionCriteria::AlignmentWithGoals, 0.20);
         Ok(())
     }
 
-    pub async fn evaluate_all_criteria(&self, _context: &DecisionContext, _neural_input: &NeuralAnalysisResult) -> Result<HashMap<DecisionCriteria, f64>> {
+    pub async fn evaluate_all_criteria(
+        &self,
+        _context: &DecisionContext,
+        _neural_input: &NeuralAnalysisResult,
+    ) -> Result<HashMap<DecisionCriteria, f64>> {
         let mut evaluation = HashMap::new();
-        
+
         for (criteria, _weight) in &self.criteria_weights {
             // Placeholder evaluation
             evaluation.insert(criteria.clone(), 0.75);
         }
-        
+
         Ok(evaluation)
     }
 }
@@ -1181,7 +1254,11 @@ impl RiskAssessmentEngine {
         Ok(())
     }
 
-    pub async fn assess_comprehensive_risk(&self, _context: &DecisionContext, _neural_input: &NeuralAnalysisResult) -> Result<RiskAssessment> {
+    pub async fn assess_comprehensive_risk(
+        &self,
+        _context: &DecisionContext,
+        _neural_input: &NeuralAnalysisResult,
+    ) -> Result<RiskAssessment> {
         Ok(RiskAssessment {
             overall_risk_level: super::RiskLevel::Medium,
             risk_factors: vec![],
@@ -1219,15 +1296,17 @@ impl OutcomePredictionEngine {
         Ok(())
     }
 
-    pub async fn predict_all_outcomes(&self, _context: &DecisionContext, _prediction: &GovernancePrediction) -> Result<Vec<PredictedOutcome>> {
-        Ok(vec![
-            PredictedOutcome {
-                outcome_type: super::OutcomeType::Economic,
-                probability: 0.8,
-                timeline: Duration::from_secs(2592000), // 30 days
-                impact_metrics: HashMap::from([("value".to_string(), 0.75)]),
-            }
-        ])
+    pub async fn predict_all_outcomes(
+        &self,
+        _context: &DecisionContext,
+        _prediction: &GovernancePrediction,
+    ) -> Result<Vec<PredictedOutcome>> {
+        Ok(vec![PredictedOutcome {
+            outcome_type: super::OutcomeType::Economic,
+            probability: 0.8,
+            timeline: Duration::from_secs(2592000), // 30 days
+            impact_metrics: HashMap::from([("value".to_string(), 0.75)]),
+        }])
     }
 }
 
@@ -1288,19 +1367,21 @@ impl ImplementationPlanner {
         Ok(())
     }
 
-    pub async fn create_optimal_plan(&self, _context: &DecisionContext, _risk_assessment: &RiskAssessment) -> Result<ImplementationPlan> {
+    pub async fn create_optimal_plan(
+        &self,
+        _context: &DecisionContext,
+        _risk_assessment: &RiskAssessment,
+    ) -> Result<ImplementationPlan> {
         Ok(ImplementationPlan {
-            phases: vec![
-                super::ImplementationPhase {
-                    phase_id: 1,
-                    name: "Planning".to_string(),
-                    description: "Initial planning phase".to_string(),
-                    duration: Duration::from_secs(604800), // 7 days
-                    dependencies: vec![],
-                    deliverables: vec!["Project plan".to_string()],
-                    success_metrics: vec!["Plan completion".to_string()],
-                }
-            ],
+            phases: vec![super::ImplementationPhase {
+                phase_id: 1,
+                name: "Planning".to_string(),
+                description: "Initial planning phase".to_string(),
+                duration: Duration::from_secs(604800), // 7 days
+                dependencies: vec![],
+                deliverables: vec!["Project plan".to_string()],
+                success_metrics: vec!["Plan completion".to_string()],
+            }],
             total_duration: Duration::from_secs(2592000), // 30 days
             resource_requirements: super::ResourceRequirements {
                 computational_resources: super::ComputationalResources {
@@ -1318,14 +1399,12 @@ impl ImplementationPlanner {
                 financial_resources: 100000.0,
                 time_requirements: Duration::from_secs(2592000),
             },
-            success_criteria: vec![
-                super::SuccessCriterion {
-                    metric_name: "Completion rate".to_string(),
-                    target_value: 0.95,
-                    measurement_method: "Automated tracking".to_string(),
-                    evaluation_frequency: Duration::from_secs(86400),
-                }
-            ],
+            success_criteria: vec![super::SuccessCriterion {
+                metric_name: "Completion rate".to_string(),
+                target_value: 0.95,
+                measurement_method: "Automated tracking".to_string(),
+                evaluation_frequency: Duration::from_secs(86400),
+            }],
         })
     }
 }

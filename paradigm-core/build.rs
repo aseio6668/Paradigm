@@ -4,7 +4,7 @@
 fn main() {
     println!("cargo:rerun-if-changed=proto/paradigm.proto");
     println!("cargo:rerun-if-changed=proto");
-    
+
     // Check if protoc is available
     if std::process::Command::new("protoc")
         .arg("--version")

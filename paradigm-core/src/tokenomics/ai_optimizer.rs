@@ -1,7 +1,7 @@
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
 use crate::Address;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// AI-driven tokenomics optimization engine
 /// Uses reinforcement learning and evolutionary algorithms to continuously optimize
@@ -36,19 +36,19 @@ impl AIOptimizer {
 
     pub async fn initialize(&mut self) -> anyhow::Result<()> {
         tracing::info!("Initializing AI-driven tokenomics optimizer");
-        
+
         // Initialize ML models
         self.optimization_models.initialize().await?;
-        
+
         // Initialize reinforcement learning agent
         self.rl_agent.initialize().await?;
-        
+
         // Initialize evolutionary optimizer
         self.evolutionary_optimizer.initialize().await?;
-        
+
         // Initialize network analyzer
         self.network_analyzer.initialize().await?;
-        
+
         tracing::info!("AI optimizer initialized successfully");
         Ok(())
     }
@@ -60,35 +60,43 @@ impl AIOptimizer {
     ) -> anyhow::Result<EconomicParameters> {
         // 1. Analyze current network conditions
         let network_analysis = self.network_analyzer.analyze(network_state).await?;
-        
+
         // 2. Calculate performance metrics
-        let performance = self.calculate_performance_metrics(network_state, &network_analysis).await?;
-        
+        let performance = self
+            .calculate_performance_metrics(network_state, &network_analysis)
+            .await?;
+
         // 3. Record performance for learning
         self.performance_history.push(performance.clone());
-        
+
         // 4. Use RL agent to determine optimal actions
-        let rl_actions = self.rl_agent.get_actions(&network_analysis, &performance).await?;
-        
+        let rl_actions = self
+            .rl_agent
+            .get_actions(&network_analysis, &performance)
+            .await?;
+
         // 5. Use evolutionary algorithm for parameter fine-tuning
-        let evolved_params = self.evolutionary_optimizer
-            .optimize_parameters(&self.current_parameters, &performance).await?;
-        
+        let evolved_params = self
+            .evolutionary_optimizer
+            .optimize_parameters(&self.current_parameters, &performance)
+            .await?;
+
         // 6. Combine insights from different optimization approaches
-        let optimized_parameters = self.combine_optimization_results(
-            &rl_actions,
-            &evolved_params,
-            &network_analysis,
-        ).await?;
-        
+        let optimized_parameters = self
+            .combine_optimization_results(&rl_actions, &evolved_params, &network_analysis)
+            .await?;
+
         // 7. Validate parameters before applying
         if self.validate_parameters(&optimized_parameters).await? {
             self.current_parameters = optimized_parameters.clone();
-            tracing::info!("Applied new tokenomics parameters: {:?}", optimized_parameters);
+            tracing::info!(
+                "Applied new tokenomics parameters: {:?}",
+                optimized_parameters
+            );
         } else {
             tracing::warn!("Optimization produced invalid parameters, keeping current settings");
         }
-        
+
         Ok(self.current_parameters.clone())
     }
 
@@ -100,19 +108,19 @@ impl AIOptimizer {
     ) -> anyhow::Result<PerformanceMetric> {
         // Network health metrics
         let network_health = self.calculate_network_health(network_state).await?;
-        
+
         // Economic efficiency metrics
         let economic_efficiency = self.calculate_economic_efficiency(network_state).await?;
-        
+
         // Decentralization metrics
         let decentralization_score = self.calculate_decentralization(network_state).await?;
-        
+
         // Sustainability metrics
         let sustainability_score = self.calculate_sustainability(network_state).await?;
-        
+
         // User satisfaction metrics
         let user_satisfaction = self.calculate_user_satisfaction(network_state).await?;
-        
+
         Ok(PerformanceMetric {
             timestamp: Utc::now(),
             network_health,
@@ -133,16 +141,19 @@ impl AIOptimizer {
         let throughput_score = (network_state.transaction_throughput / 10000.0).min(1.0);
         let consensus_speed = (1.0 / network_state.avg_consensus_time.max(1.0)).min(1.0);
         let error_rate = 1.0 - network_state.error_rate;
-        
-        let health = (uptime_score * 0.3) + 
-                    (throughput_score * 0.3) + 
-                    (consensus_speed * 0.2) + 
-                    (error_rate * 0.2);
-        
+
+        let health = (uptime_score * 0.3)
+            + (throughput_score * 0.3)
+            + (consensus_speed * 0.2)
+            + (error_rate * 0.2);
+
         Ok(health.min(1.0).max(0.0))
     }
 
-    async fn calculate_economic_efficiency(&self, network_state: &NetworkState) -> anyhow::Result<f64> {
+    async fn calculate_economic_efficiency(
+        &self,
+        network_state: &NetworkState,
+    ) -> anyhow::Result<f64> {
         // Measure how efficiently the token economy is operating
         let utilization = network_state.resource_utilization;
         let velocity = network_state.token_velocity;
@@ -151,60 +162,69 @@ impl AIOptimizer {
         } else {
             1.0
         };
-        
-        let efficiency = (utilization * 0.4) + 
-                        (velocity.min(2.0) / 2.0 * 0.3) + 
-                        (inflation_efficiency.min(1.0) * 0.3);
-        
+
+        let efficiency = (utilization * 0.4)
+            + (velocity.min(2.0) / 2.0 * 0.3)
+            + (inflation_efficiency.min(1.0) * 0.3);
+
         Ok(efficiency.min(1.0).max(0.0))
     }
 
-    async fn calculate_decentralization(&self, network_state: &NetworkState) -> anyhow::Result<f64> {
+    async fn calculate_decentralization(
+        &self,
+        network_state: &NetworkState,
+    ) -> anyhow::Result<f64> {
         // Measure how decentralized the network is
         let validator_diversity = 1.0 - network_state.top_10_validator_stake_percentage;
         let geographic_distribution = network_state.geographic_diversity_index;
         let wealth_distribution = 1.0 - network_state.wealth_concentration_gini;
-        
-        let decentralization = (validator_diversity * 0.4) + 
-                              (geographic_distribution * 0.3) + 
-                              (wealth_distribution * 0.3);
-        
+
+        let decentralization = (validator_diversity * 0.4)
+            + (geographic_distribution * 0.3)
+            + (wealth_distribution * 0.3);
+
         Ok(decentralization.min(1.0).max(0.0))
     }
 
     async fn calculate_sustainability(&self, network_state: &NetworkState) -> anyhow::Result<f64> {
         // Measure long-term sustainability of the tokenomics
-        let treasury_health = (network_state.treasury_balance as f64 / network_state.total_supply as f64).min(0.1) / 0.1;
+        let treasury_health =
+            (network_state.treasury_balance as f64 / network_state.total_supply as f64).min(0.1)
+                / 0.1;
         let burn_mint_ratio = if network_state.mint_rate > 0.0 {
             (network_state.burn_rate / network_state.mint_rate).min(1.0)
         } else {
             0.5
         };
         let reward_sustainability = if network_state.total_rewards > 0 {
-            (network_state.productive_work_rewards as f64 / network_state.total_rewards as f64).min(1.0)
+            (network_state.productive_work_rewards as f64 / network_state.total_rewards as f64)
+                .min(1.0)
         } else {
             0.0
         };
-        
-        let sustainability = (treasury_health * 0.3) + 
-                           (burn_mint_ratio * 0.3) + 
-                           (reward_sustainability * 0.4);
-        
+
+        let sustainability =
+            (treasury_health * 0.3) + (burn_mint_ratio * 0.3) + (reward_sustainability * 0.4);
+
         Ok(sustainability.min(1.0).max(0.0))
     }
 
-    async fn calculate_user_satisfaction(&self, network_state: &NetworkState) -> anyhow::Result<f64> {
+    async fn calculate_user_satisfaction(
+        &self,
+        network_state: &NetworkState,
+    ) -> anyhow::Result<f64> {
         // Measure user satisfaction with the network
-        let transaction_cost_satisfaction = 1.0 - (network_state.avg_transaction_fee / 1000.0).min(1.0);
+        let transaction_cost_satisfaction =
+            1.0 - (network_state.avg_transaction_fee / 1000.0).min(1.0);
         let reward_satisfaction = network_state.contributor_satisfaction_score;
         let governance_participation = network_state.governance_participation_rate;
         let user_retention = network_state.monthly_active_user_retention;
-        
-        let satisfaction = (transaction_cost_satisfaction * 0.25) + 
-                          (reward_satisfaction * 0.35) + 
-                          (governance_participation * 0.2) + 
-                          (user_retention * 0.2);
-        
+
+        let satisfaction = (transaction_cost_satisfaction * 0.25)
+            + (reward_satisfaction * 0.35)
+            + (governance_participation * 0.2)
+            + (user_retention * 0.2);
+
         Ok(satisfaction.min(1.0).max(0.0))
     }
 
@@ -219,36 +239,43 @@ impl AIOptimizer {
         let rl_weight = self.rl_agent.get_confidence();
         let evolution_weight = self.evolutionary_optimizer.get_confidence();
         let total_weight = rl_weight + evolution_weight;
-        
+
         let normalized_rl_weight = rl_weight / total_weight;
         let normalized_evolution_weight = evolution_weight / total_weight;
-        
+
         // Combine parameters using weighted average
         let combined_params = EconomicParameters {
-            inflation_rate: self.current_parameters.inflation_rate + 
-                          (rl_actions.inflation_adjustment * normalized_rl_weight) +
-                          ((evolved_params.inflation_rate - self.current_parameters.inflation_rate) * normalized_evolution_weight),
-            
-            burn_rate: self.current_parameters.burn_rate + 
-                      (rl_actions.burn_adjustment * normalized_rl_weight) +
-                      ((evolved_params.burn_rate - self.current_parameters.burn_rate) * normalized_evolution_weight),
-            
-            base_reward_multiplier: self.current_parameters.base_reward_multiplier + 
-                                  (rl_actions.reward_adjustment * normalized_rl_weight) +
-                                  ((evolved_params.base_reward_multiplier - self.current_parameters.base_reward_multiplier) * normalized_evolution_weight),
-            
-            staking_yield: self.current_parameters.staking_yield + 
-                          (rl_actions.staking_adjustment * normalized_rl_weight) +
-                          ((evolved_params.staking_yield - self.current_parameters.staking_yield) * normalized_evolution_weight),
-            
-            treasury_allocation_rate: self.current_parameters.treasury_allocation_rate + 
-                                    (rl_actions.treasury_adjustment * normalized_rl_weight) +
-                                    ((evolved_params.treasury_allocation_rate - self.current_parameters.treasury_allocation_rate) * normalized_evolution_weight),
-            
+            inflation_rate: self.current_parameters.inflation_rate
+                + (rl_actions.inflation_adjustment * normalized_rl_weight)
+                + ((evolved_params.inflation_rate - self.current_parameters.inflation_rate)
+                    * normalized_evolution_weight),
+
+            burn_rate: self.current_parameters.burn_rate
+                + (rl_actions.burn_adjustment * normalized_rl_weight)
+                + ((evolved_params.burn_rate - self.current_parameters.burn_rate)
+                    * normalized_evolution_weight),
+
+            base_reward_multiplier: self.current_parameters.base_reward_multiplier
+                + (rl_actions.reward_adjustment * normalized_rl_weight)
+                + ((evolved_params.base_reward_multiplier
+                    - self.current_parameters.base_reward_multiplier)
+                    * normalized_evolution_weight),
+
+            staking_yield: self.current_parameters.staking_yield
+                + (rl_actions.staking_adjustment * normalized_rl_weight)
+                + ((evolved_params.staking_yield - self.current_parameters.staking_yield)
+                    * normalized_evolution_weight),
+
+            treasury_allocation_rate: self.current_parameters.treasury_allocation_rate
+                + (rl_actions.treasury_adjustment * normalized_rl_weight)
+                + ((evolved_params.treasury_allocation_rate
+                    - self.current_parameters.treasury_allocation_rate)
+                    * normalized_evolution_weight),
+
             decay_rate: evolved_params.decay_rate, // Favor evolutionary approach for decay
             reputation_weight: evolved_params.reputation_weight, // Favor evolutionary approach for reputation
         };
-        
+
         Ok(combined_params)
     }
 
@@ -258,40 +285,40 @@ impl AIOptimizer {
         if params.inflation_rate < -0.1 || params.inflation_rate > 0.2 {
             return Ok(false);
         }
-        
+
         // Check burn rate bounds
         if params.burn_rate < 0.0 || params.burn_rate > 0.1 {
             return Ok(false);
         }
-        
+
         // Check reward multiplier bounds
         if params.base_reward_multiplier < 0.1 || params.base_reward_multiplier > 5.0 {
             return Ok(false);
         }
-        
+
         // Check staking yield bounds
         if params.staking_yield < 0.0 || params.staking_yield > 0.5 {
             return Ok(false);
         }
-        
+
         // Check treasury allocation bounds
         if params.treasury_allocation_rate < 0.0 || params.treasury_allocation_rate > 0.1 {
             return Ok(false);
         }
-        
+
         // Additional validation: ensure parameters don't cause extreme scenarios
         let net_inflation = params.inflation_rate - params.burn_rate;
         if net_inflation > 0.15 || net_inflation < -0.05 {
             return Ok(false);
         }
-        
+
         Ok(true)
     }
 
     /// Get current optimization status and metrics
     pub fn get_optimization_status(&self) -> OptimizationStatus {
         let recent_performance = self.performance_history.last().cloned();
-        
+
         OptimizationStatus {
             current_parameters: self.current_parameters.clone(),
             recent_performance,
@@ -306,24 +333,24 @@ impl AIOptimizer {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EconomicParameters {
     pub inflation_rate: f64,           // Annual inflation rate (-0.1 to 0.2)
-    pub burn_rate: f64,               // Token burn rate (0 to 0.1)
-    pub base_reward_multiplier: f64,  // Multiplier for base rewards (0.1 to 5.0)
-    pub staking_yield: f64,           // Annual staking yield (0 to 0.5)
+    pub burn_rate: f64,                // Token burn rate (0 to 0.1)
+    pub base_reward_multiplier: f64,   // Multiplier for base rewards (0.1 to 5.0)
+    pub staking_yield: f64,            // Annual staking yield (0 to 0.5)
     pub treasury_allocation_rate: f64, // Rate of treasury funding (0 to 0.1)
-    pub decay_rate: f64,              // Temporal token decay rate (0 to 0.01)
-    pub reputation_weight: f64,       // Weight of reputation in rewards (0 to 1.0)
+    pub decay_rate: f64,               // Temporal token decay rate (0 to 0.01)
+    pub reputation_weight: f64,        // Weight of reputation in rewards (0 to 1.0)
 }
 
 impl Default for EconomicParameters {
     fn default() -> Self {
         EconomicParameters {
-            inflation_rate: 0.05,        // 5% annual inflation
-            burn_rate: 0.02,             // 2% burn rate
-            base_reward_multiplier: 1.0, // 1x base rewards
-            staking_yield: 0.08,         // 8% staking yield
+            inflation_rate: 0.05,           // 5% annual inflation
+            burn_rate: 0.02,                // 2% burn rate
+            base_reward_multiplier: 1.0,    // 1x base rewards
+            staking_yield: 0.08,            // 8% staking yield
             treasury_allocation_rate: 0.01, // 1% to treasury
-            decay_rate: 0.001,           // 0.1% decay rate
-            reputation_weight: 0.3,      // 30% reputation weight
+            decay_rate: 0.001,              // 0.1% decay rate
+            reputation_weight: 0.3,         // 30% reputation weight
         }
     }
 }
@@ -479,12 +506,12 @@ impl EvolutionaryOptimizer {
     ) -> anyhow::Result<EconomicParameters> {
         // Simplified evolution - in reality this would run genetic algorithm
         let mut evolved = current_params.clone();
-        
+
         // Small random mutations
         evolved.inflation_rate += (rand::random::<f64>() - 0.5) * 0.01;
         evolved.burn_rate += (rand::random::<f64>() - 0.5) * 0.005;
         evolved.base_reward_multiplier += (rand::random::<f64>() - 0.5) * 0.1;
-        
+
         Ok(evolved)
     }
 
@@ -509,26 +536,26 @@ impl NetworkConditionAnalyzer {
 
     pub async fn analyze(&self, network_state: &NetworkState) -> anyhow::Result<NetworkAnalysis> {
         Ok(NetworkAnalysis {
-            trend_direction: if network_state.network_growth > 0.05 { 
-                TrendDirection::Growing 
-            } else if network_state.network_growth < -0.02 { 
-                TrendDirection::Declining 
-            } else { 
-                TrendDirection::Stable 
+            trend_direction: if network_state.network_growth > 0.05 {
+                TrendDirection::Growing
+            } else if network_state.network_growth < -0.02 {
+                TrendDirection::Declining
+            } else {
+                TrendDirection::Stable
             },
-            volatility_level: if network_state.token_velocity > 2.0 { 
-                VolatilityLevel::High 
-            } else if network_state.token_velocity < 0.5 { 
-                VolatilityLevel::Low 
-            } else { 
-                VolatilityLevel::Medium 
+            volatility_level: if network_state.token_velocity > 2.0 {
+                VolatilityLevel::High
+            } else if network_state.token_velocity < 0.5 {
+                VolatilityLevel::Low
+            } else {
+                VolatilityLevel::Medium
             },
-            congestion_level: if network_state.resource_utilization > 0.8 { 
-                CongestionLevel::High 
-            } else if network_state.resource_utilization < 0.3 { 
-                CongestionLevel::Low 
-            } else { 
-                CongestionLevel::Medium 
+            congestion_level: if network_state.resource_utilization > 0.8 {
+                CongestionLevel::High
+            } else if network_state.resource_utilization < 0.3 {
+                CongestionLevel::Low
+            } else {
+                CongestionLevel::Medium
             },
             reward_fairness: network_state.contributor_satisfaction_score,
             stability_score: 1.0 - network_state.error_rate,
@@ -591,23 +618,26 @@ mod tests {
     #[tokio::test]
     async fn test_parameter_validation() {
         let optimizer = AIOptimizer::new();
-        
+
         // Valid parameters
         let valid_params = EconomicParameters::default();
         assert!(optimizer.validate_parameters(&valid_params).await.unwrap());
-        
+
         // Invalid parameters (too high inflation)
         let invalid_params = EconomicParameters {
             inflation_rate: 0.5, // Too high
             ..Default::default()
         };
-        assert!(!optimizer.validate_parameters(&invalid_params).await.unwrap());
+        assert!(!optimizer
+            .validate_parameters(&invalid_params)
+            .await
+            .unwrap());
     }
 
-    #[tokio::test] 
+    #[tokio::test]
     async fn test_performance_calculation() {
         let optimizer = AIOptimizer::new();
-        
+
         let network_state = NetworkState {
             total_supply: 1_000_000_000,
             active_participants: 10000,
@@ -633,7 +663,7 @@ mod tests {
             governance_participation_rate: 0.6,
             monthly_active_user_retention: 0.85,
         };
-        
+
         let network_analysis = NetworkAnalysis {
             trend_direction: TrendDirection::Growing,
             volatility_level: VolatilityLevel::Medium,
@@ -641,9 +671,12 @@ mod tests {
             reward_fairness: 0.8,
             stability_score: 0.95,
         };
-        
-        let performance = optimizer.calculate_performance_metrics(&network_state, &network_analysis).await.unwrap();
-        
+
+        let performance = optimizer
+            .calculate_performance_metrics(&network_state, &network_analysis)
+            .await
+            .unwrap();
+
         assert!(performance.network_health > 0.0);
         assert!(performance.economic_efficiency > 0.0);
         assert!(performance.sustainability_score > 0.0);

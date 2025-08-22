@@ -1,15 +1,14 @@
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 /// Web API interface for the Network Analytics Dashboard
 /// Provides REST endpoints for accessing real-time network metrics,
 /// historical data, and analytical insights
-
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 
+use super::{AlertSeverity, AnalyticsReport, DashboardData, TimeFrame, TokenomicsSystem};
 use crate::{Address, ParadigmError};
-use super::{TokenomicsSystem, DashboardData, AnalyticsReport, TimeFrame, AlertSeverity};
 
 pub type Result<T> = std::result::Result<T, ParadigmError>;
 
@@ -30,7 +29,10 @@ impl AnalyticsAPI {
 
     /// Initialize the analytics API server
     pub async fn initialize(&mut self) -> Result<()> {
-        println!("Analytics API server initializing on port {}", self.api_config.port);
+        println!(
+            "Analytics API server initializing on port {}",
+            self.api_config.port
+        );
         // In a real implementation, this would start the web server
         println!("Analytics API server initialized successfully");
         Ok(())
@@ -68,7 +70,10 @@ impl AnalyticsAPI {
         let system = self.tokenomics_system.read().await;
         match system.get_dashboard_data().await {
             Ok(data) => Ok(APIResponse::success(data)),
-            Err(e) => Ok(APIResponse::error(format!("Failed to get dashboard data: {}", e))),
+            Err(e) => Ok(APIResponse::error(format!(
+                "Failed to get dashboard data: {}",
+                e
+            ))),
         }
     }
 
@@ -76,10 +81,13 @@ impl AnalyticsAPI {
     /// GET /api/v1/metrics/current
     pub async fn get_current_metrics(&self) -> Result<APIResponse<NetworkMetricsResponse>> {
         let mut system = self.tokenomics_system.write().await;
-        
+
         // Update analytics first
         if let Err(e) = system.update_network_analytics().await {
-            return Ok(APIResponse::error(format!("Failed to update analytics: {}", e)));
+            return Ok(APIResponse::error(format!(
+                "Failed to update analytics: {}",
+                e
+            )));
         }
 
         match system.get_dashboard_data().await {
@@ -94,14 +102,17 @@ impl AnalyticsAPI {
                     governance_participation_rate: data.metrics.governance_participation_rate,
                 };
                 Ok(APIResponse::success(response))
-            },
+            }
             Err(e) => Ok(APIResponse::error(format!("Failed to get metrics: {}", e))),
         }
     }
 
     /// Get historical metrics data
     /// GET /api/v1/metrics/historical?timeframe=last_day
-    pub async fn get_historical_metrics(&self, timeframe: TimeFrame) -> Result<APIResponse<HistoricalMetricsResponse>> {
+    pub async fn get_historical_metrics(
+        &self,
+        timeframe: TimeFrame,
+    ) -> Result<APIResponse<HistoricalMetricsResponse>> {
         let system = self.tokenomics_system.read().await;
         match system.generate_analytics_report(timeframe).await {
             Ok(report) => {
@@ -120,8 +131,11 @@ impl AnalyticsAPI {
                     },
                 };
                 Ok(APIResponse::success(response))
-            },
-            Err(e) => Ok(APIResponse::error(format!("Failed to get historical data: {}", e))),
+            }
+            Err(e) => Ok(APIResponse::error(format!(
+                "Failed to get historical data: {}",
+                e
+            ))),
         }
     }
 
@@ -140,8 +154,11 @@ impl AnalyticsAPI {
                     resource_utilization: data.performance.resource_utilization,
                 };
                 Ok(APIResponse::success(response))
-            },
-            Err(e) => Ok(APIResponse::error(format!("Failed to get performance metrics: {}", e))),
+            }
+            Err(e) => Ok(APIResponse::error(format!(
+                "Failed to get performance metrics: {}",
+                e
+            ))),
         }
     }
 
@@ -163,8 +180,11 @@ impl AnalyticsAPI {
                     overall_health_score: self.calculate_overall_health(&data.economic_health),
                 };
                 Ok(APIResponse::success(response))
-            },
-            Err(e) => Ok(APIResponse::error(format!("Failed to get health indicators: {}", e))),
+            }
+            Err(e) => Ok(APIResponse::error(format!(
+                "Failed to get health indicators: {}",
+                e
+            ))),
         }
     }
 
@@ -174,32 +194,51 @@ impl AnalyticsAPI {
         let system = self.tokenomics_system.read().await;
         match system.get_dashboard_data().await {
             Ok(data) => {
-                let critical_count = data.alerts.iter().filter(|a| matches!(a.severity, AlertSeverity::Critical)).count();
-                let warning_count = data.alerts.iter().filter(|a| matches!(a.severity, AlertSeverity::Warning)).count();
-                let info_count = data.alerts.iter().filter(|a| matches!(a.severity, AlertSeverity::Info)).count();
+                let critical_count = data
+                    .alerts
+                    .iter()
+                    .filter(|a| matches!(a.severity, AlertSeverity::Critical))
+                    .count();
+                let warning_count = data
+                    .alerts
+                    .iter()
+                    .filter(|a| matches!(a.severity, AlertSeverity::Warning))
+                    .count();
+                let info_count = data
+                    .alerts
+                    .iter()
+                    .filter(|a| matches!(a.severity, AlertSeverity::Info))
+                    .count();
 
                 let response = AlertsResponse {
                     total_alerts: data.alerts.len(),
                     critical_alerts: critical_count,
                     warning_alerts: warning_count,
                     info_alerts: info_count,
-                    alerts: data.alerts.into_iter().map(|alert| AlertSummary {
-                        id: alert.id,
-                        message: alert.message,
-                        severity: alert.severity,
-                        timestamp: alert.timestamp,
-                        acknowledged: alert.acknowledged,
-                    }).collect(),
+                    alerts: data
+                        .alerts
+                        .into_iter()
+                        .map(|alert| AlertSummary {
+                            id: alert.id,
+                            message: alert.message,
+                            severity: alert.severity,
+                            timestamp: alert.timestamp,
+                            acknowledged: alert.acknowledged,
+                        })
+                        .collect(),
                 };
                 Ok(APIResponse::success(response))
-            },
+            }
             Err(e) => Ok(APIResponse::error(format!("Failed to get alerts: {}", e))),
         }
     }
 
     /// Generate analytics report
     /// GET /api/v1/reports/generate?timeframe=last_week
-    pub async fn generate_report(&self, timeframe: TimeFrame) -> Result<APIResponse<AnalyticsReportResponse>> {
+    pub async fn generate_report(
+        &self,
+        timeframe: TimeFrame,
+    ) -> Result<APIResponse<AnalyticsReportResponse>> {
         let system = self.tokenomics_system.read().await;
         match system.generate_analytics_report(timeframe).await {
             Ok(report) => {
@@ -216,17 +255,25 @@ impl AnalyticsAPI {
                         total_contributions: report.summary.total_contributions,
                     },
                     insights_count: report.insights.len(),
-                    top_insights: report.insights.into_iter().take(5).map(|insight| InsightSummary {
-                        category: insight.category,
-                        severity: insight.severity,
-                        message: insight.message,
-                        recommendation: insight.recommendation,
-                    }).collect(),
+                    top_insights: report
+                        .insights
+                        .into_iter()
+                        .take(5)
+                        .map(|insight| InsightSummary {
+                            category: insight.category,
+                            severity: insight.severity,
+                            message: insight.message,
+                            recommendation: insight.recommendation,
+                        })
+                        .collect(),
                     recommendations: report.recommendations,
                 };
                 Ok(APIResponse::success(response))
-            },
-            Err(e) => Ok(APIResponse::error(format!("Failed to generate report: {}", e))),
+            }
+            Err(e) => Ok(APIResponse::error(format!(
+                "Failed to generate report: {}",
+                e
+            ))),
         }
     }
 
@@ -236,7 +283,9 @@ impl AnalyticsAPI {
         let system = self.tokenomics_system.read().await;
         match system.get_dashboard_data().await {
             Ok(data) => {
-                let chart_data: Vec<ChartPoint> = data.charts.token_supply_chart
+                let chart_data: Vec<ChartPoint> = data
+                    .charts
+                    .token_supply_chart
                     .into_iter()
                     .map(|(timestamp, value)| ChartPoint { timestamp, value })
                     .collect();
@@ -248,16 +297,26 @@ impl AnalyticsAPI {
                     data: chart_data,
                 };
                 Ok(APIResponse::success(response))
-            },
-            Err(e) => Ok(APIResponse::error(format!("Failed to get chart data: {}", e))),
+            }
+            Err(e) => Ok(APIResponse::error(format!(
+                "Failed to get chart data: {}",
+                e
+            ))),
         }
     }
 
     /// Acknowledge an alert
     /// POST /api/v1/alerts/acknowledge
-    pub async fn acknowledge_alert(&self, request: AcknowledgeAlertRequest) -> Result<APIResponse<()>> {
+    pub async fn acknowledge_alert(
+        &self,
+        request: AcknowledgeAlertRequest,
+    ) -> Result<APIResponse<()>> {
         // In a real implementation, this would call the alert system
-        println!("Alert {} acknowledged by user {}", request.alert_id, request.user_id.unwrap_or_else(|| "anonymous".to_string()));
+        println!(
+            "Alert {} acknowledged by user {}",
+            request.alert_id,
+            request.user_id.unwrap_or_else(|| "anonymous".to_string())
+        );
         Ok(APIResponse::success(()))
     }
 
@@ -279,16 +338,17 @@ impl AnalyticsAPI {
         // Calculate weighted average of health indicators
         let weights = [0.2, 0.15, 0.15, 0.15, 0.1, 0.1, 0.15]; // Sum = 1.0
         let values = [
-            health.token_velocity / 6.0, // Normalize to 0-1 scale
+            health.token_velocity / 6.0,                // Normalize to 0-1 scale
             1.0 - health.inflation_rate.min(0.2) / 0.2, // Lower inflation is better
-            1.0 - health.wealth_concentration, // Lower concentration is better
+            1.0 - health.wealth_concentration,          // Lower concentration is better
             health.participation_rate,
             health.treasury_health,
             health.liquidity_score,
             health.stability_index,
         ];
 
-        weights.iter()
+        weights
+            .iter()
             .zip(values.iter())
             .map(|(w, v)| w * v)
             .sum::<f64>()

@@ -1,8 +1,8 @@
-use paradigm_core::{ParadigmNode, NodeConfig, PARADIGM_VERSION};
-use clap::{Arg, Command};
-use tracing_subscriber;
 use anyhow::Result;
+use clap::{Arg, Command};
+use paradigm_core::{NodeConfig, ParadigmNode, PARADIGM_VERSION};
 use std::path::PathBuf;
+use tracing_subscriber;
 use uuid;
 
 #[tokio::main]
@@ -64,9 +64,9 @@ async fn main() -> Result<()> {
 
     // Create and start the node
     let mut node = ParadigmNode::new(config).await?;
-    
+
     tracing::info!("Node created successfully");
-    
+
     // Start the node
     node.start().await?;
 

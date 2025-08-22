@@ -3,6 +3,10 @@
 pub struct GovernanceModule;
 
 impl GovernanceModule {
-    pub fn new() -> Self { GovernanceModule }
-    pub async fn initialize(&mut self) -> anyhow::Result<()> { Ok(()) }
+    pub fn new() -> Self {
+        GovernanceModule
+    }
+    pub async fn initialize(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
 }

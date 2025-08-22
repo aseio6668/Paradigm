@@ -1,10 +1,10 @@
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
-use uuid::Uuid;
-use blake3::{Hasher, Hash};
-use crate::Address;
 use super::{ContributionProof, ContributionType, ValidationResult};
+use crate::Address;
+use blake3::{Hash, Hasher};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use uuid::Uuid;
 
 /// Validates AI work and mints tokens using ZK proofs and attestations
 #[derive(Debug)]
@@ -35,15 +35,17 @@ impl ContributionValidator {
 
     pub async fn initialize(&mut self) -> anyhow::Result<()> {
         tracing::info!("Initializing Contribution Validator system");
-        
+
         // Initialize ZK proof verifiers
         self.initialize_zk_verifiers().await?;
-        
+
         // Initialize attestation network
         self.initialize_attestation_network().await?;
-        
-        tracing::info!("Contribution Validator initialized with {} validators", 
-                     self.validators.len());
+
+        tracing::info!(
+            "Contribution Validator initialized with {} validators",
+            self.validators.len()
+        );
         Ok(())
     }
 
@@ -53,8 +55,11 @@ impl ContributionValidator {
         contributor: &Address,
         proof: &ContributionProof,
     ) -> anyhow::Result<ValidationResult> {
-        tracing::debug!("Validating contribution {} from {}", 
-                       proof.id, contributor.to_string());
+        tracing::debug!(
+            "Validating contribution {} from {}",
+            proof.id,
+            contributor.to_string()
+        );
 
         // 1. Verify ZK proof
         let zk_valid = self.verify_zk_proof(proof).await?;
@@ -93,7 +98,7 @@ impl ContributionValidator {
     async fn verify_zk_proof(&self, proof: &ContributionProof) -> anyhow::Result<bool> {
         // Get the appropriate ZK verifier for this contribution type
         let verifier_key = format!("{:?}", proof.contribution_type);
-        
+
         if let Some(verifier) = self.proof_verifiers.get(&verifier_key) {
             verifier.verify(&proof.zk_proof, &proof.workload_hash).await
         } else {
@@ -107,15 +112,24 @@ impl ContributionValidator {
         // Verify that the workload hash matches the metadata
         let mut hasher = Hasher::new();
         hasher.update(proof.contributor.as_bytes());
-        hasher.update(&proof.timestamp.timestamp_nanos_opt().unwrap_or(0).to_le_bytes());
+        hasher.update(
+            &proof
+                .timestamp
+                .timestamp_nanos_opt()
+                .unwrap_or(0)
+                .to_le_bytes(),
+        );
         hasher.update(&proof.metadata.to_string().as_bytes());
-        
+
         let computed_hash = hasher.finalize();
         Ok(computed_hash.as_bytes() == proof.workload_hash.as_slice())
     }
 
     /// Validate workload specific to contribution type
-    async fn validate_workload(&self, proof: &ContributionProof) -> anyhow::Result<WorkloadValidation> {
+    async fn validate_workload(
+        &self,
+        proof: &ContributionProof,
+    ) -> anyhow::Result<WorkloadValidation> {
         if let Some(validator) = self.validators.get(&proof.contribution_type) {
             validator.validate(&proof.metadata).await
         } else {
@@ -154,8 +168,14 @@ impl ContributionValidator {
 
     /// Calculate novelty score to avoid duplicate work
     async fn calculate_novelty_score(&self, proof: &ContributionProof) -> anyhow::Result<f64> {
-        let hash = Hash::from_bytes(proof.workload_hash.as_slice().try_into().unwrap_or([0u8; 32]));
-        
+        let hash = Hash::from_bytes(
+            proof
+                .workload_hash
+                .as_slice()
+                .try_into()
+                .unwrap_or([0u8; 32]),
+        );
+
         if self.workload_registry.contains_key(&hash) {
             // Duplicate work detected
             Ok(0.1)
@@ -167,7 +187,10 @@ impl ContributionValidator {
     }
 
     /// Calculate similarity to existing contributions
-    async fn calculate_similarity_to_existing(&self, _proof: &ContributionProof) -> anyhow::Result<f64> {
+    async fn calculate_similarity_to_existing(
+        &self,
+        _proof: &ContributionProof,
+    ) -> anyhow::Result<f64> {
         // In a real implementation, this would use ML models to detect similarity
         // For now, return a random similarity score
         Ok(0.2) // Assume 20% similarity on average
@@ -179,8 +202,14 @@ impl ContributionValidator {
         proof: &ContributionProof,
         validation: &WorkloadValidation,
     ) -> anyhow::Result<()> {
-        let hash = Hash::from_bytes(proof.workload_hash.as_slice().try_into().unwrap_or([0u8; 32]));
-        
+        let hash = Hash::from_bytes(
+            proof
+                .workload_hash
+                .as_slice()
+                .try_into()
+                .unwrap_or([0u8; 32]),
+        );
+
         let record = WorkloadRecord {
             contributor: proof.contributor.clone(),
             contribution_type: proof.contribution_type.clone(),
@@ -213,17 +242,20 @@ impl ContributionValidator {
         // ML Training verifier
         self.proof_verifiers.insert(
             "MLTraining".to_string(),
-            ZKProofVerifier::new("groth16".to_string())
+            ZKProofVerifier::new("groth16".to_string()),
         );
 
         // Inference serving verifier
         self.proof_verifiers.insert(
             "InferenceServing".to_string(),
-            ZKProofVerifier::new("plonk".to_string())
+            ZKProofVerifier::new("plonk".to_string()),
         );
 
         // Add more verifiers for different contribution types
-        tracing::debug!("Initialized {} ZK proof verifiers", self.proof_verifiers.len());
+        tracing::debug!(
+            "Initialized {} ZK proof verifiers",
+            self.proof_verifiers.len()
+        );
         Ok(())
     }
 
@@ -240,19 +272,19 @@ impl ContributionValidator {
         // ML Training validator
         self.validators.insert(
             ContributionType::MLTraining,
-            Box::new(MLTrainingValidator::new())
+            Box::new(MLTrainingValidator::new()),
         );
 
         // Inference serving validator
         self.validators.insert(
             ContributionType::InferenceServing,
-            Box::new(InferenceValidator::new())
+            Box::new(InferenceValidator::new()),
         );
 
         // Data validation validator
         self.validators.insert(
             ContributionType::DataValidation,
-            Box::new(DataValidator::new())
+            Box::new(DataValidator::new()),
         );
 
         // Add more validators as needed
@@ -323,14 +355,23 @@ impl WorkloadValidator for MLTrainingValidator {
     async fn validate(&self, metadata: &serde_json::Value) -> anyhow::Result<WorkloadValidation> {
         // Validate ML training metadata
         let epochs = metadata.get("epochs").and_then(|v| v.as_u64()).unwrap_or(1);
-        let batch_size = metadata.get("batch_size").and_then(|v| v.as_u64()).unwrap_or(32);
-        let model_size = metadata.get("model_parameters").and_then(|v| v.as_u64()).unwrap_or(1000000);
+        let batch_size = metadata
+            .get("batch_size")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(32);
+        let model_size = metadata
+            .get("model_parameters")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(1000000);
 
         // Calculate compute units based on training parameters
         let compute_units = epochs * batch_size * (model_size / 1000);
-        
+
         // Quality score based on convergence and validation metrics
-        let loss = metadata.get("final_loss").and_then(|v| v.as_f64()).unwrap_or(1.0);
+        let loss = metadata
+            .get("final_loss")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(1.0);
         let quality_score = (1.0 / (1.0 + loss)).min(1.0);
 
         Ok(WorkloadValidation {
@@ -353,9 +394,18 @@ impl InferenceValidator {
 #[async_trait::async_trait]
 impl WorkloadValidator for InferenceValidator {
     async fn validate(&self, metadata: &serde_json::Value) -> anyhow::Result<WorkloadValidation> {
-        let requests_served = metadata.get("requests_served").and_then(|v| v.as_u64()).unwrap_or(1);
-        let avg_latency = metadata.get("avg_latency_ms").and_then(|v| v.as_f64()).unwrap_or(100.0);
-        let accuracy = metadata.get("accuracy").and_then(|v| v.as_f64()).unwrap_or(0.8);
+        let requests_served = metadata
+            .get("requests_served")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(1);
+        let avg_latency = metadata
+            .get("avg_latency_ms")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(100.0);
+        let accuracy = metadata
+            .get("accuracy")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.8);
 
         // Compute units based on requests and complexity
         let compute_units = requests_served * 10; // Base cost per request
@@ -384,8 +434,14 @@ impl DataValidator {
 #[async_trait::async_trait]
 impl WorkloadValidator for DataValidator {
     async fn validate(&self, metadata: &serde_json::Value) -> anyhow::Result<WorkloadValidation> {
-        let records_validated = metadata.get("records_validated").and_then(|v| v.as_u64()).unwrap_or(1);
-        let accuracy = metadata.get("validation_accuracy").and_then(|v| v.as_f64()).unwrap_or(0.9);
+        let records_validated = metadata
+            .get("records_validated")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(1);
+        let accuracy = metadata
+            .get("validation_accuracy")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.9);
 
         let compute_units = records_validated; // 1 unit per record
         let quality_score = accuracy;
@@ -426,7 +482,10 @@ mod tests {
             timestamp: Utc::now(),
         };
 
-        let result = validator.validate_contribution(&contributor, &proof).await.unwrap();
+        let result = validator
+            .validate_contribution(&contributor, &proof)
+            .await
+            .unwrap();
         assert!(result.valid);
         assert!(result.compute_units > 0);
         assert!(result.quality_score > 0.0);

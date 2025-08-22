@@ -1,16 +1,16 @@
 // Advanced Memory Pool (Mempool) with Intelligent Transaction Management
 // Optimizes transaction storage and retrieval for maximum throughput
 
-use std::collections::{HashMap, BTreeMap, BTreeSet, VecDeque};
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{RwLock, Mutex};
-use anyhow::Result;
+use tokio::sync::{Mutex, RwLock};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
-use serde::{Serialize, Deserialize};
-use tracing::{info, debug, warn, error};
 
-use crate::{Transaction, Address, ParadigmError};
+use crate::{Address, ParadigmError, Transaction};
 
 /// Memory pool configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,7 +29,7 @@ impl Default for MempoolConfig {
     fn default() -> Self {
         Self {
             max_transactions: 100_000,
-            max_size_bytes: 256 * 1024 * 1024, // 256MB
+            max_size_bytes: 256 * 1024 * 1024,         // 256MB
             transaction_ttl: Duration::from_secs(300), // 5 minutes
             enable_priority_sorting: true,
             enable_fee_estimation: true,
@@ -62,21 +62,21 @@ pub struct MempoolEntry {
 /// Advanced memory pool with intelligent transaction management
 pub struct AdvancedMempool {
     config: MempoolConfig,
-    
+
     // Core storage
     transactions: Arc<RwLock<HashMap<Uuid, MempoolEntry>>>,
-    
+
     // Indexing structures for fast lookup
     by_priority: Arc<RwLock<BTreeMap<TransactionPriority, BTreeSet<Uuid>>>>,
     by_sender: Arc<RwLock<HashMap<Address, BTreeSet<Uuid>>>>,
     by_recipient: Arc<RwLock<HashMap<Address, BTreeSet<Uuid>>>>,
-    
+
     // Dependency tracking
     dependency_graph: Arc<RwLock<HashMap<Uuid, Vec<Uuid>>>>,
-    
+
     // Statistics and metrics
     metrics: Arc<RwLock<MempoolMetrics>>,
-    
+
     // Fee estimation
     fee_estimator: Arc<RwLock<FeeEstimator>>,
 }
@@ -138,7 +138,7 @@ impl AdvancedMempool {
         let tx_id = transaction.id;
         let sender = transaction.from.clone();
         let recipient = transaction.to.clone();
-        
+
         // Check if transaction already exists
         {
             let transactions = self.transactions.read().await;
@@ -163,7 +163,7 @@ impl AdvancedMempool {
         // Calculate transaction priority
         let priority = self.calculate_priority(&transaction).await;
         let size_bytes = self.estimate_transaction_size(&transaction);
-        
+
         // Create mempool entry
         let entry = MempoolEntry {
             transaction: transaction.clone(),
@@ -185,13 +185,22 @@ impl AdvancedMempool {
             transactions.insert(tx_id, entry);
 
             // Update priority index
-            by_priority.entry(priority.clone()).or_insert_with(BTreeSet::new).insert(tx_id);
+            by_priority
+                .entry(priority.clone())
+                .or_insert_with(BTreeSet::new)
+                .insert(tx_id);
 
             // Update sender index
-            by_sender.entry(sender).or_insert_with(BTreeSet::new).insert(tx_id);
+            by_sender
+                .entry(sender)
+                .or_insert_with(BTreeSet::new)
+                .insert(tx_id);
 
             // Update recipient index
-            by_recipient.entry(recipient).or_insert_with(BTreeSet::new).insert(tx_id);
+            by_recipient
+                .entry(recipient)
+                .or_insert_with(BTreeSet::new)
+                .insert(tx_id);
         }
 
         // Update dependency graph
@@ -203,73 +212,96 @@ impl AdvancedMempool {
         // Update fee estimator
         self.update_fee_estimation(&transaction).await;
 
-        info!("Added transaction {} to mempool (priority: {:?})", tx_id, priority);
+        info!(
+            "Added transaction {} to mempool (priority: {:?})",
+            tx_id, priority
+        );
         Ok(true)
     }
 
     /// Get transactions for batch processing (optimized selection)
-    pub async fn get_transactions_for_batch(&self, max_count: usize, max_size_bytes: usize) -> Vec<Transaction> {
+    pub async fn get_transactions_for_batch(
+        &self,
+        max_count: usize,
+        max_size_bytes: usize,
+    ) -> Vec<Transaction> {
         let start_time = Instant::now();
-        
+
         if self.config.enable_priority_sorting {
-            self.get_priority_ordered_transactions(max_count, max_size_bytes).await
+            self.get_priority_ordered_transactions(max_count, max_size_bytes)
+                .await
         } else {
             self.get_fifo_transactions(max_count, max_size_bytes).await
         }
     }
 
     /// Get transactions ordered by priority (highest first)
-    async fn get_priority_ordered_transactions(&self, max_count: usize, max_size_bytes: usize) -> Vec<Transaction> {
+    async fn get_priority_ordered_transactions(
+        &self,
+        max_count: usize,
+        max_size_bytes: usize,
+    ) -> Vec<Transaction> {
         let by_priority = self.by_priority.read().await;
         let transactions = self.transactions.read().await;
-        
+
         let mut selected = Vec::new();
         let mut total_size = 0;
-        
+
         // Iterate through priority levels (highest to lowest)
         for (_, tx_ids) in by_priority.iter().rev() {
             for tx_id in tx_ids.iter() {
                 if selected.len() >= max_count || total_size >= max_size_bytes {
                     break;
                 }
-                
+
                 if let Some(entry) = transactions.get(tx_id) {
                     // Check dependencies are satisfied
-                    if self.are_dependencies_satisfied(&entry.dependencies, &selected).await {
+                    if self
+                        .are_dependencies_satisfied(&entry.dependencies, &selected)
+                        .await
+                    {
                         total_size += entry.size_bytes;
                         selected.push(entry.transaction.clone());
                     }
                 }
             }
-            
+
             if selected.len() >= max_count || total_size >= max_size_bytes {
                 break;
             }
         }
-        
-        debug!("Selected {} transactions for batch ({} bytes)", selected.len(), total_size);
+
+        debug!(
+            "Selected {} transactions for batch ({} bytes)",
+            selected.len(),
+            total_size
+        );
         selected
     }
 
     /// Get transactions in FIFO order
-    async fn get_fifo_transactions(&self, max_count: usize, max_size_bytes: usize) -> Vec<Transaction> {
+    async fn get_fifo_transactions(
+        &self,
+        max_count: usize,
+        max_size_bytes: usize,
+    ) -> Vec<Transaction> {
         let transactions = self.transactions.read().await;
-        
+
         let mut entries: Vec<_> = transactions.values().collect();
         entries.sort_by_key(|entry| entry.added_at);
-        
+
         let mut selected = Vec::new();
         let mut total_size = 0;
-        
+
         for entry in entries {
             if selected.len() >= max_count || total_size >= max_size_bytes {
                 break;
             }
-            
+
             total_size += entry.size_bytes;
             selected.push(entry.transaction.clone());
         }
-        
+
         selected
     }
 
@@ -283,13 +315,13 @@ impl AdvancedMempool {
         if let Some(entry) = removed_entry {
             // Remove from all indices
             self.remove_from_indices(tx_id, &entry).await;
-            
+
             // Update dependency graph
             self.remove_from_dependency_graph(tx_id).await;
-            
+
             // Update metrics
             self.update_metrics_on_remove(&entry.transaction).await;
-            
+
             debug!("Removed transaction {} from mempool", tx_id);
             Ok(Some(entry.transaction))
         } else {
@@ -298,9 +330,13 @@ impl AdvancedMempool {
     }
 
     /// Check if dependencies are satisfied
-    async fn are_dependencies_satisfied(&self, dependencies: &[Uuid], selected: &[Transaction]) -> bool {
+    async fn are_dependencies_satisfied(
+        &self,
+        dependencies: &[Uuid],
+        selected: &[Transaction],
+    ) -> bool {
         let transactions = self.transactions.read().await;
-        
+
         for dep_id in dependencies {
             // Check if dependency is in selected transactions
             if !selected.iter().any(|tx| tx.id == *dep_id) {
@@ -311,7 +347,7 @@ impl AdvancedMempool {
                 // If not in mempool, assume it's already processed
             }
         }
-        
+
         true
     }
 
@@ -323,7 +359,7 @@ impl AdvancedMempool {
         } else {
             0
         };
-        
+
         TransactionPriority {
             fee_per_byte,
             timestamp: Instant::now(),
@@ -345,7 +381,7 @@ impl AdvancedMempool {
     async fn find_dependencies(&self, transaction: &Transaction) -> Vec<Uuid> {
         let transactions = self.transactions.read().await;
         let mut dependencies = Vec::new();
-        
+
         // Find transactions from the same sender with lower nonce
         for entry in transactions.values() {
             if entry.transaction.from == transaction.from {
@@ -356,32 +392,35 @@ impl AdvancedMempool {
                 }
             }
         }
-        
+
         dependencies
     }
 
     /// Update dependency graph
     async fn update_dependency_graph(&self, transaction: &Transaction) -> Result<()> {
         let mut graph = self.dependency_graph.write().await;
-        
+
         // Add dependencies for this transaction
         let deps = self.find_dependencies(transaction).await;
         if !deps.is_empty() {
             graph.insert(transaction.id, deps.clone());
-            
+
             // Update dependents for each dependency
             for dep_id in deps {
-                graph.entry(dep_id).or_insert_with(Vec::new).push(transaction.id);
+                graph
+                    .entry(dep_id)
+                    .or_insert_with(Vec::new)
+                    .push(transaction.id);
             }
         }
-        
+
         Ok(())
     }
 
     /// Remove transaction from dependency graph
     async fn remove_from_dependency_graph(&self, tx_id: &Uuid) {
         let mut graph = self.dependency_graph.write().await;
-        
+
         // Remove the transaction's dependencies
         if let Some(deps) = graph.remove(tx_id) {
             // Remove this transaction from dependents lists
@@ -391,7 +430,7 @@ impl AdvancedMempool {
                 }
             }
         }
-        
+
         // Remove from other transaction's dependent lists
         for dependents in graph.values_mut() {
             dependents.retain(|id| id != tx_id);
@@ -403,7 +442,7 @@ impl AdvancedMempool {
         let mut by_priority = self.by_priority.write().await;
         let mut by_sender = self.by_sender.write().await;
         let mut by_recipient = self.by_recipient.write().await;
-        
+
         // Remove from priority index
         if let Some(tx_set) = by_priority.get_mut(&entry.priority) {
             tx_set.remove(tx_id);
@@ -411,7 +450,7 @@ impl AdvancedMempool {
                 by_priority.remove(&entry.priority);
             }
         }
-        
+
         // Remove from sender index
         if let Some(tx_set) = by_sender.get_mut(&entry.transaction.from) {
             tx_set.remove(tx_id);
@@ -419,7 +458,7 @@ impl AdvancedMempool {
                 by_sender.remove(&entry.transaction.from);
             }
         }
-        
+
         // Remove from recipient index
         if let Some(tx_set) = by_recipient.get_mut(&entry.transaction.to) {
             tx_set.remove(tx_id);
@@ -433,15 +472,15 @@ impl AdvancedMempool {
     async fn check_capacity_limits(&self, _transaction: &Transaction) -> Result<bool> {
         let transactions = self.transactions.read().await;
         let metrics = self.metrics.read().await;
-        
-        Ok(transactions.len() < self.config.max_transactions && 
-           metrics.total_size_bytes < self.config.max_size_bytes)
+
+        Ok(transactions.len() < self.config.max_transactions
+            && metrics.total_size_bytes < self.config.max_size_bytes)
     }
 
     /// Check per-account transaction limits
     async fn check_account_limits(&self, sender: &Address) -> Result<bool> {
         let by_sender = self.by_sender.read().await;
-        
+
         if let Some(tx_set) = by_sender.get(sender) {
             Ok(tx_set.len() < self.config.max_transactions_per_account)
         } else {
@@ -452,18 +491,19 @@ impl AdvancedMempool {
     /// Evict low priority transactions to make space
     async fn evict_low_priority_transactions(&self) -> Result<()> {
         let by_priority = self.by_priority.read().await;
-        
+
         // Find lowest priority transactions to evict
         for (priority, tx_ids) in by_priority.iter() {
-            for tx_id in tx_ids.iter().take(10) { // Evict up to 10 transactions
+            for tx_id in tx_ids.iter().take(10) {
+                // Evict up to 10 transactions
                 let _ = self.remove_transaction(tx_id).await;
-                
+
                 let mut metrics = self.metrics.write().await;
                 metrics.eviction_count += 1;
             }
             break; // Only evict from lowest priority level
         }
-        
+
         Ok(())
     }
 
@@ -471,12 +511,13 @@ impl AdvancedMempool {
     async fn update_metrics_on_add(&self, transaction: &Transaction) {
         let mut metrics = self.metrics.write().await;
         let size = self.estimate_transaction_size(transaction);
-        
+
         metrics.total_transactions += 1;
         metrics.total_size_bytes += size;
-        
+
         // Update average fee
-        let total_fee = metrics.average_fee * (metrics.total_transactions - 1) as u64 + transaction.amount;
+        let total_fee =
+            metrics.average_fee * (metrics.total_transactions - 1) as u64 + transaction.amount;
         metrics.average_fee = total_fee / metrics.total_transactions as u64;
     }
 
@@ -484,7 +525,7 @@ impl AdvancedMempool {
     async fn update_metrics_on_remove(&self, transaction: &Transaction) {
         let mut metrics = self.metrics.write().await;
         let size = self.estimate_transaction_size(transaction);
-        
+
         if metrics.total_transactions > 0 {
             metrics.total_transactions -= 1;
             metrics.total_size_bytes = metrics.total_size_bytes.saturating_sub(size);
@@ -495,40 +536,45 @@ impl AdvancedMempool {
     async fn update_fee_estimation(&self, transaction: &Transaction) {
         let mut estimator = self.fee_estimator.write().await;
         let size = self.estimate_transaction_size(transaction);
-        let fee_per_byte = if size > 0 { transaction.amount / size as u64 } else { 0 };
-        
+        let fee_per_byte = if size > 0 {
+            transaction.amount / size as u64
+        } else {
+            0
+        };
+
         estimator.fee_history.push_back(fee_per_byte);
         if estimator.fee_history.len() > 1000 {
             estimator.fee_history.pop_front();
         }
-        
+
         // Update network congestion based on mempool size
         let metrics = self.metrics.read().await;
-        estimator.network_congestion = metrics.total_transactions as f64 / self.config.max_transactions as f64;
+        estimator.network_congestion =
+            metrics.total_transactions as f64 / self.config.max_transactions as f64;
     }
 
     /// Estimate optimal fee for fast confirmation
     pub async fn estimate_fee(&self, target_confirmations: u32) -> u64 {
         let estimator = self.fee_estimator.read().await;
-        
+
         if estimator.fee_history.is_empty() {
             return 1000; // Default fee
         }
-        
+
         // Calculate percentile based on target confirmations
         let percentile = match target_confirmations {
-            1 => 0.9,  // 90th percentile for fast confirmation
-            3 => 0.7,  // 70th percentile for medium confirmation
-            6 => 0.5,  // 50th percentile for slow confirmation
+            1 => 0.9, // 90th percentile for fast confirmation
+            3 => 0.7, // 70th percentile for medium confirmation
+            6 => 0.5, // 50th percentile for slow confirmation
             _ => 0.8,
         };
-        
+
         let mut fees: Vec<u64> = estimator.fee_history.iter().cloned().collect();
         fees.sort_unstable();
-        
+
         let index = ((fees.len() - 1) as f64 * percentile) as usize;
         let base_fee = fees.get(index).cloned().unwrap_or(1000);
-        
+
         // Apply congestion multiplier
         let congestion_multiplier = 1.0 + estimator.network_congestion;
         (base_fee as f64 * congestion_multiplier) as u64
@@ -543,9 +589,10 @@ impl AdvancedMempool {
     pub async fn get_transactions_by_sender(&self, sender: &Address) -> Vec<Transaction> {
         let by_sender = self.by_sender.read().await;
         let transactions = self.transactions.read().await;
-        
+
         if let Some(tx_ids) = by_sender.get(sender) {
-            tx_ids.iter()
+            tx_ids
+                .iter()
                 .filter_map(|id| transactions.get(id))
                 .map(|entry| entry.transaction.clone())
                 .collect()
@@ -557,10 +604,10 @@ impl AdvancedMempool {
     /// Background cleanup loop
     async fn cleanup_loop(&self) {
         let mut interval = tokio::time::interval(self.config.cleanup_interval);
-        
+
         loop {
             interval.tick().await;
-            
+
             if let Err(e) = self.cleanup_expired_transactions().await {
                 error!("Error during mempool cleanup: {}", e);
             }
@@ -571,7 +618,7 @@ impl AdvancedMempool {
     async fn cleanup_expired_transactions(&self) -> Result<()> {
         let now = Instant::now();
         let mut expired_tx_ids = Vec::new();
-        
+
         {
             let transactions = self.transactions.read().await;
             for (tx_id, entry) in transactions.iter() {
@@ -580,12 +627,12 @@ impl AdvancedMempool {
                 }
             }
         }
-        
+
         for tx_id in expired_tx_ids {
             let _ = self.remove_transaction(&tx_id).await;
             debug!("Removed expired transaction: {}", tx_id);
         }
-        
+
         Ok(())
     }
 }

@@ -1,30 +1,30 @@
 // Neural Consensus Engine
 // Advanced AI-driven consensus mechanism using neural networks
 
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use anyhow::Result;
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
-use serde::{Serialize, Deserialize};
-use tracing::{info, debug, warn, error};
 
 use super::{AIModelConfig, DecisionContext, DecisionOutcome};
 
 /// Neural consensus engine for AI-driven agreement
 pub struct NeuralConsensusEngine {
     config: AIModelConfig,
-    
+
     // Neural network components
     consensus_network: Arc<RwLock<ConsensusNeuralNetwork>>,
     validation_network: Arc<RwLock<ValidationNeuralNetwork>>,
     prediction_network: Arc<RwLock<PredictionNeuralNetwork>>,
-    
+
     // Consensus state
     active_consensus_sessions: Arc<RwLock<HashMap<Uuid, ConsensusSession>>>,
     consensus_history: Arc<RwLock<Vec<ConsensusRecord>>>,
-    
+
     // Performance metrics
     consensus_metrics: Arc<RwLock<ConsensusMetrics>>,
 }
@@ -316,8 +316,8 @@ pub struct DecisionPattern {
 /// Uncertainty quantifier for confidence estimation
 #[derive(Debug, Clone)]
 pub struct UncertaintyQuantifier {
-    pub epistemic_uncertainty: f64,  // Model uncertainty
-    pub aleatoric_uncertainty: f64,  // Data uncertainty
+    pub epistemic_uncertainty: f64, // Model uncertainty
+    pub aleatoric_uncertainty: f64, // Data uncertainty
     pub total_uncertainty: f64,
     pub confidence_bands: Vec<ConfidenceBand>,
 }
@@ -331,17 +331,11 @@ pub struct ConfidenceBand {
 
 impl NeuralConsensusEngine {
     pub fn new(config: AIModelConfig) -> Self {
-        let consensus_network = Arc::new(RwLock::new(
-            ConsensusNeuralNetwork::new(&config)
-        ));
-        
-        let validation_network = Arc::new(RwLock::new(
-            ValidationNeuralNetwork::new(&config)
-        ));
-        
-        let prediction_network = Arc::new(RwLock::new(
-            PredictionNeuralNetwork::new(&config)
-        ));
+        let consensus_network = Arc::new(RwLock::new(ConsensusNeuralNetwork::new(&config)));
+
+        let validation_network = Arc::new(RwLock::new(ValidationNeuralNetwork::new(&config)));
+
+        let prediction_network = Arc::new(RwLock::new(PredictionNeuralNetwork::new(&config)));
 
         Self {
             config,
@@ -357,45 +351,48 @@ impl NeuralConsensusEngine {
     /// Initialize the neural consensus engine
     pub async fn initialize(&self) -> Result<()> {
         info!("Initializing Neural Consensus Engine");
-        
+
         // Initialize neural networks
         self.initialize_networks().await?;
-        
+
         // Load pre-trained models if available
         self.load_pretrained_models().await?;
-        
+
         // Start background training
         self.start_continuous_training().await?;
-        
+
         info!("Neural Consensus Engine initialized successfully");
         Ok(())
     }
 
     /// Analyze decision context using neural networks
-    pub async fn analyze_decision_context(&self, context: &DecisionContext) -> Result<NeuralAnalysisResult> {
+    pub async fn analyze_decision_context(
+        &self,
+        context: &DecisionContext,
+    ) -> Result<NeuralAnalysisResult> {
         debug!("Analyzing decision context: {:?}", context.decision_id);
-        
+
         // Extract features from decision context
         let features = self.extract_features(context).await?;
-        
+
         // Run through consensus network
         let consensus_output = {
             let network = self.consensus_network.read().await;
             network.forward_pass(&features)?
         };
-        
+
         // Run through validation network
         let validation_output = {
             let network = self.validation_network.read().await;
             network.validate_consensus(&consensus_output)?
         };
-        
+
         // Run through prediction network
         let prediction_output = {
             let network = self.prediction_network.read().await;
             network.predict_outcomes(&features)?
         };
-        
+
         // Combine results into analysis
         let analysis = NeuralAnalysisResult {
             consensus_score: consensus_output.consensus_score,
@@ -403,19 +400,21 @@ impl NeuralConsensusEngine {
             predicted_outcome: prediction_output.predicted_outcome,
             confidence_interval: (
                 prediction_output.confidence_lower,
-                prediction_output.confidence_upper
+                prediction_output.confidence_upper,
             ),
-            risk_factors: self.identify_risk_factors(&features, &consensus_output).await?,
+            risk_factors: self
+                .identify_risk_factors(&features, &consensus_output)
+                .await?,
             recommendation_strength: consensus_output.recommendation_strength,
         };
-        
+
         Ok(analysis)
     }
 
     /// Start a new consensus session
     pub async fn start_consensus_session(&self, context: DecisionContext) -> Result<Uuid> {
         let session_id = Uuid::new_v4();
-        
+
         let session = ConsensusSession {
             session_id,
             decision_context: context.clone(),
@@ -430,40 +429,45 @@ impl NeuralConsensusEngine {
 
         let mut sessions = self.active_consensus_sessions.write().await;
         sessions.insert(session_id, session);
-        
+
         info!("Started consensus session: {}", session_id);
         Ok(session_id)
     }
 
     /// Submit a vote to consensus session
-    pub async fn submit_vote(&self, session_id: Uuid, voter_id: Uuid, vote_value: f64) -> Result<()> {
+    pub async fn submit_vote(
+        &self,
+        session_id: Uuid,
+        voter_id: Uuid,
+        vote_value: f64,
+    ) -> Result<()> {
         let mut sessions = self.active_consensus_sessions.write().await;
-        
+
         if let Some(session) = sessions.get_mut(&session_id) {
             // Generate neural reasoning for the vote
-            let neural_reasoning = self.generate_neural_reasoning(
-                &session.decision_context,
-                vote_value
-            ).await?;
-            
+            let neural_reasoning = self
+                .generate_neural_reasoning(&session.decision_context, vote_value)
+                .await?;
+
             let vote = ConsensusVote {
                 voter_id,
                 vote_value,
-                confidence: neural_reasoning.attention_weights.iter().sum::<f64>() / neural_reasoning.attention_weights.len() as f64,
+                confidence: neural_reasoning.attention_weights.iter().sum::<f64>()
+                    / neural_reasoning.attention_weights.len() as f64,
                 neural_reasoning,
                 timestamp: Instant::now(),
             };
-            
+
             session.votes.insert(voter_id, vote);
             session.participants.push(voter_id);
-            
+
             // Check for convergence
             if self.check_convergence(session).await? {
                 session.session_status = SessionStatus::Converged;
                 self.finalize_consensus_session(session_id).await?;
             }
         }
-        
+
         Ok(())
     }
 
@@ -472,16 +476,18 @@ impl NeuralConsensusEngine {
         if session.votes.len() < 3 {
             return Ok(false); // Need minimum participants
         }
-        
+
         // Calculate consensus metrics
         let vote_values: Vec<f64> = session.votes.values().map(|v| v.vote_value).collect();
         let mean_vote = vote_values.iter().sum::<f64>() / vote_values.len() as f64;
-        
+
         // Calculate variance
-        let variance = vote_values.iter()
+        let variance = vote_values
+            .iter()
             .map(|v| (v - mean_vote).powi(2))
-            .sum::<f64>() / vote_values.len() as f64;
-        
+            .sum::<f64>()
+            / vote_values.len() as f64;
+
         // Check convergence criteria
         let convergence_threshold = 0.1; // Adjust based on requirements
         Ok(variance.sqrt() < convergence_threshold)
@@ -490,11 +496,11 @@ impl NeuralConsensusEngine {
     /// Finalize consensus session
     async fn finalize_consensus_session(&self, session_id: Uuid) -> Result<()> {
         let mut sessions = self.active_consensus_sessions.write().await;
-        
+
         if let Some(session) = sessions.remove(&session_id) {
             // Calculate final consensus
             let final_consensus = self.calculate_final_consensus(&session).await?;
-            
+
             // Record consensus
             let record = ConsensusRecord {
                 session_id,
@@ -505,16 +511,20 @@ impl NeuralConsensusEngine {
                 accuracy_score: session.neural_analysis.consensus_score,
                 timestamp: Instant::now(),
             };
-            
+
             let mut history = self.consensus_history.write().await;
             history.push(record);
-            
+
             // Update metrics
-            self.update_consensus_metrics(&session, final_consensus).await;
-            
-            info!("Finalized consensus session: {} with result: {}", session_id, final_consensus);
+            self.update_consensus_metrics(&session, final_consensus)
+                .await;
+
+            info!(
+                "Finalized consensus session: {} with result: {}",
+                session_id, final_consensus
+            );
         }
-        
+
         Ok(())
     }
 
@@ -524,13 +534,13 @@ impl NeuralConsensusEngine {
             match update.update_type {
                 LearningUpdateType::WeightAdjustment => {
                     self.apply_weight_updates(&update.data).await?;
-                },
+                }
                 LearningUpdateType::ArchitectureChange => {
                     self.apply_architecture_changes(&update.data).await?;
-                },
+                }
                 LearningUpdateType::HyperparameterTuning => {
                     self.apply_hyperparameter_changes(&update.data).await?;
-                },
+                }
             }
         }
         Ok(())
@@ -548,19 +558,19 @@ impl NeuralConsensusEngine {
             let mut network = self.consensus_network.write().await;
             network.initialize_weights()?;
         }
-        
+
         // Initialize validation network
         {
             let mut network = self.validation_network.write().await;
             network.initialize_validators()?;
         }
-        
+
         // Initialize prediction network
         {
             let mut network = self.prediction_network.write().await;
             network.initialize_predictors()?;
         }
-        
+
         Ok(())
     }
 
@@ -572,53 +582,53 @@ impl NeuralConsensusEngine {
 
     async fn start_continuous_training(&self) -> Result<()> {
         let engine = Arc::new(self.clone());
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(engine.config.training_frequency);
-            
+
             loop {
                 interval.tick().await;
-                
+
                 if let Err(e) = engine.training_cycle().await {
                     error!("Training cycle error: {}", e);
                 }
             }
         });
-        
+
         Ok(())
     }
 
     async fn training_cycle(&self) -> Result<()> {
         debug!("Starting neural network training cycle");
-        
+
         // Get recent consensus data for training
         let training_data = self.prepare_training_data().await?;
-        
+
         // Train consensus network
         {
             let mut network = self.consensus_network.write().await;
             network.train(&training_data)?;
         }
-        
+
         // Train validation network
         {
             let mut network = self.validation_network.write().await;
             network.train_validators(&training_data)?;
         }
-        
+
         // Train prediction network
         {
             let mut network = self.prediction_network.write().await;
             network.train_predictors(&training_data)?;
         }
-        
+
         debug!("Completed neural network training cycle");
         Ok(())
     }
 
     async fn extract_features(&self, context: &DecisionContext) -> Result<Vec<f64>> {
         let mut features = Vec::new();
-        
+
         // Basic features
         features.push(context.complexity_score);
         features.push(match context.urgency_level {
@@ -627,24 +637,32 @@ impl NeuralConsensusEngine {
             super::UrgencyLevel::High => 0.75,
             super::UrgencyLevel::Critical => 1.0,
         });
-        
+
         // Historical context features
         features.push(context.historical_context.len() as f64 / 100.0); // Normalized
-        
+
         // Stakeholder features
         features.push(context.stakeholders.len() as f64 / 50.0); // Normalized
-        
+
         // Add more sophisticated feature extraction here
-        
+
         Ok(features)
     }
 
-    async fn identify_risk_factors(&self, _features: &[f64], _output: &ConsensusOutput) -> Result<Vec<RiskFactor>> {
+    async fn identify_risk_factors(
+        &self,
+        _features: &[f64],
+        _output: &ConsensusOutput,
+    ) -> Result<Vec<RiskFactor>> {
         // Placeholder risk factor identification
         Ok(vec![])
     }
 
-    async fn generate_neural_reasoning(&self, _context: &DecisionContext, _vote_value: f64) -> Result<NeuralReasoning> {
+    async fn generate_neural_reasoning(
+        &self,
+        _context: &DecisionContext,
+        _vote_value: f64,
+    ) -> Result<NeuralReasoning> {
         // Placeholder neural reasoning generation
         Ok(NeuralReasoning {
             reasoning_path: vec![],
@@ -656,11 +674,13 @@ impl NeuralConsensusEngine {
 
     async fn calculate_final_consensus(&self, session: &ConsensusSession) -> Result<f64> {
         let vote_values: Vec<f64> = session.votes.values().map(|v| v.vote_value).collect();
-        let weighted_sum: f64 = session.votes.values()
+        let weighted_sum: f64 = session
+            .votes
+            .values()
             .map(|v| v.vote_value * v.confidence)
             .sum();
         let total_confidence: f64 = session.votes.values().map(|v| v.confidence).sum();
-        
+
         Ok(weighted_sum / total_confidence)
     }
 
@@ -669,7 +689,9 @@ impl NeuralConsensusEngine {
         metrics.total_sessions += 1;
         metrics.successful_sessions += 1;
         metrics.average_convergence_time = Duration::from_millis(
-            (metrics.average_convergence_time.as_millis() as u64 + session.started_at.elapsed().as_millis() as u64) / 2
+            (metrics.average_convergence_time.as_millis() as u64
+                + session.started_at.elapsed().as_millis() as u64)
+                / 2,
         );
         metrics.consensus_efficiency = 0.95; // Placeholder
     }

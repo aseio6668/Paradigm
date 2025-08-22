@@ -1,9 +1,9 @@
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
-use uuid::Uuid;
+use super::{ContributionType, ValidationResult};
 use crate::Address;
-use super::{ValidationResult, ContributionType};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use uuid::Uuid;
 
 /// Autonomous treasury that funds projects based on community voting and AI-curated impact metrics
 #[derive(Debug)]
@@ -39,21 +39,23 @@ impl TreasuryManager {
 
     pub async fn initialize(&mut self) -> anyhow::Result<()> {
         tracing::info!("Initializing Treasury Manager");
-        
+
         // Set initial treasury balance (could come from token genesis)
         self.balance = 100_000_000_000_000; // 1M PAR initial treasury
-        
+
         // Initialize AI curator
         self.ai_curator.initialize().await?;
-        
+
         // Initialize voting system
         self.voting_system.initialize().await?;
-        
+
         // Initialize impact tracker
         self.impact_tracker.initialize().await?;
-        
-        tracing::info!("Treasury initialized with {} PAR", 
-                     self.balance as f64 / 100_000_000.0);
+
+        tracing::info!(
+            "Treasury initialized with {} PAR",
+            self.balance as f64 / 100_000_000.0
+        );
         Ok(())
     }
 
@@ -67,9 +69,11 @@ impl TreasuryManager {
         // Treasury receives a small percentage of minted tokens for sustainability
         let treasury_fee = tokens_minted / 100; // 1% fee
         self.balance += treasury_fee;
-        
-        tracing::debug!("Treasury fee collected: {} PAR from contribution", 
-                       treasury_fee as f64 / 100_000_000.0);
+
+        tracing::debug!(
+            "Treasury fee collected: {} PAR from contribution",
+            treasury_fee as f64 / 100_000_000.0
+        );
         Ok(())
     }
 
@@ -80,7 +84,7 @@ impl TreasuryManager {
         proposal: FundingProposalRequest,
     ) -> anyhow::Result<Uuid> {
         let proposal_id = Uuid::new_v4();
-        
+
         // Create full proposal with AI curation
         let mut funding_proposal = FundingProposal {
             id: proposal_id,
@@ -97,19 +101,20 @@ impl TreasuryManager {
             status: ProposalStatus::UnderReview,
             impact_metrics: ImpactMetrics::default(),
         };
-        
+
         // Get AI evaluation
-        funding_proposal.ai_evaluation = Some(
-            self.ai_curator.evaluate_proposal(&funding_proposal).await?
-        );
-        
+        funding_proposal.ai_evaluation =
+            Some(self.ai_curator.evaluate_proposal(&funding_proposal).await?);
+
         // Add to active proposals
         self.active_proposals.insert(proposal_id, funding_proposal);
-        
-        tracing::info!("New funding proposal submitted: {} - {} PAR requested", 
-                     proposal_id,
-                     proposal.requested_amount as f64 / 100_000_000.0);
-        
+
+        tracing::info!(
+            "New funding proposal submitted: {} - {} PAR requested",
+            proposal_id,
+            proposal.requested_amount as f64 / 100_000_000.0
+        );
+
         Ok(proposal_id)
     }
 
@@ -125,27 +130,33 @@ impl TreasuryManager {
             if proposal.status != ProposalStatus::Active {
                 return Err(anyhow::anyhow!("Proposal not active for voting"));
             }
-            
+
             if Utc::now() > proposal.voting_deadline {
                 return Err(anyhow::anyhow!("Voting deadline has passed"));
             }
-            
+
             // Record vote
-            self.voting_system.record_vote(proposal_id, voter, vote, voting_power).await?;
-            
+            self.voting_system
+                .record_vote(proposal_id, voter, vote, voting_power)
+                .await?;
+
             // Update proposal votes
             match vote {
                 Vote::For => proposal.community_votes.for_votes += voting_power,
                 Vote::Against => proposal.community_votes.against_votes += voting_power,
                 Vote::Abstain => proposal.community_votes.abstain_votes += voting_power,
             }
-            
-            tracing::debug!("Vote recorded for proposal {}: {:?} with power {}", 
-                           proposal_id, vote, voting_power);
+
+            tracing::debug!(
+                "Vote recorded for proposal {}: {:?} with power {}",
+                proposal_id,
+                vote,
+                voting_power
+            );
         } else {
             return Err(anyhow::anyhow!("Proposal not found"));
         }
-        
+
         Ok(())
     }
 
@@ -153,7 +164,7 @@ impl TreasuryManager {
     pub async fn process_completed_votes(&mut self) -> anyhow::Result<Vec<Uuid>> {
         let mut processed_proposals = Vec::new();
         let now = Utc::now();
-        
+
         // Collect proposal IDs that need processing
         let mut proposal_ids_to_process = Vec::new();
         for (proposal_id, proposal) in self.active_proposals.iter() {
@@ -161,7 +172,7 @@ impl TreasuryManager {
                 proposal_ids_to_process.push(*proposal_id);
             }
         }
-        
+
         // Process each proposal
         for proposal_id in proposal_ids_to_process {
             // Get proposal clone for decision calculation
@@ -170,10 +181,10 @@ impl TreasuryManager {
             } else {
                 continue;
             };
-            
+
             // Calculate final decision
             let decision = self.calculate_funding_decision(&proposal_clone).await?;
-                
+
             // Update the proposal in the active_proposals map
             if let Some(stored_proposal) = self.active_proposals.get_mut(&proposal_id) {
                 match decision {
@@ -181,14 +192,18 @@ impl TreasuryManager {
                         if self.balance >= amount {
                             stored_proposal.status = ProposalStatus::Approved;
                             self.balance -= amount;
-                            
-                            tracing::info!("Proposal {} approved for {} PAR", 
-                                         proposal_id,
-                                         amount as f64 / 100_000_000.0);
+
+                            tracing::info!(
+                                "Proposal {} approved for {} PAR",
+                                proposal_id,
+                                amount as f64 / 100_000_000.0
+                            );
                         } else {
                             stored_proposal.status = ProposalStatus::RejectedInsufficientFunds;
-                            tracing::warn!("Proposal {} rejected - insufficient treasury funds", 
-                                         proposal_id);
+                            tracing::warn!(
+                                "Proposal {} rejected - insufficient treasury funds",
+                                proposal_id
+                            );
                         }
                     }
                     FundingDecision::Rejected => {
@@ -197,10 +212,10 @@ impl TreasuryManager {
                     }
                 }
             }
-            
+
             processed_proposals.push(proposal_id);
         }
-        
+
         Ok(processed_proposals)
     }
 
@@ -209,33 +224,36 @@ impl TreasuryManager {
         &self,
         proposal: &FundingProposal,
     ) -> anyhow::Result<FundingDecision> {
-        let total_votes = proposal.community_votes.for_votes + 
-                         proposal.community_votes.against_votes + 
-                         proposal.community_votes.abstain_votes;
-        
+        let total_votes = proposal.community_votes.for_votes
+            + proposal.community_votes.against_votes
+            + proposal.community_votes.abstain_votes;
+
         if total_votes == 0 {
             return Ok(FundingDecision::Rejected);
         }
-        
+
         // Community voting threshold (60% for approval)
-        let community_approval_rate = proposal.community_votes.for_votes as f64 / 
-                                    (proposal.community_votes.for_votes + proposal.community_votes.against_votes) as f64;
-        
+        let community_approval_rate = proposal.community_votes.for_votes as f64
+            / (proposal.community_votes.for_votes + proposal.community_votes.against_votes) as f64;
+
         // AI evaluation weight (30% of decision)
-        let ai_score = proposal.ai_evaluation
+        let ai_score = proposal
+            .ai_evaluation
             .as_ref()
             .map(|eval| eval.overall_score)
             .unwrap_or(0.5);
-        
+
         // Combined score: 70% community + 30% AI
         let combined_score = (community_approval_rate * 0.7) + (ai_score * 0.3);
-        
+
         // Apply treasury allocation rules
         let max_allocation = self.calculate_max_allocation(&proposal.category);
         let final_amount = proposal.requested_amount.min(max_allocation);
-        
+
         if combined_score >= 0.6 && self.balance >= final_amount {
-            Ok(FundingDecision::Approved { amount: final_amount })
+            Ok(FundingDecision::Approved {
+                amount: final_amount,
+            })
         } else {
             Ok(FundingDecision::Rejected)
         }
@@ -247,7 +265,7 @@ impl TreasuryManager {
             FundingCategory::Research => self.balance / 20, // 5% max for research
             FundingCategory::Infrastructure => self.balance / 10, // 10% max for infrastructure
             FundingCategory::Community => self.balance / 50, // 2% max for community
-            FundingCategory::Security => self.balance / 5, // 20% max for security
+            FundingCategory::Security => self.balance / 5,  // 20% max for security
             FundingCategory::Innovation => self.balance / 25, // 4% max for innovation
         }
     }
@@ -258,7 +276,9 @@ impl TreasuryManager {
         proposal_id: Uuid,
         impact_update: ImpactUpdate,
     ) -> anyhow::Result<()> {
-        self.impact_tracker.update_impact(proposal_id, impact_update).await?;
+        self.impact_tracker
+            .update_impact(proposal_id, impact_update)
+            .await?;
         Ok(())
     }
 
@@ -296,29 +316,36 @@ impl AICurator {
     }
 
     pub async fn initialize(&mut self) -> anyhow::Result<()> {
-        tracing::debug!("Initializing AI Curator with {} models", 
-                       self.evaluation_models.len());
+        tracing::debug!(
+            "Initializing AI Curator with {} models",
+            self.evaluation_models.len()
+        );
         Ok(())
     }
 
-    pub async fn evaluate_proposal(&self, proposal: &FundingProposal) -> anyhow::Result<AIEvaluation> {
+    pub async fn evaluate_proposal(
+        &self,
+        proposal: &FundingProposal,
+    ) -> anyhow::Result<AIEvaluation> {
         // In a real implementation, this would use ML models to evaluate proposals
-        
+
         // Simulate AI evaluation based on proposal characteristics
         let impact_score = self.evaluate_impact_potential(proposal).await?;
         let feasibility_score = self.evaluate_feasibility(proposal).await?;
         let risk_score = self.evaluate_risk(proposal).await?;
-        
+
         let overall_score = (impact_score + feasibility_score + (1.0 - risk_score)) / 3.0;
-        
+
         Ok(AIEvaluation {
             overall_score,
             impact_score,
             feasibility_score,
             risk_score,
             confidence: 0.8, // AI confidence in evaluation
-            reasoning: format!("Impact: {:.2}, Feasibility: {:.2}, Risk: {:.2}", 
-                             impact_score, feasibility_score, risk_score),
+            reasoning: format!(
+                "Impact: {:.2}, Feasibility: {:.2}, Risk: {:.2}",
+                impact_score, feasibility_score, risk_score
+            ),
             evaluated_at: Utc::now(),
         })
     }
@@ -332,20 +359,32 @@ impl AICurator {
             FundingCategory::Innovation => 0.6,
             FundingCategory::Community => 0.5,
         };
-        
+
         // Adjust based on proposal size
-        let size_multiplier = if proposal.requested_amount > 10_000_000_000 { 0.9 } else { 1.0 };
-        
+        let size_multiplier = if proposal.requested_amount > 10_000_000_000 {
+            0.9
+        } else {
+            1.0
+        };
+
         Ok(base_score * size_multiplier)
     }
 
     async fn evaluate_feasibility(&self, proposal: &FundingProposal) -> anyhow::Result<f64> {
         // Evaluate feasibility based on milestones and timeline
-        let milestone_score = if proposal.milestones.len() >= 3 { 0.8 } else { 0.6 };
-        
+        let milestone_score = if proposal.milestones.len() >= 3 {
+            0.8
+        } else {
+            0.6
+        };
+
         // Consider funding amount vs market rates
-        let funding_reasonableness = if proposal.requested_amount < 100_000_000_000 { 0.9 } else { 0.7 };
-        
+        let funding_reasonableness = if proposal.requested_amount < 100_000_000_000 {
+            0.9
+        } else {
+            0.7
+        };
+
         Ok((milestone_score + funding_reasonableness) / 2.0)
     }
 
@@ -594,7 +633,10 @@ mod tests {
             ],
         };
 
-        let proposal_id = treasury.submit_funding_proposal(proposer, request).await.unwrap();
+        let proposal_id = treasury
+            .submit_funding_proposal(proposer, request)
+            .await
+            .unwrap();
         assert!(treasury.active_proposals.contains_key(&proposal_id));
 
         let stats = treasury.get_treasury_stats();

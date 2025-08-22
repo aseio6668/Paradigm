@@ -1,9 +1,9 @@
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
-use uuid::Uuid;
+use super::{ContributionType, ValidationResult};
 use crate::Address;
-use super::{ValidationResult, ContributionType};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use uuid::Uuid;
 
 /// Reputation ledger that tracks contributor trust and history
 /// Implements Sybil-resistant, decay-based, peer validation system
@@ -34,10 +34,10 @@ impl ReputationLedger {
 
     pub async fn initialize(&mut self) -> anyhow::Result<()> {
         tracing::info!("Initializing Reputation Ledger");
-        
+
         // Initialize Sybil detection
         self.sybil_detector.initialize().await?;
-        
+
         tracing::info!("Reputation Ledger initialized with decay system");
         Ok(())
     }
@@ -64,33 +64,39 @@ impl ReputationLedger {
         let mut current_reputation = self.get_reputation(contributor).await?;
 
         // Calculate reputation changes based on contribution
-        let contribution_impact = self.calculate_contribution_impact(validation_result).await?;
+        let contribution_impact = self
+            .calculate_contribution_impact(validation_result)
+            .await?;
 
         // Update consistency score
-        current_reputation.consistency_score = self.update_consistency_score(
-            current_reputation.consistency_score,
-            validation_result.quality_score,
-            current_reputation.contribution_count,
-        ).await?;
+        current_reputation.consistency_score = self
+            .update_consistency_score(
+                current_reputation.consistency_score,
+                validation_result.quality_score,
+                current_reputation.contribution_count,
+            )
+            .await?;
 
         // Update expertise score based on contribution type and quality
-        current_reputation.expertise_score = self.update_expertise_score(
-            current_reputation.expertise_score,
-            validation_result,
-        ).await?;
+        current_reputation.expertise_score = self
+            .update_expertise_score(current_reputation.expertise_score, validation_result)
+            .await?;
 
         // Update contribution count and average quality
         current_reputation.contribution_count += 1;
-        current_reputation.average_quality = (
-            (current_reputation.average_quality * (current_reputation.contribution_count - 1) as f64) +
-            validation_result.quality_score
-        ) / current_reputation.contribution_count as f64;
+        current_reputation.average_quality = ((current_reputation.average_quality
+            * (current_reputation.contribution_count - 1) as f64)
+            + validation_result.quality_score)
+            / current_reputation.contribution_count as f64;
 
         // Update last activity
         current_reputation.last_activity = Utc::now();
 
         // Detect potential Sybil behavior
-        let sybil_risk = self.sybil_detector.analyze_contributor(contributor, &current_reputation).await?;
+        let sybil_risk = self
+            .sybil_detector
+            .analyze_contributor(contributor, &current_reputation)
+            .await?;
         current_reputation.sybil_risk_score = sybil_risk;
 
         // Record reputation event
@@ -107,18 +113,21 @@ impl ReputationLedger {
             .or_insert_with(Vec::new)
             .push(event);
 
-        // Store updated reputation  
+        // Store updated reputation
         let consistency = current_reputation.consistency_score;
         let expertise = current_reputation.expertise_score;
         let trust = current_reputation.trust_score;
-        
-        self.reputation_scores.insert(contributor.clone(), current_reputation);
 
-        tracing::debug!("Updated reputation for {}: consistency={:.3}, expertise={:.3}, trust={:.3}",
-                       contributor.to_string(),
-                       consistency,
-                       expertise,
-                       trust);
+        self.reputation_scores
+            .insert(contributor.clone(), current_reputation);
+
+        tracing::debug!(
+            "Updated reputation for {}: consistency={:.3}, expertise={:.3}, trust={:.3}",
+            contributor.to_string(),
+            consistency,
+            expertise,
+            trust
+        );
 
         Ok(())
     }
@@ -140,16 +149,21 @@ impl ReputationLedger {
         // Update trust score for validated contributor
         self.update_trust_score(validated).await?;
 
-        tracing::debug!("Recorded peer validation from {} to {} with score {:.3}",
-                       validator.to_string(),
-                       validated.to_string(),
-                       trust_score);
+        tracing::debug!(
+            "Recorded peer validation from {} to {} with score {:.3}",
+            validator.to_string(),
+            validated.to_string(),
+            trust_score
+        );
 
         Ok(())
     }
 
     /// Apply reputation decay over time
-    async fn apply_reputation_decay(&self, metrics: &ReputationMetrics) -> anyhow::Result<ReputationMetrics> {
+    async fn apply_reputation_decay(
+        &self,
+        metrics: &ReputationMetrics,
+    ) -> anyhow::Result<ReputationMetrics> {
         let now = Utc::now();
         let time_since_activity = now.signed_duration_since(metrics.last_activity);
         let days_inactive = time_since_activity.num_days() as f64;
@@ -162,11 +176,11 @@ impl ReputationLedger {
         };
 
         let mut decayed_metrics = metrics.clone();
-        
+
         // Apply decay to scores
         decayed_metrics.consistency_score *= decay_factor;
         decayed_metrics.expertise_score *= decay_factor;
-        
+
         // Trust score decays more slowly
         let trust_decay_factor = (1.0 - self.decay_config.trust_decay_rate).powf(days_inactive);
         decayed_metrics.trust_score *= trust_decay_factor;
@@ -179,7 +193,10 @@ impl ReputationLedger {
         Ok(decayed_metrics)
     }
 
-    async fn calculate_contribution_impact(&self, validation_result: &ValidationResult) -> anyhow::Result<f64> {
+    async fn calculate_contribution_impact(
+        &self,
+        validation_result: &ValidationResult,
+    ) -> anyhow::Result<f64> {
         // Calculate positive impact based on quality and novelty
         let quality_impact = validation_result.quality_score * 0.6;
         let novelty_impact = validation_result.novelty_score * 0.3;
@@ -197,11 +214,11 @@ impl ReputationLedger {
         // Consistency measures how reliable a contributor is
         let weight = 1.0 / (contribution_count as f64 + 1.0);
         let quality_deviation = (new_quality - current_score).abs();
-        
+
         // Lower deviation = higher consistency
         let consistency_bonus = (1.0 - quality_deviation).max(0.0);
         let new_score = current_score * (1.0 - weight) + consistency_bonus * weight;
-        
+
         Ok(new_score.min(1.0))
     }
 
@@ -213,7 +230,7 @@ impl ReputationLedger {
         // Expertise grows with high-quality contributions
         let expertise_gain = validation_result.quality_score * 0.1;
         let new_score = current_score + expertise_gain;
-        
+
         Ok(new_score.min(1.0))
     }
 
@@ -247,7 +264,9 @@ impl ReputationLedger {
 
     /// Get reputation ranking of contributors
     pub fn get_reputation_ranking(&self, limit: usize) -> Vec<(Address, ReputationMetrics)> {
-        let mut contributors: Vec<_> = self.reputation_scores.iter()
+        let mut contributors: Vec<_> = self
+            .reputation_scores
+            .iter()
             .map(|(addr, metrics)| (addr.clone(), metrics.clone()))
             .collect();
 
@@ -255,7 +274,9 @@ impl ReputationLedger {
         contributors.sort_by(|a, b| {
             let score_a = (a.1.consistency_score + a.1.expertise_score + a.1.trust_score) / 3.0;
             let score_b = (b.1.consistency_score + b.1.expertise_score + b.1.trust_score) / 3.0;
-            score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
+            score_b
+                .partial_cmp(&score_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         contributors.into_iter().take(limit).collect()
@@ -268,17 +289,28 @@ impl ReputationLedger {
         }
 
         let total_contributors = self.reputation_scores.len();
-        let avg_consistency = self.reputation_scores.values()
+        let avg_consistency = self
+            .reputation_scores
+            .values()
             .map(|m| m.consistency_score)
-            .sum::<f64>() / total_contributors as f64;
-        let avg_expertise = self.reputation_scores.values()
+            .sum::<f64>()
+            / total_contributors as f64;
+        let avg_expertise = self
+            .reputation_scores
+            .values()
             .map(|m| m.expertise_score)
-            .sum::<f64>() / total_contributors as f64;
-        let avg_trust = self.reputation_scores.values()
+            .sum::<f64>()
+            / total_contributors as f64;
+        let avg_trust = self
+            .reputation_scores
+            .values()
             .map(|m| m.trust_score)
-            .sum::<f64>() / total_contributors as f64;
+            .sum::<f64>()
+            / total_contributors as f64;
 
-        let high_reputation_count = self.reputation_scores.values()
+        let high_reputation_count = self
+            .reputation_scores
+            .values()
             .filter(|m| (m.consistency_score + m.expertise_score + m.trust_score) / 3.0 > 0.8)
             .count();
 
@@ -293,7 +325,9 @@ impl ReputationLedger {
 
     /// Detect and flag potential Sybil attacks
     pub async fn detect_sybil_attacks(&mut self) -> anyhow::Result<Vec<Address>> {
-        self.sybil_detector.detect_sybil_networks(&self.reputation_scores).await
+        self.sybil_detector
+            .detect_sybil_networks(&self.reputation_scores)
+            .await
     }
 }
 
@@ -324,9 +358,11 @@ impl SybilDetector {
         ];
 
         self.network_analyzer.initialize().await?;
-        
-        tracing::debug!("Sybil detector initialized with {} patterns", 
-                       self.suspicious_patterns.len());
+
+        tracing::debug!(
+            "Sybil detector initialized with {} patterns",
+            self.suspicious_patterns.len()
+        );
         Ok(())
     }
 
@@ -370,13 +406,13 @@ impl NetworkAnalyzer {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReputationMetrics {
-    pub consistency_score: f64,   // How consistent are their contributions
-    pub expertise_score: f64,     // Level of expertise in their domain
-    pub trust_score: f64,         // Peer trust and validation
-    pub contribution_count: u64,  // Total number of contributions
-    pub average_quality: f64,     // Average quality of contributions
+    pub consistency_score: f64,       // How consistent are their contributions
+    pub expertise_score: f64,         // Level of expertise in their domain
+    pub trust_score: f64,             // Peer trust and validation
+    pub contribution_count: u64,      // Total number of contributions
+    pub average_quality: f64,         // Average quality of contributions
     pub last_activity: DateTime<Utc>, // Last contribution timestamp
-    pub sybil_risk_score: f64,    // Risk of being a Sybil identity
+    pub sybil_risk_score: f64,        // Risk of being a Sybil identity
 }
 
 impl Default for ReputationMetrics {
@@ -430,9 +466,9 @@ pub enum ValidationType {
 
 #[derive(Debug)]
 pub struct ReputationDecayConfig {
-    pub daily_decay_rate: f64,    // Daily decay rate for reputation scores
-    pub trust_decay_rate: f64,    // Decay rate for trust score (slower)
-    pub minimum_score: f64,       // Minimum reputation score
+    pub daily_decay_rate: f64, // Daily decay rate for reputation scores
+    pub trust_decay_rate: f64, // Decay rate for trust score (slower)
+    pub minimum_score: f64,    // Minimum reputation score
 }
 
 impl Default for ReputationDecayConfig {
@@ -447,10 +483,10 @@ impl Default for ReputationDecayConfig {
 
 #[derive(Debug)]
 pub enum SybilPattern {
-    IdenticalBehavior,    // Multiple accounts with identical behavior
-    CoordinatedTiming,    // Coordinated submission timing
-    SimilarPerformance,   // Suspiciously similar performance metrics
-    NetworkClustering,    // Clustering in social/trust networks
+    IdenticalBehavior,  // Multiple accounts with identical behavior
+    CoordinatedTiming,  // Coordinated submission timing
+    SimilarPerformance, // Suspiciously similar performance metrics
+    NetworkClustering,  // Clustering in social/trust networks
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -501,7 +537,10 @@ mod tests {
         };
 
         // Update reputation
-        ledger.update_reputation(&contributor, &validation_result).await.unwrap();
+        ledger
+            .update_reputation(&contributor, &validation_result)
+            .await
+            .unwrap();
 
         // Check updated reputation
         let reputation = ledger.get_reputation(&contributor).await.unwrap();
@@ -529,7 +568,10 @@ mod tests {
             evidence: Some("High quality work verified".to_string()),
         };
 
-        ledger.record_peer_validation(&validator, &validated, peer_validation).await.unwrap();
+        ledger
+            .record_peer_validation(&validator, &validated, peer_validation)
+            .await
+            .unwrap();
 
         // Check that trust score was updated
         let reputation = ledger.get_reputation(&validated).await.unwrap();
@@ -545,7 +587,7 @@ mod tests {
         for i in 0..5 {
             let keypair = Keypair::generate(&mut thread_rng());
             let contributor = Address::from_public_key(&keypair.public);
-            
+
             let validation_result = ValidationResult {
                 valid: true,
                 compute_units: 1000,
@@ -554,7 +596,10 @@ mod tests {
                 peer_validation_score: 0.7,
             };
 
-            ledger.update_reputation(&contributor, &validation_result).await.unwrap();
+            ledger
+                .update_reputation(&contributor, &validation_result)
+                .await
+                .unwrap();
         }
 
         let stats = ledger.get_reputation_stats();

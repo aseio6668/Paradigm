@@ -1,29 +1,29 @@
+use blake3::Hasher;
+use chrono::Utc;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use chrono::Utc;
-use serde::{Deserialize, Serialize};
-use blake3::Hasher;
 use uuid::Uuid;
 
+pub mod ai;
+pub mod consensus;
 /// The core Paradigm network node implementation
 pub mod error;
+pub mod governance;
+pub mod ml_tasks;
 pub mod network;
-pub mod consensus;
+pub mod performance;
+pub mod storage;
+pub mod tokenomics;
 pub mod transaction;
 pub mod wallet;
-pub mod ml_tasks;
-pub mod storage;
-pub mod governance;
-pub mod tokenomics;
-pub mod performance;
-pub mod ai;
 
 // Performance optimization modules
 pub mod crypto_optimization;
+pub mod memory_optimization;
 pub mod parallel_ml;
 pub mod performance_benchmarks;
-pub mod memory_optimization;
 pub mod transaction_throughput;
 
 // Type aliases for easier use
@@ -34,7 +34,7 @@ impl Address {
     pub fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
-    
+
     pub fn to_string(&self) -> String {
         format!("PAR{}", hex::encode(&self.0[..20]))
     }
@@ -52,13 +52,13 @@ pub type SecretKey = ed25519_dalek::SigningKey;
 pub type Keypair = ed25519_dalek::SigningKey; // In the new API, SigningKey is the keypair
 
 // Re-export commonly used types
-pub use error::ParadigmError;
-pub use transaction::Transaction;
 pub use consensus::MLTask;
-pub use network::{P2PNetwork, NetworkMessage};
-pub use wallet::Wallet;
+pub use error::ParadigmError;
 pub use governance::{ProposalStatus, ProposalType};
-pub use tokenomics::{TokenomicsSystem, ContributionType, ContributionProof};
+pub use network::{NetworkMessage, P2PNetwork};
+pub use tokenomics::{ContributionProof, ContributionType, TokenomicsSystem};
+pub use transaction::Transaction;
+pub use wallet::Wallet;
 
 pub const PARADIGM_VERSION: &str = "0.1.0";
 
@@ -130,13 +130,13 @@ impl ParadigmNode {
     pub async fn new(config: NodeConfig) -> anyhow::Result<Self> {
         use rand::rngs::OsRng;
         use rand::RngCore;
-        
+
         // Generate random bytes for the keypair
         let mut secret_bytes = [0u8; 32];
         OsRng.fill_bytes(&mut secret_bytes);
         let keypair = ed25519_dalek::SigningKey::from_bytes(&secret_bytes);
         let node_id = uuid::Uuid::new_v4();
-        
+
         // Construct proper database URL with absolute path
         let data_path = std::path::Path::new(&config.data_dir);
         let absolute_data_path = if data_path.is_absolute() {
@@ -146,29 +146,19 @@ impl ParadigmNode {
         };
         // Ensure the data directory exists before creating database
         std::fs::create_dir_all(&absolute_data_path)?;
-        
+
         let db_path = absolute_data_path.join("paradigm.db");
         let db_url = format!("sqlite://{}", db_path.to_string_lossy().replace('\\', "/"));
-        
-        let storage = Arc::new(RwLock::new(
-            storage::ParadigmStorage::new(&db_url).await?
-        ));
 
-        let network = Arc::new(RwLock::new(
-            network::P2PNetwork::new(node_id).await?
-        ));
+        let storage = Arc::new(RwLock::new(storage::ParadigmStorage::new(&db_url).await?));
 
-        let consensus = Arc::new(RwLock::new(
-            consensus::ConsensusEngine::new()
-        ));
+        let network = Arc::new(RwLock::new(network::P2PNetwork::new(node_id).await?));
 
-        let governance = Arc::new(RwLock::new(
-            governance::AIGovernance::new()
-        ));
+        let consensus = Arc::new(RwLock::new(consensus::ConsensusEngine::new()));
 
-        let tokenomics = Arc::new(RwLock::new(
-            tokenomics::TokenomicsSystem::new()
-        ));
+        let governance = Arc::new(RwLock::new(governance::AIGovernance::new()));
+
+        let tokenomics = Arc::new(RwLock::new(tokenomics::TokenomicsSystem::new()));
 
         Ok(ParadigmNode {
             config,
@@ -183,13 +173,13 @@ impl ParadigmNode {
 
     pub async fn start(&mut self) -> anyhow::Result<()> {
         tracing::info!("Starting Paradigm node with ID: {}", self.config.node_id);
-        
+
         // Start tokenomics system
         {
             let mut tokenomics = self.tokenomics.write().await;
             tokenomics.start().await?;
         }
-        
+
         // Start network layer
         {
             let mut network = self.network.write().await;
@@ -202,7 +192,7 @@ impl ParadigmNode {
 
     pub async fn stop(&mut self) -> anyhow::Result<()> {
         tracing::info!("Stopping Paradigm node");
-        
+
         // Graceful shutdown
         {
             let mut network = self.network.write().await;
@@ -217,15 +207,18 @@ impl ParadigmNode {
         AddressExt::from_public_key(&self.keypair.verifying_key())
     }
 
-    pub async fn submit_transaction(&self, transaction: transaction::Transaction) -> anyhow::Result<()> {
+    pub async fn submit_transaction(
+        &self,
+        transaction: transaction::Transaction,
+    ) -> anyhow::Result<()> {
         // Store the transaction in storage (simplified approach)
         let mut storage = self.storage.write().await;
         storage.store_transaction(&transaction).await?;
-        
+
         // Broadcast to network
         let mut network = self.network.write().await;
         network.broadcast_transaction(&transaction).await?;
-        
+
         Ok(())
     }
 
@@ -234,7 +227,10 @@ impl ParadigmNode {
         storage.get_balance(address).await
     }
 
-    pub async fn get_transaction_history(&self, address: &Address) -> anyhow::Result<Vec<transaction::Transaction>> {
+    pub async fn get_transaction_history(
+        &self,
+        address: &Address,
+    ) -> anyhow::Result<Vec<transaction::Transaction>> {
         let storage = self.storage.read().await;
         storage.get_transactions_for_address(address).await
     }

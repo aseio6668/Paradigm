@@ -1,8 +1,8 @@
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
+use super::{ContributionType, ValidationResult};
 use crate::Address;
-use super::{ValidationResult, ContributionType};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Advanced reward calculation engine that considers multiple factors
 /// including computational value, social trust, reputation, and network needs
@@ -48,18 +48,20 @@ impl RewardEngine {
 
     pub async fn initialize(&mut self) -> anyhow::Result<()> {
         tracing::info!("Initializing Reward Engine");
-        
+
         // Initialize demand multipliers
         self.initialize_demand_multipliers().await?;
-        
+
         // Initialize trust network
         self.trust_network.initialize().await?;
-        
+
         // Initialize dynamic pricing
         self.pricing_model.initialize().await?;
-        
-        tracing::info!("Reward Engine initialized with {} contribution types", 
-                     self.base_rates.len());
+
+        tracing::info!(
+            "Reward Engine initialized with {} contribution types",
+            self.base_rates.len()
+        );
         Ok(())
     }
 
@@ -71,37 +73,37 @@ impl RewardEngine {
     ) -> anyhow::Result<u64> {
         // Start with base reward based on compute units
         let base_reward = self.calculate_base_reward(validation_result).await?;
-        
+
         // Apply quality multiplier
         let quality_multiplier = self.calculate_quality_multiplier(validation_result);
-        
+
         // Apply reputation multiplier (meritocracy factor)
         let reputation_multiplier = self.calculate_reputation_multiplier(&reputation);
-        
+
         // Apply novelty bonus
         let novelty_multiplier = self.calculate_novelty_multiplier(validation_result);
-        
+
         // Apply peer validation multiplier (social trust factor)
         let peer_multiplier = self.calculate_peer_multiplier(validation_result);
-        
+
         // Apply network demand multiplier
         let demand_multiplier = self.get_current_demand_multiplier().await?;
-        
+
         // Apply dynamic pricing adjustments
         let pricing_multiplier = self.pricing_model.get_current_multiplier().await?;
-        
+
         // Calculate final reward
-        let final_reward = (base_reward as f64 
-            * quality_multiplier 
-            * reputation_multiplier 
-            * novelty_multiplier 
-            * peer_multiplier 
-            * demand_multiplier 
+        let final_reward = (base_reward as f64
+            * quality_multiplier
+            * reputation_multiplier
+            * novelty_multiplier
+            * peer_multiplier
+            * demand_multiplier
             * pricing_multiplier) as u64;
-        
+
         // Record reward for analysis
         self.record_reward(validation_result, final_reward).await?;
-        
+
         tracing::debug!(
             "Reward calculated: base={} PAR, quality={:.2}x, reputation={:.2}x, novelty={:.2}x, peer={:.2}x, demand={:.2}x, pricing={:.2}x, final={} PAR",
             base_reward as f64 / 100_000_000.0,
@@ -113,11 +115,14 @@ impl RewardEngine {
             pricing_multiplier,
             final_reward as f64 / 100_000_000.0
         );
-        
+
         Ok(final_reward)
     }
 
-    async fn calculate_base_reward(&self, validation_result: &ValidationResult) -> anyhow::Result<u64> {
+    async fn calculate_base_reward(
+        &self,
+        validation_result: &ValidationResult,
+    ) -> anyhow::Result<u64> {
         // Calculate based on compute units with a scaling factor
         let compute_reward = validation_result.compute_units * 1000; // 1000 base units per compute unit
         Ok(compute_reward.min(1_000_000_000)) // Cap at 10 PAR base
@@ -134,12 +139,12 @@ impl RewardEngine {
         let consistency_factor = reputation.consistency_score.max(0.0).min(1.0);
         let expertise_factor = reputation.expertise_score.max(0.0).min(1.0);
         let trust_factor = reputation.trust_score.max(0.0).min(1.0);
-        
+
         // Weighted combination
-        let reputation_score = (consistency_factor * self.reputation_weights.consistency) +
-                              (expertise_factor * self.reputation_weights.expertise) +
-                              (trust_factor * self.reputation_weights.trust);
-        
+        let reputation_score = (consistency_factor * self.reputation_weights.consistency)
+            + (expertise_factor * self.reputation_weights.expertise)
+            + (trust_factor * self.reputation_weights.trust);
+
         // Convert to multiplier range: 0.8x to 2.5x
         0.8 + (reputation_score * 1.7)
     }
@@ -163,17 +168,27 @@ impl RewardEngine {
 
     async fn initialize_demand_multipliers(&mut self) -> anyhow::Result<()> {
         // Initialize demand multipliers based on network analysis
-        self.demand_multipliers.insert(ContributionType::MLTraining, 1.5);
-        self.demand_multipliers.insert(ContributionType::InferenceServing, 1.8);
-        self.demand_multipliers.insert(ContributionType::DataValidation, 1.2);
-        self.demand_multipliers.insert(ContributionType::ModelOptimization, 1.6);
-        self.demand_multipliers.insert(ContributionType::NetworkMaintenance, 2.0);
-        self.demand_multipliers.insert(ContributionType::GovernanceParticipation, 1.1);
-        self.demand_multipliers.insert(ContributionType::CrossPlatformCompute, 1.9);
-        self.demand_multipliers.insert(ContributionType::StorageProvision, 1.3);
-        self.demand_multipliers.insert(ContributionType::GenerativeMedia, 1.4);
-        self.demand_multipliers.insert(ContributionType::SymbolicMath, 1.7);
-        
+        self.demand_multipliers
+            .insert(ContributionType::MLTraining, 1.5);
+        self.demand_multipliers
+            .insert(ContributionType::InferenceServing, 1.8);
+        self.demand_multipliers
+            .insert(ContributionType::DataValidation, 1.2);
+        self.demand_multipliers
+            .insert(ContributionType::ModelOptimization, 1.6);
+        self.demand_multipliers
+            .insert(ContributionType::NetworkMaintenance, 2.0);
+        self.demand_multipliers
+            .insert(ContributionType::GovernanceParticipation, 1.1);
+        self.demand_multipliers
+            .insert(ContributionType::CrossPlatformCompute, 1.9);
+        self.demand_multipliers
+            .insert(ContributionType::StorageProvision, 1.3);
+        self.demand_multipliers
+            .insert(ContributionType::GenerativeMedia, 1.4);
+        self.demand_multipliers
+            .insert(ContributionType::SymbolicMath, 1.7);
+
         Ok(())
     }
 
@@ -190,14 +205,14 @@ impl RewardEngine {
             peer_validation_score: validation_result.peer_validation_score,
             final_reward: reward,
         };
-        
+
         self.reward_history.push(record);
-        
+
         // Keep only recent history (last 10000 records)
         if self.reward_history.len() > 10000 {
             self.reward_history.drain(0..1000);
         }
-        
+
         Ok(())
     }
 
@@ -209,8 +224,13 @@ impl RewardEngine {
 
         let total_rewards: u64 = self.reward_history.iter().map(|r| r.final_reward).sum();
         let avg_reward = total_rewards / self.reward_history.len() as u64;
-        let avg_quality = self.reward_history.iter().map(|r| r.quality_score).sum::<f64>() / self.reward_history.len() as f64;
-        
+        let avg_quality = self
+            .reward_history
+            .iter()
+            .map(|r| r.quality_score)
+            .sum::<f64>()
+            / self.reward_history.len() as f64;
+
         RewardStats {
             total_rewards_distributed: total_rewards,
             average_reward: avg_reward,
@@ -220,9 +240,13 @@ impl RewardEngine {
     }
 
     /// Update demand multipliers based on network conditions
-    pub async fn update_demand_multipliers(&mut self, network_analysis: NetworkDemandAnalysis) -> anyhow::Result<()> {
+    pub async fn update_demand_multipliers(
+        &mut self,
+        network_analysis: NetworkDemandAnalysis,
+    ) -> anyhow::Result<()> {
         for (contribution_type, multiplier) in network_analysis.demand_multipliers {
-            self.demand_multipliers.insert(contribution_type, multiplier);
+            self.demand_multipliers
+                .insert(contribution_type, multiplier);
         }
         Ok(())
     }
@@ -231,17 +255,17 @@ impl RewardEngine {
 /// Reputation-based weighting system
 #[derive(Debug)]
 pub struct ReputationWeights {
-    pub consistency: f64,  // Weight for consistency in contributions
-    pub expertise: f64,    // Weight for domain expertise
-    pub trust: f64,        // Weight for peer trust
+    pub consistency: f64, // Weight for consistency in contributions
+    pub expertise: f64,   // Weight for domain expertise
+    pub trust: f64,       // Weight for peer trust
 }
 
 impl Default for ReputationWeights {
     fn default() -> Self {
         ReputationWeights {
-            consistency: 0.4,  // 40% weight on consistency
-            expertise: 0.35,   // 35% weight on expertise
-            trust: 0.25,       // 25% weight on trust
+            consistency: 0.4, // 40% weight on consistency
+            expertise: 0.35,  // 35% weight on expertise
+            trust: 0.25,      // 25% weight on trust
         }
     }
 }
@@ -250,7 +274,7 @@ impl Default for ReputationWeights {
 #[derive(Debug)]
 pub struct TrustNetwork {
     trust_relationships: HashMap<Address, HashMap<Address, f64>>, // from -> to -> trust_score
-    trust_scores: HashMap<Address, f64>, // aggregated trust scores
+    trust_scores: HashMap<Address, f64>,                          // aggregated trust scores
 }
 
 impl TrustNetwork {
@@ -266,12 +290,17 @@ impl TrustNetwork {
         Ok(())
     }
 
-    pub async fn update_trust(&mut self, from: &Address, to: &Address, score: f64) -> anyhow::Result<()> {
+    pub async fn update_trust(
+        &mut self,
+        from: &Address,
+        to: &Address,
+        score: f64,
+    ) -> anyhow::Result<()> {
         self.trust_relationships
             .entry(from.clone())
             .or_insert_with(HashMap::new)
             .insert(to.clone(), score);
-        
+
         // Recalculate aggregated trust score for 'to' address
         self.recalculate_trust_score(to).await?;
         Ok(())
@@ -329,23 +358,27 @@ impl DynamicPricing {
         Ok(self.current_multiplier)
     }
 
-    pub async fn update_pricing(&mut self, network_conditions: NetworkConditions) -> anyhow::Result<()> {
+    pub async fn update_pricing(
+        &mut self,
+        network_conditions: NetworkConditions,
+    ) -> anyhow::Result<()> {
         // Calculate new multiplier based on supply and demand
         let supply_factor = self.calculate_supply_factor(&network_conditions);
         let demand_factor = self.calculate_demand_factor(&network_conditions);
-        
+
         // Combine factors with weights
         self.current_multiplier = (supply_factor * 0.6) + (demand_factor * 0.4);
-        
+
         // Clamp to reasonable range
         self.current_multiplier = self.current_multiplier.max(0.5).min(3.0);
-        
+
         Ok(())
     }
 
     fn calculate_supply_factor(&self, conditions: &NetworkConditions) -> f64 {
         // Higher supply of contributors = lower multiplier
-        let contributor_ratio = conditions.active_contributors as f64 / conditions.target_contributors as f64;
+        let contributor_ratio =
+            conditions.active_contributors as f64 / conditions.target_contributors as f64;
         if contributor_ratio > 1.2 {
             0.8 // Oversupply
         } else if contributor_ratio < 0.8 {
@@ -372,9 +405,9 @@ impl DynamicPricing {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ReputationMetrics {
-    pub consistency_score: f64,   // 0.0 to 1.0
-    pub expertise_score: f64,     // 0.0 to 1.0
-    pub trust_score: f64,         // 0.0 to 1.0
+    pub consistency_score: f64, // 0.0 to 1.0
+    pub expertise_score: f64,   // 0.0 to 1.0
+    pub trust_score: f64,       // 0.0 to 1.0
     pub contribution_count: u64,
     pub average_quality: f64,
 }
@@ -447,7 +480,10 @@ mod tests {
             average_quality: 0.75,
         };
 
-        let reward = engine.calculate_reward(&validation_result, reputation).await.unwrap();
+        let reward = engine
+            .calculate_reward(&validation_result, reputation)
+            .await
+            .unwrap();
         assert!(reward > 0);
         assert!(reward < 10_000_000_000); // Should be less than 100 PAR
 
@@ -469,7 +505,10 @@ mod tests {
         let addr1 = Address::from_public_key(&keypair1.public);
         let addr2 = Address::from_public_key(&keypair2.public);
 
-        trust_network.update_trust(&addr1, &addr2, 0.8).await.unwrap();
+        trust_network
+            .update_trust(&addr1, &addr2, 0.8)
+            .await
+            .unwrap();
         let trust_score = trust_network.get_trust_score(&addr2);
         assert!((trust_score - 0.8).abs() < 0.001);
     }

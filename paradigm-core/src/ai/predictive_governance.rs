@@ -1,13 +1,13 @@
 // Predictive Governance System
 // AI-powered governance prediction and analysis
 
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use anyhow::Result;
 use uuid::Uuid;
-use serde::{Serialize, Deserialize};
 
 use super::{AIModelConfig, DecisionContext, LearningUpdate};
 
@@ -41,7 +41,10 @@ impl PredictiveGovernanceSystem {
         Ok(())
     }
 
-    pub async fn predict_outcomes(&self, _context: &DecisionContext) -> Result<GovernancePrediction> {
+    pub async fn predict_outcomes(
+        &self,
+        _context: &DecisionContext,
+    ) -> Result<GovernancePrediction> {
         Ok(GovernancePrediction {
             prediction_id: Uuid::new_v4(),
             confidence: 0.85,

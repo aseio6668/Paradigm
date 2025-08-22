@@ -1,8 +1,8 @@
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
-use uuid::Uuid;
 use crate::Address;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use uuid::Uuid;
 
 /// Bridge adapter for cross-platform interoperability
 /// Enables PAR tokens to act as universal compute credits across AI platforms,
@@ -34,18 +34,20 @@ impl BridgeAdapter {
 
     pub async fn initialize(&mut self) -> anyhow::Result<()> {
         tracing::info!("Initializing Bridge Adapter for cross-platform interoperability");
-        
+
         // Initialize platform bridges
         self.setup_platform_bridges().await?;
-        
+
         // Initialize platform rates
         self.setup_platform_rates().await?;
-        
+
         // Initialize liquidity pools
         self.setup_liquidity_pools().await?;
-        
-        tracing::info!("Bridge Adapter initialized with {} platforms", 
-                     self.platform_bridges.len());
+
+        tracing::info!(
+            "Bridge Adapter initialized with {} platforms",
+            self.platform_bridges.len()
+        );
         Ok(())
     }
 
@@ -57,7 +59,9 @@ impl BridgeAdapter {
         par_amount: u64,
     ) -> anyhow::Result<PlatformCredits> {
         // Check if platform is supported
-        let rates = self.platform_rates.get(&platform)
+        let rates = self
+            .platform_rates
+            .get(&platform)
             .ok_or_else(|| anyhow::anyhow!("Platform not supported"))?;
 
         // Calculate platform-specific credits
@@ -66,14 +70,17 @@ impl BridgeAdapter {
         // Update credit balances
         let key = (user.clone(), platform.clone());
         let current_balance = self.credit_balances.get(&key).unwrap_or(&0);
-        self.credit_balances.insert(key, current_balance + credits.total_credits);
+        self.credit_balances
+            .insert(key, current_balance + credits.total_credits);
 
         // Record the conversion
-        tracing::info!("Converted {} PAR to {} {} credits for user {}", 
-                     par_amount as f64 / 100_000_000.0,
-                     credits.total_credits,
-                     platform.name(),
-                     user.to_string());
+        tracing::info!(
+            "Converted {} PAR to {} {} credits for user {}",
+            par_amount as f64 / 100_000_000.0,
+            credits.total_credits,
+            platform.name(),
+            user.to_string()
+        );
 
         Ok(credits)
     }
@@ -89,13 +96,15 @@ impl BridgeAdapter {
         // Check balance
         let key = (user.clone(), platform.clone());
         let available_credits = *self.credit_balances.get(&key).unwrap_or(&0);
-        
+
         if available_credits < credits {
             return Err(anyhow::anyhow!("Insufficient credits for transfer"));
         }
 
         // Get platform bridge
-        let bridge = self.platform_bridges.get(&platform)
+        let bridge = self
+            .platform_bridges
+            .get(&platform)
             .ok_or_else(|| anyhow::anyhow!("Platform bridge not available"))?;
 
         // Create transfer
@@ -113,7 +122,8 @@ impl BridgeAdapter {
         };
 
         // Deduct credits from balance
-        self.credit_balances.insert(key, available_credits - credits);
+        self.credit_balances
+            .insert(key, available_credits - credits);
 
         // Execute platform-specific transfer
         bridge.execute_transfer(&transfer).await?;
@@ -121,8 +131,12 @@ impl BridgeAdapter {
         // Store pending transfer
         self.pending_transfers.insert(transfer_id, transfer);
 
-        tracing::info!("Initiated transfer of {} credits to {} on platform {}", 
-                     credits, external_address, platform.name());
+        tracing::info!(
+            "Initiated transfer of {} credits to {} on platform {}",
+            credits,
+            external_address,
+            platform.name()
+        );
 
         Ok(transfer_id)
     }
@@ -134,27 +148,35 @@ impl BridgeAdapter {
         external_transaction: ExternalTransaction,
     ) -> anyhow::Result<u64> {
         // Verify external transaction
-        let bridge = self.platform_bridges.get(&platform)
+        let bridge = self
+            .platform_bridges
+            .get(&platform)
             .ok_or_else(|| anyhow::anyhow!("Platform bridge not available"))?;
-        
-        let verified = bridge.verify_external_transaction(&external_transaction).await?;
+
+        let verified = bridge
+            .verify_external_transaction(&external_transaction)
+            .await?;
         if !verified {
             return Err(anyhow::anyhow!("Failed to verify external transaction"));
         }
 
         // Calculate PAR amount from external credits
         let rates = self.platform_rates.get(&platform).unwrap();
-        let par_amount = self.calculate_par_from_credits(external_transaction.amount, rates).await?;
+        let par_amount = self
+            .calculate_par_from_credits(external_transaction.amount, rates)
+            .await?;
 
         // Update liquidity pool
         if let Some(pool) = self.liquidity_pools.get_mut(&platform) {
             pool.total_liquidity += par_amount;
         }
 
-        tracing::info!("Bridged {} credits from {} to {} PAR", 
-                     external_transaction.amount,
-                     platform.name(),
-                     par_amount as f64 / 100_000_000.0);
+        tracing::info!(
+            "Bridged {} credits from {} to {} PAR",
+            external_transaction.amount,
+            platform.name(),
+            par_amount as f64 / 100_000_000.0
+        );
 
         Ok(par_amount)
     }
@@ -168,13 +190,13 @@ impl BridgeAdapter {
     /// Get all platform balances for a user
     pub fn get_all_platform_balances(&self, user: &Address) -> HashMap<Platform, u64> {
         let mut balances = HashMap::new();
-        
+
         for ((addr, platform), balance) in &self.credit_balances {
             if addr == user {
                 balances.insert(platform.clone(), *balance);
             }
         }
-        
+
         balances
     }
 
@@ -194,12 +216,15 @@ impl BridgeAdapter {
             let status_clone = status.clone();
             transfer.status = status;
             transfer.transaction_hash = transaction_hash;
-            
-            if matches!(status_clone, TransferStatus::Completed | TransferStatus::Failed) {
+
+            if matches!(
+                status_clone,
+                TransferStatus::Completed | TransferStatus::Failed
+            ) {
                 transfer.completed_at = Some(Utc::now());
             }
         }
-        
+
         Ok(())
     }
 
@@ -207,37 +232,49 @@ impl BridgeAdapter {
         // Filecoin bridge for storage
         self.platform_bridges.insert(
             Platform::Filecoin,
-            PlatformBridge::new("filecoin".to_string(), "https://api.filecoin.io".to_string())
+            PlatformBridge::new(
+                "filecoin".to_string(),
+                "https://api.filecoin.io".to_string(),
+            ),
         );
 
         // Render Network bridge for GPU compute
         self.platform_bridges.insert(
             Platform::RenderNetwork,
-            PlatformBridge::new("render".to_string(), "https://api.render.network".to_string())
+            PlatformBridge::new(
+                "render".to_string(),
+                "https://api.render.network".to_string(),
+            ),
         );
 
         // AWS bridge for cloud compute
         self.platform_bridges.insert(
             Platform::AWS,
-            PlatformBridge::new("aws".to_string(), "https://api.aws.amazon.com".to_string())
+            PlatformBridge::new("aws".to_string(), "https://api.aws.amazon.com".to_string()),
         );
 
         // Google Cloud bridge
         self.platform_bridges.insert(
             Platform::GoogleCloud,
-            PlatformBridge::new("gcp".to_string(), "https://api.cloud.google.com".to_string())
+            PlatformBridge::new(
+                "gcp".to_string(),
+                "https://api.cloud.google.com".to_string(),
+            ),
         );
 
         // Akash Network bridge for decentralized cloud
         self.platform_bridges.insert(
             Platform::AkashNetwork,
-            PlatformBridge::new("akash".to_string(), "https://api.akash.network".to_string())
+            PlatformBridge::new("akash".to_string(), "https://api.akash.network".to_string()),
         );
 
         // Ethereum bridge for smart contracts
         self.platform_bridges.insert(
             Platform::Ethereum,
-            PlatformBridge::new("ethereum".to_string(), "https://api.ethereum.org".to_string())
+            PlatformBridge::new(
+                "ethereum".to_string(),
+                "https://api.ethereum.org".to_string(),
+            ),
         );
 
         Ok(())
@@ -245,50 +282,68 @@ impl BridgeAdapter {
 
     async fn setup_platform_rates(&mut self) -> anyhow::Result<()> {
         // Filecoin rates (storage-focused)
-        self.platform_rates.insert(Platform::Filecoin, PlatformRates {
-            par_to_credits_rate: 1000.0, // 1 PAR = 1000 storage credits
-            cpu_multiplier: 0.1,
-            gpu_multiplier: 0.05,
-            storage_multiplier: 1.0,
-            bandwidth_multiplier: 0.8,
-            base_fee: 1000000, // 0.01 PAR
-        });
+        self.platform_rates.insert(
+            Platform::Filecoin,
+            PlatformRates {
+                par_to_credits_rate: 1000.0, // 1 PAR = 1000 storage credits
+                cpu_multiplier: 0.1,
+                gpu_multiplier: 0.05,
+                storage_multiplier: 1.0,
+                bandwidth_multiplier: 0.8,
+                base_fee: 1000000, // 0.01 PAR
+            },
+        );
 
         // Render Network rates (GPU-focused)
-        self.platform_rates.insert(Platform::RenderNetwork, PlatformRates {
-            par_to_credits_rate: 100.0, // 1 PAR = 100 GPU credits
-            cpu_multiplier: 0.5,
-            gpu_multiplier: 1.0,
-            storage_multiplier: 0.3,
-            bandwidth_multiplier: 0.6,
-            base_fee: 5000000, // 0.05 PAR
-        });
+        self.platform_rates.insert(
+            Platform::RenderNetwork,
+            PlatformRates {
+                par_to_credits_rate: 100.0, // 1 PAR = 100 GPU credits
+                cpu_multiplier: 0.5,
+                gpu_multiplier: 1.0,
+                storage_multiplier: 0.3,
+                bandwidth_multiplier: 0.6,
+                base_fee: 5000000, // 0.05 PAR
+            },
+        );
 
         // AWS rates (balanced)
-        self.platform_rates.insert(Platform::AWS, PlatformRates {
-            par_to_credits_rate: 500.0, // 1 PAR = 500 AWS credits
-            cpu_multiplier: 0.8,
-            gpu_multiplier: 0.7,
-            storage_multiplier: 0.9,
-            bandwidth_multiplier: 0.85,
-            base_fee: 2000000, // 0.02 PAR
-        });
+        self.platform_rates.insert(
+            Platform::AWS,
+            PlatformRates {
+                par_to_credits_rate: 500.0, // 1 PAR = 500 AWS credits
+                cpu_multiplier: 0.8,
+                gpu_multiplier: 0.7,
+                storage_multiplier: 0.9,
+                bandwidth_multiplier: 0.85,
+                base_fee: 2000000, // 0.02 PAR
+            },
+        );
 
         // Add rates for other platforms...
-        
+
         Ok(())
     }
 
     async fn setup_liquidity_pools(&mut self) -> anyhow::Result<()> {
-        for platform in [Platform::Filecoin, Platform::RenderNetwork, Platform::AWS, 
-                        Platform::GoogleCloud, Platform::AkashNetwork, Platform::Ethereum] {
-            self.liquidity_pools.insert(platform, LiquidityPool {
-                total_liquidity: 10_000_000_000, // 100 PAR initial liquidity
-                utilization_rate: 0.0,
-                last_updated: Utc::now(),
-            });
+        for platform in [
+            Platform::Filecoin,
+            Platform::RenderNetwork,
+            Platform::AWS,
+            Platform::GoogleCloud,
+            Platform::AkashNetwork,
+            Platform::Ethereum,
+        ] {
+            self.liquidity_pools.insert(
+                platform,
+                LiquidityPool {
+                    total_liquidity: 10_000_000_000, // 100 PAR initial liquidity
+                    utilization_rate: 0.0,
+                    last_updated: Utc::now(),
+                },
+            );
         }
-        
+
         Ok(())
     }
 
@@ -298,7 +353,7 @@ impl BridgeAdapter {
         rates: &PlatformRates,
     ) -> anyhow::Result<PlatformCredits> {
         let par_in_decimal = par_amount as f64 / 100_000_000.0;
-        
+
         let base_credits = (par_in_decimal * rates.par_to_credits_rate) as u64;
         let cpu_credits = (base_credits as f64 * rates.cpu_multiplier) as u64;
         let gpu_credits = (base_credits as f64 * rates.gpu_multiplier) as u64;
@@ -328,7 +383,9 @@ impl BridgeAdapter {
     pub fn get_bridge_stats(&self) -> BridgeStats {
         let total_pending_transfers = self.pending_transfers.len();
         let total_platforms = self.platform_bridges.len();
-        let total_liquidity: u64 = self.liquidity_pools.values()
+        let total_liquidity: u64 = self
+            .liquidity_pools
+            .values()
             .map(|pool| pool.total_liquidity)
             .sum();
 
@@ -360,12 +417,15 @@ impl PlatformBridge {
 
     pub async fn execute_transfer(&self, transfer: &CrossPlatformTransfer) -> anyhow::Result<()> {
         // In a real implementation, this would make API calls to the external platform
-        tracing::debug!("Executing transfer {} to platform {}", 
-                       transfer.id, self.platform_id);
-        
+        tracing::debug!(
+            "Executing transfer {} to platform {}",
+            transfer.id,
+            self.platform_id
+        );
+
         // Simulate successful transfer
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        
+
         Ok(())
     }
 
@@ -374,9 +434,12 @@ impl PlatformBridge {
         transaction: &ExternalTransaction,
     ) -> anyhow::Result<bool> {
         // In a real implementation, this would verify the transaction on the external platform
-        tracing::debug!("Verifying external transaction {} on platform {}", 
-                       transaction.tx_hash, self.platform_id);
-        
+        tracing::debug!(
+            "Verifying external transaction {} on platform {}",
+            transaction.tx_hash,
+            self.platform_id
+        );
+
         // Simulate verification
         Ok(!transaction.tx_hash.is_empty())
     }
@@ -426,12 +489,12 @@ pub struct PlatformCredits {
 
 #[derive(Debug)]
 pub struct PlatformRates {
-    pub par_to_credits_rate: f64,    // How many platform credits per PAR
-    pub cpu_multiplier: f64,         // CPU credit multiplier
-    pub gpu_multiplier: f64,         // GPU credit multiplier
-    pub storage_multiplier: f64,     // Storage credit multiplier
-    pub bandwidth_multiplier: f64,   // Bandwidth credit multiplier
-    pub base_fee: u64,              // Base transaction fee in PAR subunits
+    pub par_to_credits_rate: f64,  // How many platform credits per PAR
+    pub cpu_multiplier: f64,       // CPU credit multiplier
+    pub gpu_multiplier: f64,       // GPU credit multiplier
+    pub storage_multiplier: f64,   // Storage credit multiplier
+    pub bandwidth_multiplier: f64, // Bandwidth credit multiplier
+    pub base_fee: u64,             // Base transaction fee in PAR subunits
 }
 
 #[derive(Debug)]
@@ -502,7 +565,10 @@ mod tests {
         let user = Address::from_public_key(&keypair.public);
 
         // Convert PAR to Filecoin credits
-        let credits = bridge.convert_to_credits(&user, Platform::Filecoin, 100_000_000).await.unwrap();
+        let credits = bridge
+            .convert_to_credits(&user, Platform::Filecoin, 100_000_000)
+            .await
+            .unwrap();
         assert!(credits.total_credits > 0);
         assert!(credits.storage_credits > credits.gpu_credits); // Filecoin is storage-focused
 
@@ -520,15 +586,21 @@ mod tests {
         let user = Address::from_public_key(&keypair.public);
 
         // First convert PAR to credits
-        bridge.convert_to_credits(&user, Platform::RenderNetwork, 200_000_000).await.unwrap();
+        bridge
+            .convert_to_credits(&user, Platform::RenderNetwork, 200_000_000)
+            .await
+            .unwrap();
 
         // Transfer to external platform
-        let transfer_id = bridge.transfer_to_platform(
-            &user,
-            Platform::RenderNetwork,
-            50,
-            "external_address_123".to_string(),
-        ).await.unwrap();
+        let transfer_id = bridge
+            .transfer_to_platform(
+                &user,
+                Platform::RenderNetwork,
+                50,
+                "external_address_123".to_string(),
+            )
+            .await
+            .unwrap();
 
         // Check transfer status
         let transfer = bridge.get_transfer_status(&transfer_id).unwrap();

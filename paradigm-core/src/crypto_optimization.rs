@@ -1,17 +1,17 @@
+use anyhow::Result;
+use blake3::Hasher as Blake3Hasher;
+use dashmap::DashMap;
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use rand::{rngs::OsRng, RngCore};
+use rayon::prelude::*;
+use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM, NONCE_LEN};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use sha3::Keccak256;
 /// High-performance cryptographic operations for Paradigm
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
-use anyhow::Result;
-use serde::{Deserialize, Serialize};
-use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
-use sha2::{Sha256, Digest};
-use sha3::Keccak256;
-use blake3::Hasher as Blake3Hasher;
-use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM, NONCE_LEN};
-use rand::{rngs::OsRng, RngCore};
-use rayon::prelude::*;
-use dashmap::DashMap;
 use tokio::sync::RwLock;
 
 /// High-performance signature cache for avoiding redundant verifications
@@ -31,9 +31,14 @@ impl SignatureCache {
         }
     }
 
-    pub fn verify_cached(&self, message: &[u8], signature: &[u8], public_key: &[u8]) -> Option<bool> {
+    pub fn verify_cached(
+        &self,
+        message: &[u8],
+        signature: &[u8],
+        public_key: &[u8],
+    ) -> Option<bool> {
         let cache_key = self.create_cache_key(message, signature, public_key);
-        
+
         if let Some(entry) = self.cache.get(&cache_key) {
             if entry.1.elapsed().as_secs() < self.ttl_seconds {
                 return Some(entry.0);
@@ -47,7 +52,7 @@ impl SignatureCache {
     pub fn cache_result(&self, message: &[u8], signature: &[u8], public_key: &[u8], valid: bool) {
         if self.cache.len() >= self.max_entries {
             self.cleanup_expired();
-            
+
             // If still at capacity, remove oldest entries
             if self.cache.len() >= self.max_entries {
                 let mut to_remove = Vec::new();
@@ -74,7 +79,8 @@ impl SignatureCache {
 
     fn cleanup_expired(&self) {
         let now = Instant::now();
-        self.cache.retain(|_, v| now.duration_since(v.1).as_secs() < self.ttl_seconds);
+        self.cache
+            .retain(|_, v| now.duration_since(v.1).as_secs() < self.ttl_seconds);
     }
 
     pub fn stats(&self) -> CacheStats {
@@ -96,18 +102,18 @@ impl HashPool {
         let thread_pool = rayon::ThreadPoolBuilder::new()
             .num_threads(num_threads)
             .build()?;
-        
+
         Ok(Self { thread_pool })
     }
 
     /// Compute multiple hashes in parallel using different algorithms
     pub fn parallel_multi_hash(&self, data: &[u8]) -> ParallelHashResult {
         let data_arc = Arc::new(data.to_vec());
-        
+
         let (sha256_tx, sha256_rx) = std::sync::mpsc::channel();
         let (sha3_tx, sha3_rx) = std::sync::mpsc::channel();
         let (blake3_tx, blake3_rx) = std::sync::mpsc::channel();
-        
+
         // SHA256 computation
         let data_sha256 = data_arc.clone();
         self.thread_pool.spawn(move || {
@@ -115,7 +121,7 @@ impl HashPool {
             hasher.update(&*data_sha256);
             let _ = sha256_tx.send(hasher.finalize().to_vec());
         });
-        
+
         // SHA3/Keccak256 computation
         let data_sha3 = data_arc.clone();
         self.thread_pool.spawn(move || {
@@ -123,7 +129,7 @@ impl HashPool {
             hasher.update(&*data_sha3);
             let _ = sha3_tx.send(hasher.finalize().to_vec());
         });
-        
+
         // BLAKE3 computation
         let data_blake3 = data_arc.clone();
         self.thread_pool.spawn(move || {
@@ -131,7 +137,7 @@ impl HashPool {
             hasher.update(&*data_blake3);
             let _ = blake3_tx.send(hasher.finalize().as_bytes().to_vec());
         });
-        
+
         ParallelHashResult {
             sha256: sha256_rx.recv().unwrap_or_default(),
             sha3: sha3_rx.recv().unwrap_or_default(),
@@ -141,7 +147,8 @@ impl HashPool {
 
     /// Batch hash computation for multiple inputs
     pub fn batch_hash_sha256(&self, inputs: &[Vec<u8>]) -> Vec<Vec<u8>> {
-        inputs.par_iter()
+        inputs
+            .par_iter()
             .map(|data| {
                 let mut hasher = Sha256::new();
                 hasher.update(data);
@@ -152,7 +159,8 @@ impl HashPool {
 
     /// Batch hash computation with BLAKE3 (fastest)
     pub fn batch_hash_blake3(&self, inputs: &[Vec<u8>]) -> Vec<Vec<u8>> {
-        inputs.par_iter()
+        inputs
+            .par_iter()
             .map(|data| {
                 let mut hasher = Blake3Hasher::new();
                 hasher.update(data);
@@ -187,19 +195,27 @@ impl OptimizedSignatureEngine {
         public_key: &VerifyingKey,
     ) -> Result<bool> {
         let public_key_bytes = public_key.as_bytes();
-        
+
         // Check cache first
-        if let Some(cached_result) = self.cache.verify_cached(message, signature, public_key_bytes) {
+        if let Some(cached_result) = self
+            .cache
+            .verify_cached(message, signature, public_key_bytes)
+        {
             return Ok(cached_result);
         }
 
         // Perform verification
-        let sig = Signature::from_bytes(signature.try_into().map_err(|_| anyhow::anyhow!("Invalid signature length"))?);
+        let sig = Signature::from_bytes(
+            signature
+                .try_into()
+                .map_err(|_| anyhow::anyhow!("Invalid signature length"))?,
+        );
         let valid = public_key.verify(message, &sig).is_ok();
-        
+
         // Cache the result
-        self.cache.cache_result(message, signature, public_key_bytes, valid);
-        
+        self.cache
+            .cache_result(message, signature, public_key_bytes, valid);
+
         Ok(valid)
     }
 
@@ -208,10 +224,14 @@ impl OptimizedSignatureEngine {
         &self,
         verifications: &[(Vec<u8>, Vec<u8>, VerifyingKey)], // (message, signature, public_key)
     ) -> Result<Vec<bool>> {
-        let results: Vec<bool> = verifications.par_iter()
+        let results: Vec<bool> = verifications
+            .par_iter()
             .map(|(message, signature, public_key)| {
                 // Check cache first
-                if let Some(cached) = self.cache.verify_cached(message, signature, public_key.as_bytes()) {
+                if let Some(cached) =
+                    self.cache
+                        .verify_cached(message, signature, public_key.as_bytes())
+                {
                     return cached;
                 }
 
@@ -220,7 +240,8 @@ impl OptimizedSignatureEngine {
                     if let Ok(sig_bytes) = signature.as_slice().try_into() {
                         let sig = Signature::from_bytes(&sig_bytes);
                         let valid = public_key.verify(message, &sig).is_ok();
-                        self.cache.cache_result(message, signature, public_key.as_bytes(), valid);
+                        self.cache
+                            .cache_result(message, signature, public_key.as_bytes(), valid);
                         return valid;
                     }
                 }
@@ -234,7 +255,7 @@ impl OptimizedSignatureEngine {
     /// Generate signatures with optimized key management
     pub async fn sign_message(&self, message: &[u8], key_id: &str) -> Result<Vec<u8>> {
         let signing_keys = self.signing_keys.read().await;
-        
+
         if let Some(signing_key) = signing_keys.get(key_id) {
             let signature = signing_key.sign(message);
             Ok(signature.to_bytes().to_vec())
@@ -256,9 +277,10 @@ impl OptimizedSignatureEngine {
         key_id: &str,
     ) -> Result<Vec<Vec<u8>>> {
         let signing_keys = self.signing_keys.read().await;
-        
+
         if let Some(signing_key) = signing_keys.get(key_id) {
-            let signatures: Vec<Vec<u8>> = messages.par_iter()
+            let signatures: Vec<Vec<u8>> = messages
+                .par_iter()
                 .map(|message| {
                     let signature = signing_key.sign(message);
                     signature.to_bytes().to_vec()
@@ -293,24 +315,29 @@ impl OptimizedEncryptionEngine {
     pub async fn add_key(&self, key_id: String, key_data: &[u8]) -> Result<()> {
         let unbound_key = UnboundKey::new(&AES_256_GCM, key_data)?;
         let key = LessSafeKey::new(unbound_key);
-        
+
         let mut keys = self.keys.write().await;
         keys.insert(key_id, key);
         Ok(())
     }
 
     /// High-performance encryption
-    pub async fn encrypt(&self, key_id: &str, plaintext: &[u8], associated_data: &[u8]) -> Result<EncryptionResult> {
+    pub async fn encrypt(
+        &self,
+        key_id: &str,
+        plaintext: &[u8],
+        associated_data: &[u8],
+    ) -> Result<EncryptionResult> {
         let keys = self.keys.read().await;
-        
+
         if let Some(key) = keys.get(key_id) {
             let mut nonce_bytes = [0u8; NONCE_LEN];
             OsRng.fill_bytes(&mut nonce_bytes);
             let nonce = Nonce::assume_unique_for_key(nonce_bytes);
-            
+
             let mut ciphertext = plaintext.to_vec();
             key.seal_in_place_append_tag(nonce, Aad::from(associated_data), &mut ciphertext)?;
-            
+
             Ok(EncryptionResult {
                 ciphertext,
                 nonce: nonce_bytes.to_vec(),
@@ -329,15 +356,17 @@ impl OptimizedEncryptionEngine {
         associated_data: &[u8],
     ) -> Result<Vec<u8>> {
         let keys = self.keys.read().await;
-        
+
         if let Some(key) = keys.get(key_id) {
-            let nonce_array: [u8; NONCE_LEN] = nonce.try_into()
+            let nonce_array: [u8; NONCE_LEN] = nonce
+                .try_into()
                 .map_err(|_| anyhow::anyhow!("Invalid nonce length"))?;
             let nonce = Nonce::assume_unique_for_key(nonce_array);
-            
+
             let mut ciphertext_with_tag = ciphertext.to_vec();
-            let plaintext = key.open_in_place(nonce, Aad::from(associated_data), &mut ciphertext_with_tag)?;
-            
+            let plaintext =
+                key.open_in_place(nonce, Aad::from(associated_data), &mut ciphertext_with_tag)?;
+
             Ok(plaintext.to_vec())
         } else {
             Err(anyhow::anyhow!("Decryption key not found: {}", key_id))
@@ -352,24 +381,29 @@ impl OptimizedEncryptionEngine {
         associated_data: &[u8],
     ) -> Result<Vec<EncryptionResult>> {
         let keys = self.keys.read().await;
-        
+
         if let Some(key) = keys.get(key_id) {
-            let results: Result<Vec<EncryptionResult>, _> = plaintexts.par_iter()
+            let results: Result<Vec<EncryptionResult>, _> = plaintexts
+                .par_iter()
                 .map(|plaintext| {
                     let mut nonce_bytes = [0u8; NONCE_LEN];
                     OsRng.fill_bytes(&mut nonce_bytes);
                     let nonce = Nonce::assume_unique_for_key(nonce_bytes);
-                    
+
                     let mut ciphertext = plaintext.clone();
-                    key.seal_in_place_append_tag(nonce, Aad::from(associated_data), &mut ciphertext)?;
-                    
+                    key.seal_in_place_append_tag(
+                        nonce,
+                        Aad::from(associated_data),
+                        &mut ciphertext,
+                    )?;
+
                     Ok(EncryptionResult {
                         ciphertext,
                         nonce: nonce_bytes.to_vec(),
                     })
                 })
                 .collect();
-            
+
             results
         } else {
             Err(anyhow::anyhow!("Encryption key not found: {}", key_id))
@@ -412,9 +446,11 @@ impl CryptoEngine {
         let mut csprng = OsRng;
         let signing_key = SigningKey::from_bytes(&[0u8; 32]);
         let verifying_key = signing_key.verifying_key();
-        
-        self.signatures.add_signing_key("test".to_string(), signing_key).await;
-        
+
+        self.signatures
+            .add_signing_key("test".to_string(), signing_key)
+            .await;
+
         let start = Instant::now();
         for _ in 0..iterations {
             let _ = self.signatures.sign_message(&test_data, "test").await?;
@@ -425,14 +461,19 @@ impl CryptoEngine {
         let signature = self.signatures.sign_message(&test_data, "test").await?;
         let start = Instant::now();
         for _ in 0..iterations {
-            let _ = self.signatures.verify_signature_cached(&test_data, &signature, &verifying_key).await?;
+            let _ = self
+                .signatures
+                .verify_signature_cached(&test_data, &signature, &verifying_key)
+                .await?;
         }
         results.verify_ops_per_sec = iterations as f64 / start.elapsed().as_secs_f64();
 
         // Encryption benchmark
         let key_data = [0u8; 32];
-        self.encryption.add_key("test".to_string(), &key_data).await?;
-        
+        self.encryption
+            .add_key("test".to_string(), &key_data)
+            .await?;
+
         let start = Instant::now();
         for _ in 0..iterations {
             let _ = self.encryption.encrypt("test", &test_data, b"").await?;
@@ -506,22 +547,27 @@ mod tests {
         let public_key = [1u8; 32];
 
         // No cache hit initially
-        assert!(cache.verify_cached(message, &signature, &public_key).is_none());
+        assert!(cache
+            .verify_cached(message, &signature, &public_key)
+            .is_none());
 
         // Cache result
         cache.cache_result(message, &signature, &public_key, true);
 
         // Should hit cache now
-        assert_eq!(cache.verify_cached(message, &signature, &public_key), Some(true));
+        assert_eq!(
+            cache.verify_cached(message, &signature, &public_key),
+            Some(true)
+        );
     }
 
     #[tokio::test]
     async fn test_parallel_hashing() {
         let hash_pool = HashPool::new(4).unwrap();
         let test_data = b"test data for hashing";
-        
+
         let result = hash_pool.parallel_multi_hash(test_data);
-        
+
         // All hashes should be computed
         assert!(!result.sha256.is_empty());
         assert!(!result.sha3.is_empty());
@@ -531,10 +577,10 @@ mod tests {
     #[tokio::test]
     async fn test_crypto_engine() {
         let engine = CryptoEngine::new(2).unwrap();
-        
+
         // Run a small benchmark
         let results = engine.benchmark_operations(10).await.unwrap();
-        
+
         // Should have positive performance numbers
         assert!(results.hash_ops_per_sec > 0.0);
         assert!(results.sign_ops_per_sec > 0.0);

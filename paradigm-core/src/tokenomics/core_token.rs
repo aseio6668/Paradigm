@@ -1,7 +1,7 @@
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
 use crate::Address;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Core token implementation with ERC-20 compatible features
 /// plus advanced tokenomics for computational merit and governance
@@ -43,10 +43,12 @@ impl CoreToken {
 
     pub async fn initialize(&mut self) -> anyhow::Result<()> {
         tracing::info!("Initializing Core Token system");
-        tracing::info!("Token: {} ({}) with {} decimals", 
-                     self.token_info.name, 
-                     self.token_info.symbol, 
-                     self.token_info.decimals);
+        tracing::info!(
+            "Token: {} ({}) with {} decimals",
+            self.token_info.name,
+            self.token_info.symbol,
+            self.token_info.decimals
+        );
         Ok(())
     }
 
@@ -90,10 +92,12 @@ impl CoreToken {
         self.balances.insert(from.clone(), new_from_balance);
         self.balances.insert(to.clone(), new_to_balance);
 
-        tracing::debug!("Transferred {} PAR from {} to {}", 
-                       amount as f64 / 100_000_000.0,
-                       from.to_string(),
-                       to.to_string());
+        tracing::debug!(
+            "Transferred {} PAR from {} to {}",
+            amount as f64 / 100_000_000.0,
+            from.to_string(),
+            to.to_string()
+        );
 
         Ok(())
     }
@@ -122,7 +126,8 @@ impl CoreToken {
         amount: u64,
     ) -> anyhow::Result<()> {
         // Check allowance
-        let allowance = *self.allowances
+        let allowance = *self
+            .allowances
             .get(from)
             .and_then(|allowances| allowances.get(spender))
             .unwrap_or(&0);
@@ -145,11 +150,7 @@ impl CoreToken {
     }
 
     /// Mint new tokens (for rewards)
-    pub async fn mint_tokens(
-        &mut self,
-        to: &Address,
-        amount: u64,
-    ) -> anyhow::Result<u64> {
+    pub async fn mint_tokens(&mut self, to: &Address, amount: u64) -> anyhow::Result<u64> {
         if amount == 0 {
             return Err(anyhow::anyhow!("Cannot mint zero tokens"));
         }
@@ -170,19 +171,17 @@ impl CoreToken {
             reason: MintReason::ContributionReward,
         });
 
-        tracing::info!("Minted {} PAR to {}", 
-                      amount as f64 / 100_000_000.0,
-                      to.to_string());
+        tracing::info!(
+            "Minted {} PAR to {}",
+            amount as f64 / 100_000_000.0,
+            to.to_string()
+        );
 
         Ok(amount)
     }
 
     /// Burn tokens (deflationary mechanism)
-    pub async fn burn_tokens(
-        &mut self,
-        from: &Address,
-        amount: u64,
-    ) -> anyhow::Result<()> {
+    pub async fn burn_tokens(&mut self, from: &Address, amount: u64) -> anyhow::Result<()> {
         let balance = self.available_balance(from);
         if balance < amount {
             return Err(anyhow::anyhow!("Insufficient balance to burn"));
@@ -204,40 +203,37 @@ impl CoreToken {
             reason: BurnReason::Deflationary,
         });
 
-        tracing::info!("Burned {} PAR from {}", 
-                      amount as f64 / 100_000_000.0,
-                      from.to_string());
+        tracing::info!(
+            "Burned {} PAR from {}",
+            amount as f64 / 100_000_000.0,
+            from.to_string()
+        );
 
         Ok(())
     }
 
     /// Freeze tokens (for staking, governance, etc.)
-    pub async fn freeze_tokens(
-        &mut self,
-        address: &Address,
-        amount: u64,
-    ) -> anyhow::Result<()> {
+    pub async fn freeze_tokens(&mut self, address: &Address, amount: u64) -> anyhow::Result<()> {
         let available = self.available_balance(address);
         if available < amount {
             return Err(anyhow::anyhow!("Insufficient available balance to freeze"));
         }
 
         let current_frozen = *self.frozen_balances.get(address).unwrap_or(&0);
-        self.frozen_balances.insert(address.clone(), current_frozen + amount);
+        self.frozen_balances
+            .insert(address.clone(), current_frozen + amount);
 
-        tracing::debug!("Froze {} PAR for {}", 
-                       amount as f64 / 100_000_000.0,
-                       address.to_string());
+        tracing::debug!(
+            "Froze {} PAR for {}",
+            amount as f64 / 100_000_000.0,
+            address.to_string()
+        );
 
         Ok(())
     }
 
     /// Unfreeze tokens
-    pub async fn unfreeze_tokens(
-        &mut self,
-        address: &Address,
-        amount: u64,
-    ) -> anyhow::Result<()> {
+    pub async fn unfreeze_tokens(&mut self, address: &Address, amount: u64) -> anyhow::Result<()> {
         let current_frozen = *self.frozen_balances.get(address).unwrap_or(&0);
         if current_frozen < amount {
             return Err(anyhow::anyhow!("Cannot unfreeze more than frozen amount"));
@@ -250,9 +246,11 @@ impl CoreToken {
             self.frozen_balances.insert(address.clone(), new_frozen);
         }
 
-        tracing::debug!("Unfroze {} PAR for {}", 
-                       amount as f64 / 100_000_000.0,
-                       address.to_string());
+        tracing::debug!(
+            "Unfroze {} PAR for {}",
+            amount as f64 / 100_000_000.0,
+            address.to_string()
+        );
 
         Ok(())
     }
@@ -262,9 +260,9 @@ impl CoreToken {
         let balance = self.available_balance(address);
         ComputeCredits {
             par_balance: balance,
-            cpu_credits: balance / 1000, // 1 PAR = 1000 CPU units
-            gpu_credits: balance / 10000, // 1 PAR = 100 GPU units  
-            storage_credits: balance * 10, // 1 PAR = 10 GB storage
+            cpu_credits: balance / 1000,    // 1 PAR = 1000 CPU units
+            gpu_credits: balance / 10000,   // 1 PAR = 100 GPU units
+            storage_credits: balance * 10,  // 1 PAR = 10 GB storage
             bandwidth_credits: balance * 5, // 1 PAR = 5 GB bandwidth
         }
     }
@@ -381,7 +379,7 @@ mod tests {
 
         token.mint_tokens(&addr, 1000000000).await.unwrap(); // 10 PAR
         let credits = token.get_compute_credits(&addr);
-        
+
         assert_eq!(credits.par_balance, 1000000000);
         assert_eq!(credits.cpu_credits, 1000000);
         assert_eq!(credits.gpu_credits, 100000);

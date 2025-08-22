@@ -1,15 +1,15 @@
 // Adaptive Learning Framework
 // Continuous learning and model improvement system
 
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use anyhow::Result;
 use uuid::Uuid;
-use serde::{Serialize, Deserialize};
 
-use super::{AIModelConfig, AIDecision, LearningUpdate};
+use super::{AIDecision, AIModelConfig, LearningUpdate};
 
 /// Adaptive learning framework
 pub struct AdaptiveLearningFramework {

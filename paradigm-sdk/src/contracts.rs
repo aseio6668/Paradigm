@@ -1,12 +1,12 @@
 //! Smart contract interaction and management
-//! 
+//!
 //! This module provides tools for deploying, interacting with, and managing
 //! smart contracts on the Paradigm blockchain.
 
+use crate::client::{BlockNumber, ParadigmClient};
+use crate::error::{ErrorExt, ParadigmError, Result};
 use crate::types::*;
-use crate::error::{Result, ParadigmError, ErrorExt};
-use crate::client::{ParadigmClient, BlockNumber};
-use crate::wallet::{Wallet, TransactionBuilder};
+use crate::wallet::{TransactionBuilder, Wallet};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -112,14 +112,14 @@ impl ContractAbi {
             fallback: None,
         }
     }
-    
+
     /// Load ABI from JSON string
     pub fn from_json(json: &str) -> Result<Self> {
         let abi_items: Vec<serde_json::Value> = serde_json::from_str(json)
             .map_err(|e| ParadigmError::Abi(format!("Invalid ABI JSON: {}", e)))?;
-        
+
         let mut abi = Self::new();
-        
+
         for item in abi_items {
             match item.get("type").and_then(|t| t.as_str()) {
                 Some("function") => {
@@ -133,8 +133,9 @@ impl ContractAbi {
                     abi.events.insert(event.name.clone(), event);
                 }
                 Some("constructor") => {
-                    let constructor: AbiFunction = serde_json::from_value(item)
-                        .map_err(|e| ParadigmError::Abi(format!("Invalid constructor ABI: {}", e)))?;
+                    let constructor: AbiFunction = serde_json::from_value(item).map_err(|e| {
+                        ParadigmError::Abi(format!("Invalid constructor ABI: {}", e))
+                    })?;
                     abi.constructor = Some(constructor);
                 }
                 Some("receive") => {
@@ -150,25 +151,25 @@ impl ContractAbi {
                 _ => {} // Skip unknown types
             }
         }
-        
+
         Ok(abi)
     }
-    
+
     /// Get function by name
     pub fn get_function(&self, name: &str) -> Option<&AbiFunction> {
         self.functions.get(name)
     }
-    
+
     /// Get event by name
     pub fn get_event(&self, name: &str) -> Option<&AbiEvent> {
         self.events.get(name)
     }
-    
+
     /// List all function names
     pub fn function_names(&self) -> Vec<&String> {
         self.functions.keys().collect()
     }
-    
+
     /// List all event names
     pub fn event_names(&self) -> Vec<&String> {
         self.events.keys().collect()
@@ -204,15 +205,15 @@ impl ContractBytecode {
             deployed_source_map: None,
         }
     }
-    
+
     /// Load bytecode from hex string
     pub fn from_hex(hex: &str) -> Result<Self> {
         let bytecode = hex::decode(hex.trim_start_matches("0x"))
             .map_err(|e| ParadigmError::InvalidHex(format!("Invalid bytecode hex: {}", e)))?;
-        
+
         Ok(Self::new(bytecode))
     }
-    
+
     /// Convert to hex string
     pub fn to_hex(&self) -> String {
         format!("0x{}", hex::encode(&self.bytecode))
@@ -313,7 +314,7 @@ impl Contract {
             client,
         }
     }
-    
+
     /// Create contract from deployment
     pub fn from_deployment(
         deployment: ContractDeployment,
@@ -332,52 +333,54 @@ impl Contract {
             client,
         }
     }
-    
+
     /// Get contract address
     pub fn address(&self) -> &Address {
         &self.address
     }
-    
+
     /// Get contract ABI
     pub fn abi(&self) -> &ContractAbi {
         &self.abi
     }
-    
+
     /// Create a function call
     pub fn function(&self, name: &str) -> Result<ContractCall> {
-        let function = self.abi.get_function(name)
+        let function = self
+            .abi
+            .get_function(name)
             .ok_or_else(|| ParadigmError::Contract(format!("Function '{}' not found", name)))?;
-        
+
         Ok(ContractCall::new(
             self.address.clone(),
             function.clone(),
             self.client.clone(),
         ))
     }
-    
+
     /// Get contract code
     pub async fn get_code(&self) -> Result<Vec<u8>> {
         // This would need to be implemented in the client
         // For now, return empty vector
         Ok(Vec::new())
     }
-    
+
     /// Check if contract exists at address
     pub async fn exists(&self) -> Result<bool> {
         let code = self.get_code().await?;
         Ok(!code.is_empty())
     }
-    
+
     /// Get contract storage at slot
     pub async fn get_storage(&self, slot: &Hash) -> Result<Hash> {
         // This would need to be implemented in the client
         Ok(Hash::default())
     }
-    
+
     /// Parse event logs from transaction receipt
     pub fn parse_logs(&self, receipt: &TransactionReceipt) -> Result<Vec<ParsedEvent>> {
         let mut parsed_events = Vec::new();
-        
+
         for log in &receipt.logs {
             if log.address == self.address {
                 for (_, event) in &self.abi.events {
@@ -388,10 +391,10 @@ impl Contract {
                 }
             }
         }
-        
+
         Ok(parsed_events)
     }
-    
+
     /// Parse a single log entry
     fn parse_log(&self, log: &Log, event: &AbiEvent) -> Result<ParsedEvent> {
         // Simplified log parsing - real implementation would decode based on ABI
@@ -451,7 +454,7 @@ impl ContractCall {
             value: Amount::zero(),
         }
     }
-    
+
     /// Add parameter to function call
     pub fn param<T: Serialize>(mut self, value: T) -> Result<Self> {
         let json_value = serde_json::to_value(value)
@@ -459,36 +462,37 @@ impl ContractCall {
         self.params.push(json_value);
         Ok(self)
     }
-    
+
     /// Set gas limit for call
     pub fn gas(mut self, gas: u64) -> Self {
         self.gas_limit = Some(gas);
         self
     }
-    
+
     /// Set gas price for call
     pub fn gas_price(mut self, price: Amount) -> Self {
         self.gas_price = Some(price);
         self
     }
-    
+
     /// Set value to send with call (for payable functions)
     pub fn value(mut self, value: Amount) -> Self {
         self.value = value;
         self
     }
-    
+
     /// Execute call as a view function (no transaction)
     pub async fn call(&self) -> Result<serde_json::Value> {
-        if self.function.state_mutability != StateMutability::View && 
-           self.function.state_mutability != StateMutability::Pure {
+        if self.function.state_mutability != StateMutability::View
+            && self.function.state_mutability != StateMutability::Pure
+        {
             return Err(ParadigmError::Contract(
-                "Function is not a view function - use send() for state-changing calls".to_string()
+                "Function is not a view function - use send() for state-changing calls".to_string(),
             ));
         }
-        
+
         let call_data = self.encode_call_data()?;
-        
+
         // Create call transaction for simulation
         let call_tx = Transaction {
             to: Some(self.address.clone()),
@@ -497,47 +501,48 @@ impl ContractCall {
             gas: self.gas_limit.unwrap_or(1000000),
             ..Default::default()
         };
-        
+
         // This would need eth_call implementation in client
         // For now, return mock response
         Ok(serde_json::Value::String("0x".to_string()))
     }
-    
+
     /// Execute call as a transaction (state-changing)
     pub async fn send(&self, wallet: &Wallet, account_id: &Uuid) -> Result<Hash> {
-        if self.function.state_mutability == StateMutability::View || 
-           self.function.state_mutability == StateMutability::Pure {
+        if self.function.state_mutability == StateMutability::View
+            || self.function.state_mutability == StateMutability::Pure
+        {
             return Err(ParadigmError::Contract(
-                "Function is a view function - use call() for read-only calls".to_string()
+                "Function is a view function - use call() for read-only calls".to_string(),
             ));
         }
-        
+
         let call_data = self.encode_call_data()?;
-        
+
         let mut tx_builder = TransactionBuilder::new()
             .with_client(self.client.clone())
             .to(self.address.clone())
             .data(call_data)
             .value(self.value.clone());
-        
+
         if let Some(gas) = self.gas_limit {
             tx_builder = tx_builder.gas(gas);
         }
-        
+
         if let Some(gas_price) = &self.gas_price {
             tx_builder = tx_builder.gas_price(gas_price.clone());
         }
-        
+
         let signed_tx = tx_builder.build_and_sign(wallet, account_id).await?;
         let tx_data = signed_tx.to_bytes()?;
-        
+
         self.client.send_raw_transaction(&tx_data).await
     }
-    
+
     /// Estimate gas for the function call
     pub async fn estimate_gas(&self) -> Result<u64> {
         let call_data = self.encode_call_data()?;
-        
+
         let tx = Transaction {
             to: Some(self.address.clone()),
             input: call_data,
@@ -545,41 +550,43 @@ impl ContractCall {
             gas: 1000000, // High limit for estimation
             ..Default::default()
         };
-        
+
         self.client.estimate_gas(&tx).await
     }
-    
+
     /// Encode function call data
     fn encode_call_data(&self) -> Result<Vec<u8>> {
         // Simplified encoding - real implementation would use proper ABI encoding
         let mut data = Vec::new();
-        
+
         // Function selector (first 4 bytes of keccak256 hash of function signature)
         let signature = self.create_function_signature();
         let mut hasher = sha2::Sha256::new();
         hasher.update(signature.as_bytes());
         let hash = hasher.finalize();
         data.extend_from_slice(&hash[..4]);
-        
+
         // Encode parameters (simplified)
         for param in &self.params {
             let param_bytes = self.encode_parameter(param)?;
             data.extend_from_slice(&param_bytes);
         }
-        
+
         Ok(data)
     }
-    
+
     /// Create function signature string
     fn create_function_signature(&self) -> String {
-        let param_types: Vec<String> = self.function.inputs
+        let param_types: Vec<String> = self
+            .function
+            .inputs
             .iter()
             .map(|param| param.param_type.clone())
             .collect();
-        
+
         format!("{}({})", self.function.name, param_types.join(","))
     }
-    
+
     /// Encode a single parameter (simplified)
     fn encode_parameter(&self, param: &serde_json::Value) -> Result<Vec<u8>> {
         // Simplified parameter encoding
@@ -599,9 +606,7 @@ impl ContractCall {
                     Err(ParadigmError::Abi("Invalid number parameter".to_string()))
                 }
             }
-            serde_json::Value::Bool(b) => {
-                Ok(vec![if *b { 1 } else { 0 }])
-            }
+            serde_json::Value::Bool(b) => Ok(vec![if *b { 1 } else { 0 }]),
             _ => Err(ParadigmError::Abi("Unsupported parameter type".to_string())),
         }
     }
@@ -647,61 +652,63 @@ impl ContractBuilder {
             value: Amount::zero(),
         }
     }
-    
+
     /// Add constructor parameter
     pub fn constructor_param<T: Serialize>(mut self, value: T) -> Result<Self> {
-        let json_value = serde_json::to_value(value)
-            .map_err(|e| ParadigmError::Abi(format!("Failed to serialize constructor parameter: {}", e)))?;
+        let json_value = serde_json::to_value(value).map_err(|e| {
+            ParadigmError::Abi(format!("Failed to serialize constructor parameter: {}", e))
+        })?;
         self.constructor_params.push(json_value);
         Ok(self)
     }
-    
+
     /// Set gas limit for deployment
     pub fn gas(mut self, gas: u64) -> Self {
         self.gas_limit = Some(gas);
         self
     }
-    
+
     /// Set gas price for deployment
     pub fn gas_price(mut self, price: Amount) -> Self {
         self.gas_price = Some(price);
         self
     }
-    
+
     /// Set value to send with deployment
     pub fn value(mut self, value: Amount) -> Self {
         self.value = value;
         self
     }
-    
+
     /// Deploy the contract
     pub async fn deploy(&self, wallet: &Wallet, account_id: &Uuid) -> Result<Contract> {
         let deployment_data = self.create_deployment_data()?;
-        
+
         let mut tx_builder = TransactionBuilder::new()
             .with_client(self.client.clone())
             .data(deployment_data)
             .value(self.value.clone());
-        
+
         if let Some(gas) = self.gas_limit {
             tx_builder = tx_builder.gas(gas);
         }
-        
+
         if let Some(gas_price) = &self.gas_price {
             tx_builder = tx_builder.gas_price(gas_price.clone());
         }
-        
+
         let signed_tx = tx_builder.build_and_sign(wallet, account_id).await?;
         let tx_data = signed_tx.to_bytes()?;
-        
+
         let tx_hash = self.client.send_raw_transaction(&tx_data).await?;
-        
+
         // Wait for deployment confirmation
         let receipt = self.client.wait_for_confirmation(&tx_hash, 1).await?;
-        
-        let contract_address = receipt.contract_address
+
+        let contract_address = receipt
+            .contract_address
             .ok_or_else(|| ParadigmError::Contract("No contract address in receipt".to_string()))?;
-        
+
         let deployment = ContractDeployment {
             transaction_hash: tx_hash,
             address: contract_address.clone(),
@@ -710,7 +717,7 @@ impl ContractBuilder {
             deployed_at: SystemTime::now(),
             deployer: signed_tx.from,
         };
-        
+
         Ok(Contract::from_deployment(
             deployment,
             self.abi.clone(),
@@ -719,11 +726,11 @@ impl ContractBuilder {
             self.metadata.clone(),
         ))
     }
-    
+
     /// Estimate gas for deployment
     pub async fn estimate_gas(&self) -> Result<u64> {
         let deployment_data = self.create_deployment_data()?;
-        
+
         let tx = Transaction {
             to: None, // Deployment transaction
             input: deployment_data,
@@ -731,14 +738,14 @@ impl ContractBuilder {
             gas: 10000000, // High limit for estimation
             ..Default::default()
         };
-        
+
         self.client.estimate_gas(&tx).await
     }
-    
+
     /// Create deployment transaction data
     fn create_deployment_data(&self) -> Result<Vec<u8>> {
         let mut data = self.bytecode.bytecode.clone();
-        
+
         // Encode constructor parameters if any
         if !self.constructor_params.is_empty() {
             if let Some(constructor) = &self.abi.constructor {
@@ -746,23 +753,23 @@ impl ContractBuilder {
                 data.extend_from_slice(&encoded_params);
             }
         }
-        
+
         Ok(data)
     }
-    
+
     /// Encode constructor parameters
     fn encode_constructor_params(&self, constructor: &AbiFunction) -> Result<Vec<u8>> {
         // Simplified constructor parameter encoding
         let mut encoded = Vec::new();
-        
+
         for param in &self.constructor_params {
             let param_bytes = self.encode_parameter(param)?;
             encoded.extend_from_slice(&param_bytes);
         }
-        
+
         Ok(encoded)
     }
-    
+
     /// Encode a single parameter (simplified)
     fn encode_parameter(&self, param: &serde_json::Value) -> Result<Vec<u8>> {
         // Simplified parameter encoding (same as ContractCall)
@@ -782,9 +789,7 @@ impl ContractBuilder {
                     Err(ParadigmError::Abi("Invalid number parameter".to_string()))
                 }
             }
-            serde_json::Value::Bool(b) => {
-                Ok(vec![if *b { 1 } else { 0 }])
-            }
+            serde_json::Value::Bool(b) => Ok(vec![if *b { 1 } else { 0 }]),
             _ => Err(ParadigmError::Abi("Unsupported parameter type".to_string())),
         }
     }
@@ -807,33 +812,38 @@ impl ContractManager {
             contract_registry: Arc::new(RwLock::new(HashMap::new())),
         }
     }
-    
+
     /// Add contract to manager
     pub async fn add_contract(&self, contract: Contract) -> Uuid {
         let contract_id = contract.id;
         let contract_address = contract.address.clone();
         let contract_name = contract.metadata.name.clone();
-        
+
         // Store contract
         self.contracts.write().await.insert(contract_id, contract);
-        
+
         // Index by address
-        self.contracts_by_address.write().await.insert(contract_address, contract_id);
-        
+        self.contracts_by_address
+            .write()
+            .await
+            .insert(contract_address, contract_id);
+
         // Index by name
-        self.contract_registry.write().await
+        self.contract_registry
+            .write()
+            .await
             .entry(contract_name)
             .or_insert_with(Vec::new)
             .push(contract_id);
-        
+
         contract_id
     }
-    
+
     /// Get contract by ID
     pub async fn get_contract(&self, id: &Uuid) -> Option<Contract> {
         self.contracts.read().await.get(id).cloned()
     }
-    
+
     /// Get contract by address
     pub async fn get_contract_by_address(&self, address: &Address) -> Option<Contract> {
         let contracts_by_address = self.contracts_by_address.read().await;
@@ -843,7 +853,7 @@ impl ContractManager {
             None
         }
     }
-    
+
     /// Get contracts by name
     pub async fn get_contracts_by_name(&self, name: &str) -> Vec<Contract> {
         let registry = self.contract_registry.read().await;
@@ -856,19 +866,22 @@ impl ContractManager {
             Vec::new()
         }
     }
-    
+
     /// List all contracts
     pub async fn list_contracts(&self) -> Vec<Contract> {
         self.contracts.read().await.values().cloned().collect()
     }
-    
+
     /// Remove contract
     pub async fn remove_contract(&self, id: &Uuid) -> Option<Contract> {
         let contracts = &mut *self.contracts.write().await;
         if let Some(contract) = contracts.remove(id) {
             // Remove from address index
-            self.contracts_by_address.write().await.remove(&contract.address);
-            
+            self.contracts_by_address
+                .write()
+                .await
+                .remove(&contract.address);
+
             // Remove from name registry
             let mut registry = self.contract_registry.write().await;
             if let Some(ids) = registry.get_mut(&contract.metadata.name) {
@@ -877,27 +890,26 @@ impl ContractManager {
                     registry.remove(&contract.metadata.name);
                 }
             }
-            
+
             Some(contract)
         } else {
             None
         }
     }
-    
+
     /// Get contract statistics
     pub async fn get_statistics(&self) -> ContractManagerStats {
         let contracts = self.contracts.read().await;
         let registry = self.contract_registry.read().await;
-        
+
         ContractManagerStats {
             total_contracts: contracts.len(),
             unique_names: registry.len(),
-            deployed_contracts: contracts.values()
+            deployed_contracts: contracts
+                .values()
                 .filter(|c| c.deployment.is_some())
                 .count(),
-            contracts_with_source: contracts.values()
-                .filter(|c| c.bytecode.is_some())
-                .count(),
+            contracts_with_source: contracts.values().filter(|c| c.bytecode.is_some()).count(),
         }
     }
 }
@@ -920,21 +932,23 @@ pub struct ContractManagerStats {
 /// Utility functions for contract operations
 pub mod utils {
     use super::*;
-    
+
     /// Load contract ABI from file
     pub async fn load_abi_from_file(path: &std::path::Path) -> Result<ContractAbi> {
-        let content = tokio::fs::read_to_string(path).await
+        let content = tokio::fs::read_to_string(path)
+            .await
             .map_err(|e| ParadigmError::Io(e))?;
         ContractAbi::from_json(&content)
     }
-    
+
     /// Load contract bytecode from file
     pub async fn load_bytecode_from_file(path: &std::path::Path) -> Result<ContractBytecode> {
-        let content = tokio::fs::read_to_string(path).await
+        let content = tokio::fs::read_to_string(path)
+            .await
             .map_err(|e| ParadigmError::Io(e))?;
         ContractBytecode::from_hex(content.trim())
     }
-    
+
     /// Calculate contract address for deployment
     pub fn calculate_contract_address(deployer: &Address, nonce: u64) -> Result<Address> {
         // Simplified contract address calculation
@@ -943,69 +957,69 @@ pub mod utils {
         hasher.update(deployer.as_bytes());
         hasher.update(nonce.to_be_bytes());
         let hash = hasher.finalize();
-        
+
         Address::from_bytes(&hash[12..32])
     }
-    
+
     /// Create standard ERC20 token ABI
     pub fn erc20_abi() -> ContractAbi {
         // Simplified ERC20 ABI
         let mut abi = ContractAbi::new();
-        
+
         // Add transfer function
-        abi.functions.insert("transfer".to_string(), AbiFunction {
-            name: "transfer".to_string(),
-            inputs: vec![
-                AbiParameter {
-                    name: "to".to_string(),
-                    param_type: "address".to_string(),
-                    internal_type: None,
-                    components: None,
-                },
-                AbiParameter {
-                    name: "amount".to_string(),
-                    param_type: "uint256".to_string(),
-                    internal_type: None,
-                    components: None,
-                },
-            ],
-            outputs: vec![
-                AbiParameter {
+        abi.functions.insert(
+            "transfer".to_string(),
+            AbiFunction {
+                name: "transfer".to_string(),
+                inputs: vec![
+                    AbiParameter {
+                        name: "to".to_string(),
+                        param_type: "address".to_string(),
+                        internal_type: None,
+                        components: None,
+                    },
+                    AbiParameter {
+                        name: "amount".to_string(),
+                        param_type: "uint256".to_string(),
+                        internal_type: None,
+                        components: None,
+                    },
+                ],
+                outputs: vec![AbiParameter {
                     name: "".to_string(),
                     param_type: "bool".to_string(),
                     internal_type: None,
                     components: None,
-                },
-            ],
-            state_mutability: StateMutability::NonPayable,
-            function_type: FunctionType::Function,
-            payable: false,
-        });
-        
+                }],
+                state_mutability: StateMutability::NonPayable,
+                function_type: FunctionType::Function,
+                payable: false,
+            },
+        );
+
         // Add balanceOf function
-        abi.functions.insert("balanceOf".to_string(), AbiFunction {
-            name: "balanceOf".to_string(),
-            inputs: vec![
-                AbiParameter {
+        abi.functions.insert(
+            "balanceOf".to_string(),
+            AbiFunction {
+                name: "balanceOf".to_string(),
+                inputs: vec![AbiParameter {
                     name: "account".to_string(),
                     param_type: "address".to_string(),
                     internal_type: None,
                     components: None,
-                },
-            ],
-            outputs: vec![
-                AbiParameter {
+                }],
+                outputs: vec![AbiParameter {
                     name: "".to_string(),
                     param_type: "uint256".to_string(),
                     internal_type: None,
                     components: None,
-                },
-            ],
-            state_mutability: StateMutability::View,
-            function_type: FunctionType::Function,
-            payable: false,
-        });
-        
+                }],
+                state_mutability: StateMutability::View,
+                function_type: FunctionType::Function,
+                payable: false,
+            },
+        );
+
         abi
     }
 }
@@ -1014,23 +1028,23 @@ pub mod utils {
 mod tests {
     use super::*;
     use crate::client::ClientConfig;
-    
+
     #[test]
     fn test_contract_abi_creation() {
         let abi = ContractAbi::new();
         assert!(abi.functions.is_empty());
         assert!(abi.events.is_empty());
     }
-    
+
     #[test]
     fn test_contract_bytecode() {
         let bytecode = ContractBytecode::from_hex("0x608060405234801561001057600080fd5b50");
         assert!(bytecode.is_ok());
-        
+
         let bytecode = bytecode.unwrap();
         assert!(!bytecode.bytecode.is_empty());
     }
-    
+
     #[test]
     fn test_contract_metadata() {
         let metadata = ContractMetadata::new(
@@ -1038,16 +1052,16 @@ mod tests {
             "1.0.0".to_string(),
             "0.8.19".to_string(),
         );
-        
+
         assert_eq!(metadata.name, "TestContract");
         assert_eq!(metadata.version, "1.0.0");
         assert_eq!(metadata.compiler_version, "0.8.19");
     }
-    
+
     #[tokio::test]
     async fn test_contract_manager() {
         let manager = ContractManager::new();
-        
+
         let client = Arc::new(ParadigmClient::with_config(ClientConfig::default()).unwrap());
         let contract = Contract::new(
             Address::default(),
@@ -1055,15 +1069,15 @@ mod tests {
             client,
             ContractMetadata::new("Test".to_string(), "1.0".to_string(), "0.8.0".to_string()),
         );
-        
+
         let id = manager.add_contract(contract).await;
         let retrieved = manager.get_contract(&id).await;
         assert!(retrieved.is_some());
-        
+
         let stats = manager.get_statistics().await;
         assert_eq!(stats.total_contracts, 1);
     }
-    
+
     #[test]
     fn test_erc20_abi() {
         let abi = utils::erc20_abi();

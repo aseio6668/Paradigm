@@ -1,16 +1,16 @@
 // Auto-scaling and Dynamic Node Management
 // Implements intelligent scaling based on network load and demand
 
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{RwLock, mpsc};
-use anyhow::Result;
+use tokio::sync::{mpsc, RwLock};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
-use serde::{Serialize, Deserialize};
-use tracing::{info, debug, warn, error};
 
-use crate::{ParadigmError, Address};
+use crate::{Address, ParadigmError};
 
 /// Auto-scaling configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,18 +51,18 @@ impl Default for AutoScalingConfig {
 /// Comprehensive auto-scaling manager
 pub struct AutoScalingManager {
     config: AutoScalingConfig,
-    
+
     // Node management
     node_manager: Arc<NodeManager>,
     resource_monitor: Arc<ResourceMonitor>,
-    
+
     // Scaling intelligence
     scaling_predictor: Arc<ScalingPredictor>,
     cost_optimizer: Arc<CostOptimizer>,
-    
+
     // Geographic distribution
     geographic_manager: Arc<GeographicManager>,
-    
+
     // Metrics and state
     scaling_metrics: Arc<RwLock<ScalingMetrics>>,
     scaling_history: Arc<RwLock<VecDeque<ScalingEvent>>>,
@@ -337,10 +337,10 @@ pub struct ScalingDiscount {
 
 #[derive(Debug, Clone)]
 pub struct OptimizationObjectives {
-    pub minimize_cost: f64,        // Weight 0-1
-    pub maximize_performance: f64, // Weight 0-1
+    pub minimize_cost: f64,         // Weight 0-1
+    pub maximize_performance: f64,  // Weight 0-1
     pub maximize_availability: f64, // Weight 0-1
-    pub minimize_latency: f64,     // Weight 0-1
+    pub minimize_latency: f64,      // Weight 0-1
 }
 
 #[derive(Debug, Clone)]
@@ -508,7 +508,7 @@ impl AutoScalingManager {
         let current_load = cluster_metrics.average_utilization;
 
         // Evaluate different scaling triggers
-        
+
         // 1. Resource-based scaling
         if let Some(decision) = self.evaluate_resource_scaling(&current_load).await? {
             decisions.push(decision);
@@ -538,30 +538,32 @@ impl AutoScalingManager {
     }
 
     /// Execute scaling decisions
-    pub async fn execute_scaling(&self, decisions: Vec<ScalingDecision>) -> Result<Vec<ScalingResult>> {
+    pub async fn execute_scaling(
+        &self,
+        decisions: Vec<ScalingDecision>,
+    ) -> Result<Vec<ScalingResult>> {
         let mut results = Vec::new();
 
         for decision in decisions {
             let start_time = Instant::now();
-            
+
             let event_type = decision.action.to_event_type();
             let result = match decision.action {
                 ScalingAction::ScaleUp(count, ref node_type) => {
-                    self.scale_up(count, node_type.clone(), decision.region.clone()).await
-                },
-                ScalingAction::ScaleDown(ref node_ids) => {
-                    self.scale_down(node_ids.clone()).await
-                },
+                    self.scale_up(count, node_type.clone(), decision.region.clone())
+                        .await
+                }
+                ScalingAction::ScaleDown(ref node_ids) => self.scale_down(node_ids.clone()).await,
                 ScalingAction::Rebalance(ref migrations) => {
                     self.rebalance_nodes(migrations.clone()).await
-                },
+                }
                 ScalingAction::ReplaceNodes(ref replacements) => {
                     self.replace_nodes(replacements.clone()).await
-                },
+                }
             };
 
             let duration = start_time.elapsed();
-            
+
             // Record scaling event
             let event = ScalingEvent {
                 timestamp: start_time,
@@ -597,13 +599,13 @@ impl AutoScalingManager {
     /// Start continuous monitoring and auto-scaling
     pub async fn start_auto_scaling(&self) -> Result<()> {
         let manager = Arc::new(self.clone());
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(30));
-            
+
             loop {
                 interval.tick().await;
-                
+
                 if let Err(e) = manager.auto_scaling_loop().await {
                     error!("Auto-scaling loop error: {}", e);
                 }
@@ -617,15 +619,18 @@ impl AutoScalingManager {
     async fn auto_scaling_loop(&self) -> Result<()> {
         // Evaluate scaling needs
         let decisions = self.evaluate_scaling_needs().await?;
-        
+
         if !decisions.is_empty() {
             info!("Executing {} scaling decisions", decisions.len());
             let results = self.execute_scaling(decisions).await?;
-            
+
             // Log results
             for result in results {
                 if result.success {
-                    info!("Scaling action completed successfully in {:?}", result.duration);
+                    info!(
+                        "Scaling action completed successfully in {:?}",
+                        result.duration
+                    );
                 } else {
                     warn!("Scaling action failed: {:?}", result.error);
                 }
@@ -643,21 +648,28 @@ impl AutoScalingManager {
 
     async fn can_scale(&self) -> bool {
         let last_action = self.last_scaling_action.read().await;
-        
+
         if let Some(last_time) = *last_action {
             let elapsed = last_time.elapsed();
-            elapsed >= self.config.scale_up_cooldown.min(self.config.scale_down_cooldown)
+            elapsed
+                >= self
+                    .config
+                    .scale_up_cooldown
+                    .min(self.config.scale_down_cooldown)
         } else {
             true
         }
     }
 
-    async fn evaluate_resource_scaling(&self, current_load: &ResourceUtilization) -> Result<Option<ScalingDecision>> {
-        if current_load.cpu_percent > self.config.scale_up_threshold ||
-           current_load.memory_percent > self.config.scale_up_threshold {
-            
+    async fn evaluate_resource_scaling(
+        &self,
+        current_load: &ResourceUtilization,
+    ) -> Result<Option<ScalingDecision>> {
+        if current_load.cpu_percent > self.config.scale_up_threshold
+            || current_load.memory_percent > self.config.scale_up_threshold
+        {
             let nodes_needed = self.calculate_nodes_needed(current_load).await;
-            
+
             return Ok(Some(ScalingDecision {
                 action: ScalingAction::ScaleUp(nodes_needed, NodeType::Hybrid),
                 trigger: if current_load.cpu_percent > current_load.memory_percent {
@@ -674,11 +686,11 @@ impl AutoScalingManager {
             }));
         }
 
-        if current_load.cpu_percent < self.config.scale_down_threshold &&
-           current_load.memory_percent < self.config.scale_down_threshold {
-            
+        if current_load.cpu_percent < self.config.scale_down_threshold
+            && current_load.memory_percent < self.config.scale_down_threshold
+        {
             let nodes_to_remove = self.identify_excess_nodes().await?;
-            
+
             if !nodes_to_remove.is_empty() {
                 return Ok(Some(ScalingDecision {
                     action: ScalingAction::ScaleDown(nodes_to_remove.clone()),
@@ -697,11 +709,17 @@ impl AutoScalingManager {
     }
 
     async fn evaluate_predictive_scaling(&self) -> Result<Option<ScalingDecision>> {
-        let prediction = self.scaling_predictor.predict_future_load(Duration::from_secs(300)).await?;
-        
-        if prediction.confidence > 0.7 && prediction.predicted_load > self.config.scale_up_threshold {
-            let nodes_needed = ((prediction.predicted_load - self.config.target_cpu_utilization) / 20.0).ceil() as u32;
-            
+        let prediction = self
+            .scaling_predictor
+            .predict_future_load(Duration::from_secs(300))
+            .await?;
+
+        if prediction.confidence > 0.7 && prediction.predicted_load > self.config.scale_up_threshold
+        {
+            let nodes_needed = ((prediction.predicted_load - self.config.target_cpu_utilization)
+                / 20.0)
+                .ceil() as u32;
+
             return Ok(Some(ScalingDecision {
                 action: ScalingAction::ScaleUp(nodes_needed, NodeType::Hybrid),
                 trigger: ScalingTrigger::PredictiveModel,
@@ -719,10 +737,10 @@ impl AutoScalingManager {
 
     async fn evaluate_geographic_scaling(&self) -> Result<Vec<ScalingDecision>> {
         let mut decisions = Vec::new();
-        
+
         // Analyze regional load distribution
         let regional_loads = self.geographic_manager.get_regional_loads().await?;
-        
+
         for (region, load) in regional_loads {
             if load.cpu_percent > self.config.scale_up_threshold {
                 decisions.push(ScalingDecision {
@@ -742,8 +760,11 @@ impl AutoScalingManager {
     }
 
     async fn evaluate_cost_optimization(&self) -> Result<Option<ScalingDecision>> {
-        let optimization = self.cost_optimizer.identify_optimization_opportunities().await?;
-        
+        let optimization = self
+            .cost_optimizer
+            .identify_optimization_opportunities()
+            .await?;
+
         if optimization.potential_savings > 100.0 {
             return Ok(Some(ScalingDecision {
                 action: ScalingAction::ReplaceNodes(optimization.node_replacements),
@@ -768,38 +789,49 @@ impl AutoScalingManager {
     async fn identify_excess_nodes(&self) -> Result<Vec<Uuid>> {
         let nodes = self.node_manager.active_nodes.read().await;
         let mut excess_nodes = Vec::new();
-        
+
         for (node_id, node) in nodes.iter() {
-            if node.current_load.cpu_percent < self.config.scale_down_threshold / 2.0 &&
-               node.current_load.memory_percent < self.config.scale_down_threshold / 2.0 {
+            if node.current_load.cpu_percent < self.config.scale_down_threshold / 2.0
+                && node.current_load.memory_percent < self.config.scale_down_threshold / 2.0
+            {
                 excess_nodes.push(*node_id);
-                
+
                 if excess_nodes.len() >= 2 {
                     break; // Don't remove too many at once
                 }
             }
         }
-        
+
         Ok(excess_nodes)
     }
 
-    async fn scale_up(&self, count: u32, node_type: NodeType, region: Option<GeographicRegion>) -> Result<()> {
-        info!("Scaling up {} nodes of type {:?} in region {:?}", count, node_type, region);
-        
+    async fn scale_up(
+        &self,
+        count: u32,
+        node_type: NodeType,
+        region: Option<GeographicRegion>,
+    ) -> Result<()> {
+        info!(
+            "Scaling up {} nodes of type {:?} in region {:?}",
+            count, node_type, region
+        );
+
         for _ in 0..count {
-            self.node_manager.provision_node(node_type.clone(), region.clone()).await?;
+            self.node_manager
+                .provision_node(node_type.clone(), region.clone())
+                .await?;
         }
-        
+
         Ok(())
     }
 
     async fn scale_down(&self, node_ids: Vec<Uuid>) -> Result<()> {
         info!("Scaling down {} nodes", node_ids.len());
-        
+
         for node_id in node_ids {
             self.node_manager.decommission_node(node_id).await?;
         }
-        
+
         Ok(())
     }
 
@@ -818,7 +850,7 @@ impl AutoScalingManager {
     async fn record_scaling_event(&self, event: ScalingEvent) {
         let mut history = self.scaling_history.write().await;
         history.push_back(event);
-        
+
         // Keep only last 1000 events
         if history.len() > 1000 {
             history.pop_front();
@@ -933,7 +965,11 @@ impl NodeManager {
         }
     }
 
-    pub async fn provision_node(&self, _node_type: NodeType, _region: Option<GeographicRegion>) -> Result<Uuid> {
+    pub async fn provision_node(
+        &self,
+        _node_type: NodeType,
+        _region: Option<GeographicRegion>,
+    ) -> Result<Uuid> {
         let node_id = Uuid::new_v4();
         info!("Provisioning new node: {}", node_id);
         Ok(node_id)
@@ -1021,18 +1057,23 @@ impl GeographicManager {
         }
     }
 
-    pub async fn get_regional_loads(&self) -> Result<HashMap<GeographicRegion, ResourceUtilization>> {
+    pub async fn get_regional_loads(
+        &self,
+    ) -> Result<HashMap<GeographicRegion, ResourceUtilization>> {
         let mut loads = HashMap::new();
-        
+
         // Placeholder data
-        loads.insert(GeographicRegion::NorthAmerica, ResourceUtilization {
-            cpu_percent: 65.0,
-            memory_percent: 70.0,
-            disk_percent: 45.0,
-            network_mbps: 150.0,
-            connections: 500,
-            transactions_per_second: 100.0,
-        });
+        loads.insert(
+            GeographicRegion::NorthAmerica,
+            ResourceUtilization {
+                cpu_percent: 65.0,
+                memory_percent: 70.0,
+                disk_percent: 45.0,
+                network_mbps: 150.0,
+                connections: 500,
+                transactions_per_second: 100.0,
+            },
+        );
 
         Ok(loads)
     }

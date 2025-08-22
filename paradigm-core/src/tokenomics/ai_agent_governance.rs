@@ -1,16 +1,15 @@
+use chrono::{DateTime, Duration, Utc};
+use serde::{Deserialize, Serialize};
 /// AI Agent Governance System
 /// Advanced autonomous governance with AI agents that can participate in decision-making,
 /// learn from human votes, propose initiatives, and evolve governance mechanisms
-
 use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-use chrono::{DateTime, Utc, Duration};
-use tokio::sync::RwLock;
 use std::sync::Arc;
+use tokio::sync::RwLock;
+use uuid::Uuid;
 
+use super::{ContributionType, GovernanceProposalStatus, NetworkState};
 use crate::{Address, ParadigmError};
-use super::{GovernanceProposalStatus, ContributionType, NetworkState};
 
 pub type Result<T> = std::result::Result<T, ParadigmError>;
 
@@ -106,7 +105,7 @@ impl AIAgentGovernanceSystem {
         let agent_id = agent.id;
         let mut agents = self.agents.write().await;
         agents.insert(agent_id, agent);
-        
+
         println!("Registered new AI agent: {}", agent_id);
         Ok(agent_id)
     }
@@ -124,14 +123,22 @@ impl AIAgentGovernanceSystem {
     }
 
     /// AI agents analyze and vote on a proposal
-    pub async fn agents_analyze_proposal(&mut self, proposal_id: Uuid, proposal_data: &ProposalData) -> Result<Vec<AIAgentVote>> {
+    pub async fn agents_analyze_proposal(
+        &mut self,
+        proposal_id: Uuid,
+        proposal_data: &ProposalData,
+    ) -> Result<Vec<AIAgentVote>> {
         let agents = self.agents.read().await;
         let mut votes = Vec::new();
 
         for agent in agents.values() {
             if agent.status == AgentStatus::Active {
-                let analysis = self.analyze_proposal_for_agent(agent, proposal_data).await?;
-                let vote = self.generate_agent_vote(agent, proposal_id, &analysis).await?;
+                let analysis = self
+                    .analyze_proposal_for_agent(agent, proposal_data)
+                    .await?;
+                let vote = self
+                    .generate_agent_vote(agent, proposal_id, &analysis)
+                    .await?;
                 votes.push(vote);
             }
         }
@@ -143,33 +150,57 @@ impl AIAgentGovernanceSystem {
     }
 
     /// AI agent proposes new governance initiatives
-    pub async fn generate_ai_proposals(&mut self, network_state: &NetworkState) -> Result<Vec<AIGeneratedProposal>> {
-        self.proposal_generator.generate_proposals(network_state).await
+    pub async fn generate_ai_proposals(
+        &mut self,
+        network_state: &NetworkState,
+    ) -> Result<Vec<AIGeneratedProposal>> {
+        self.proposal_generator
+            .generate_proposals(network_state)
+            .await
     }
 
     /// Predict consensus likelihood for a proposal
-    pub async fn predict_consensus(&self, proposal_data: &ProposalData, current_votes: &[HumanVote]) -> Result<ConsensusPrediction> {
-        self.consensus_predictor.predict_consensus(proposal_data, current_votes).await
+    pub async fn predict_consensus(
+        &self,
+        proposal_data: &ProposalData,
+        current_votes: &[HumanVote],
+    ) -> Result<ConsensusPrediction> {
+        self.consensus_predictor
+            .predict_consensus(proposal_data, current_votes)
+            .await
     }
 
     /// Learn from human voting patterns
-    pub async fn learn_from_human_votes(&mut self, proposal_id: Uuid, human_votes: &[HumanVote], outcome: ProposalOutcome) -> Result<()> {
-        self.learning_system.learn_from_human_behavior(proposal_id, human_votes, outcome).await
+    pub async fn learn_from_human_votes(
+        &mut self,
+        proposal_id: Uuid,
+        human_votes: &[HumanVote],
+        outcome: ProposalOutcome,
+    ) -> Result<()> {
+        self.learning_system
+            .learn_from_human_behavior(proposal_id, human_votes, outcome)
+            .await
     }
 
     /// Update agent performance based on prediction accuracy
-    pub async fn update_agent_performance(&mut self, proposal_id: Uuid, actual_outcome: ProposalOutcome) -> Result<()> {
-        self.performance_tracker.update_performance(proposal_id, actual_outcome).await
+    pub async fn update_agent_performance(
+        &mut self,
+        proposal_id: Uuid,
+        actual_outcome: ProposalOutcome,
+    ) -> Result<()> {
+        self.performance_tracker
+            .update_performance(proposal_id, actual_outcome)
+            .await
     }
 
     /// Evolve agents based on performance and learning
     pub async fn evolve_agents(&mut self) -> Result<EvolutionReport> {
         let mut agents = self.agents.write().await;
         let evolution_report = self.evolution_system.evolve_agents(&mut agents).await?;
-        
+
         // Update learning system with evolved agents
         self.learning_system.update_agent_models(&agents).await?;
-        
+
         Ok(evolution_report)
     }
 
@@ -181,7 +212,10 @@ impl AIAgentGovernanceSystem {
 
         Ok(AgentGovernanceStats {
             total_agents: agents.len(),
-            active_agents: agents.values().filter(|a| a.status == AgentStatus::Active).count(),
+            active_agents: agents
+                .values()
+                .filter(|a| a.status == AgentStatus::Active)
+                .count(),
             average_accuracy: performance_data.average_accuracy,
             total_proposals_analyzed: performance_data.total_proposals,
             total_votes_cast: performance_data.total_votes,
@@ -192,21 +226,31 @@ impl AIAgentGovernanceSystem {
     }
 
     /// Handle human-AI interaction and feedback
-    pub async fn process_human_feedback(&mut self, agent_id: Uuid, feedback: HumanFeedback) -> Result<()> {
-        self.interaction_manager.process_feedback(agent_id, feedback.clone()).await?;
-        
+    pub async fn process_human_feedback(
+        &mut self,
+        agent_id: Uuid,
+        feedback: HumanFeedback,
+    ) -> Result<()> {
+        self.interaction_manager
+            .process_feedback(agent_id, feedback.clone())
+            .await?;
+
         // Update agent based on feedback
         let mut agents = self.agents.write().await;
         if let Some(agent) = agents.get_mut(&agent_id) {
             self.apply_feedback_to_agent(agent, &feedback).await?;
         }
-        
+
         Ok(())
     }
 
     // Private helper methods
 
-    async fn analyze_proposal_for_agent(&self, agent: &AIGovernanceAgent, proposal: &ProposalData) -> Result<ProposalAnalysis> {
+    async fn analyze_proposal_for_agent(
+        &self,
+        agent: &AIGovernanceAgent,
+        proposal: &ProposalData,
+    ) -> Result<ProposalAnalysis> {
         // Simulate AI agent analysis based on specialization and personality
         let base_score = match agent.specialization {
             AgentSpecialization::Economic => self.economic_analysis_score(proposal),
@@ -288,11 +332,16 @@ impl AIAgentGovernanceSystem {
         let technical = self.technical_analysis_score(proposal);
         let community = self.community_analysis_score(proposal);
         let security = self.security_analysis_score(proposal);
-        
+
         (economic + technical + community + security) / 4.0
     }
 
-    async fn generate_agent_vote(&self, agent: &AIGovernanceAgent, proposal_id: Uuid, analysis: &ProposalAnalysis) -> Result<AIAgentVote> {
+    async fn generate_agent_vote(
+        &self,
+        agent: &AIGovernanceAgent,
+        proposal_id: Uuid,
+        analysis: &ProposalAnalysis,
+    ) -> Result<AIAgentVote> {
         let vote_strength = if analysis.analysis_score > 0.7 {
             VoteStrength::Strong
         } else if analysis.analysis_score > 0.4 {
@@ -319,13 +368,20 @@ impl AIAgentGovernanceSystem {
         })
     }
 
-    fn generate_reasoning(&self, agent: &AIGovernanceAgent, proposal: &ProposalData, score: f64) -> String {
+    fn generate_reasoning(
+        &self,
+        agent: &AIGovernanceAgent,
+        proposal: &ProposalData,
+        score: f64,
+    ) -> String {
         let base_reasoning = match agent.specialization {
             AgentSpecialization::Economic => "Economic impact analysis indicates",
             AgentSpecialization::Technical => "Technical feasibility assessment shows",
             AgentSpecialization::Community => "Community benefit evaluation suggests",
             AgentSpecialization::Security => "Security risk analysis reveals",
-            AgentSpecialization::Arbitration => "Balanced evaluation considering all factors indicates",
+            AgentSpecialization::Arbitration => {
+                "Balanced evaluation considering all factors indicates"
+            }
         };
 
         let sentiment = if score > 0.7 {
@@ -357,7 +413,11 @@ impl AIAgentGovernanceSystem {
         }
     }
 
-    fn assess_feasibility(&self, _agent: &AIGovernanceAgent, proposal: &ProposalData) -> ImplementationFeasibility {
+    fn assess_feasibility(
+        &self,
+        _agent: &AIGovernanceAgent,
+        proposal: &ProposalData,
+    ) -> ImplementationFeasibility {
         match proposal.proposal_type {
             AIProposalType::ParameterAdjustment => ImplementationFeasibility::High,
             AIProposalType::TreasuryAllocation => ImplementationFeasibility::High,
@@ -367,29 +427,36 @@ impl AIAgentGovernanceSystem {
         }
     }
 
-    async fn apply_feedback_to_agent(&self, agent: &mut AIGovernanceAgent, feedback: &HumanFeedback) -> Result<()> {
+    async fn apply_feedback_to_agent(
+        &self,
+        agent: &mut AIGovernanceAgent,
+        feedback: &HumanFeedback,
+    ) -> Result<()> {
         // Adjust agent confidence and bias based on feedback
         match feedback.feedback_type {
             FeedbackType::Positive => {
                 agent.confidence_level = (agent.confidence_level + 0.05).min(1.0);
-            },
+            }
             FeedbackType::Negative => {
                 agent.confidence_level = (agent.confidence_level - 0.03).max(0.1);
-            },
+            }
             FeedbackType::Neutral => {
                 // No change
-            },
+            }
             FeedbackType::Corrective => {
                 agent.confidence_level = (agent.confidence_level - 0.02).max(0.1);
                 // Could adjust decision weights based on feedback content
-            },
+            }
         }
 
         agent.last_update = Utc::now();
         Ok(())
     }
 
-    fn count_specializations(&self, agents: &HashMap<Uuid, AIGovernanceAgent>) -> HashMap<AgentSpecialization, usize> {
+    fn count_specializations(
+        &self,
+        agents: &HashMap<Uuid, AIGovernanceAgent>,
+    ) -> HashMap<AgentSpecialization, usize> {
         let mut counts = HashMap::new();
         for agent in agents.values() {
             *counts.entry(agent.specialization.clone()).or_insert(0) += 1;
@@ -416,7 +483,11 @@ pub struct AIGovernanceAgent {
 }
 
 impl AIGovernanceAgent {
-    pub fn new(name: String, specialization: AgentSpecialization, personality: AgentPersonality) -> Self {
+    pub fn new(
+        name: String,
+        specialization: AgentSpecialization,
+        personality: AgentPersonality,
+    ) -> Self {
         let decision_weights = DecisionWeights::default_for_specialization(&specialization);
         Self {
             id: Uuid::new_v4(),
@@ -463,12 +534,19 @@ impl AgentLearningSystem {
         Ok(())
     }
 
-    pub async fn learn_from_human_behavior(&mut self, proposal_id: Uuid, human_votes: &[HumanVote], outcome: ProposalOutcome) -> Result<()> {
+    pub async fn learn_from_human_behavior(
+        &mut self,
+        proposal_id: Uuid,
+        human_votes: &[HumanVote],
+        outcome: ProposalOutcome,
+    ) -> Result<()> {
         // Analyze human voting patterns
         let mut patterns = self.human_vote_patterns.write().await;
-        
+
         for vote in human_votes {
-            let pattern = patterns.entry(vote.voter.clone()).or_insert_with(VotingPattern::new);
+            let pattern = patterns
+                .entry(vote.voter.clone())
+                .or_insert_with(VotingPattern::new);
             pattern.update_with_vote(vote, &outcome);
         }
 
@@ -484,7 +562,10 @@ impl AgentLearningSystem {
         Ok(())
     }
 
-    pub async fn update_agent_models(&mut self, _agents: &HashMap<Uuid, AIGovernanceAgent>) -> Result<()> {
+    pub async fn update_agent_models(
+        &mut self,
+        _agents: &HashMap<Uuid, AIGovernanceAgent>,
+    ) -> Result<()> {
         // In a real implementation, this would update ML models
         println!("Updated agent learning models");
         Ok(())
@@ -518,12 +599,21 @@ impl AIProposalGenerator {
     pub async fn initialize(&mut self) -> Result<()> {
         // Initialize proposal templates
         self.proposal_templates = self.create_proposal_templates();
-        println!("AI proposal generator initialized with {} templates", self.proposal_templates.len());
+        println!(
+            "AI proposal generator initialized with {} templates",
+            self.proposal_templates.len()
+        );
         Ok(())
     }
 
-    pub async fn generate_proposals(&mut self, network_state: &NetworkState) -> Result<Vec<AIGeneratedProposal>> {
-        let analysis = self.network_analysis.analyze_network_state(network_state).await?;
+    pub async fn generate_proposals(
+        &mut self,
+        network_state: &NetworkState,
+    ) -> Result<Vec<AIGeneratedProposal>> {
+        let analysis = self
+            .network_analysis
+            .analyze_network_state(network_state)
+            .await?;
         let mut proposals = Vec::new();
 
         // Generate proposals based on network analysis
@@ -572,12 +662,15 @@ impl AIProposalGenerator {
         ]
     }
 
-    fn generate_inflation_proposal(&self, analysis: &NetworkAnalysisResult) -> Result<AIGeneratedProposal> {
+    fn generate_inflation_proposal(
+        &self,
+        analysis: &NetworkAnalysisResult,
+    ) -> Result<AIGeneratedProposal> {
         Ok(AIGeneratedProposal {
             id: Uuid::new_v4(),
             title: "Inflation Rate Adjustment".to_string(),
-            description: format!("Reduce inflation rate from {:.2}% to {:.2}% to address economic stability concerns", 
-                               analysis.current_inflation * 100.0, 
+            description: format!("Reduce inflation rate from {:.2}% to {:.2}% to address economic stability concerns",
+                               analysis.current_inflation * 100.0,
                                analysis.recommended_inflation * 100.0),
             proposal_type: AIProposalType::ParameterAdjustment,
             priority: ProposalPriority::High,
@@ -594,12 +687,17 @@ impl AIProposalGenerator {
         })
     }
 
-    fn generate_participation_proposal(&self, analysis: &NetworkAnalysisResult) -> Result<AIGeneratedProposal> {
+    fn generate_participation_proposal(
+        &self,
+        analysis: &NetworkAnalysisResult,
+    ) -> Result<AIGeneratedProposal> {
         Ok(AIGeneratedProposal {
             id: Uuid::new_v4(),
             title: "Governance Participation Incentives".to_string(),
-            description: format!("Increase participation rewards by 25% to boost governance engagement from {:.1}%", 
-                               analysis.participation_rate * 100.0),
+            description: format!(
+                "Increase participation rewards by 25% to boost governance engagement from {:.1}%",
+                analysis.participation_rate * 100.0
+            ),
             proposal_type: AIProposalType::RewardModification,
             priority: ProposalPriority::Medium,
             estimated_impact: EstimatedImpact {
@@ -615,11 +713,15 @@ impl AIProposalGenerator {
         })
     }
 
-    fn generate_treasury_proposal(&self, analysis: &NetworkAnalysisResult) -> Result<AIGeneratedProposal> {
+    fn generate_treasury_proposal(
+        &self,
+        analysis: &NetworkAnalysisResult,
+    ) -> Result<AIGeneratedProposal> {
         Ok(AIGeneratedProposal {
             id: Uuid::new_v4(),
             title: "Treasury Allocation Optimization".to_string(),
-            description: "Optimize treasury allocation to improve network development funding".to_string(),
+            description: "Optimize treasury allocation to improve network development funding"
+                .to_string(),
             proposal_type: AIProposalType::TreasuryAllocation,
             priority: ProposalPriority::Medium,
             estimated_impact: EstimatedImpact {
@@ -635,11 +737,16 @@ impl AIProposalGenerator {
         })
     }
 
-    fn generate_security_proposal(&self, analysis: &NetworkAnalysisResult) -> Result<AIGeneratedProposal> {
+    fn generate_security_proposal(
+        &self,
+        analysis: &NetworkAnalysisResult,
+    ) -> Result<AIGeneratedProposal> {
         Ok(AIGeneratedProposal {
             id: Uuid::new_v4(),
             title: "Security Protocol Update".to_string(),
-            description: "Implement enhanced security measures based on network vulnerability assessment".to_string(),
+            description:
+                "Implement enhanced security measures based on network vulnerability assessment"
+                    .to_string(),
             proposal_type: AIProposalType::SecurityUpdate,
             priority: ProposalPriority::Critical,
             estimated_impact: EstimatedImpact {
@@ -676,7 +783,11 @@ impl ConsensusPredictor {
         Ok(())
     }
 
-    pub async fn predict_consensus(&self, proposal: &ProposalData, current_votes: &[HumanVote]) -> Result<ConsensusPrediction> {
+    pub async fn predict_consensus(
+        &self,
+        proposal: &ProposalData,
+        current_votes: &[HumanVote],
+    ) -> Result<ConsensusPrediction> {
         let vote_trend = self.analyze_vote_trend(current_votes);
         let proposal_complexity = self.assess_proposal_complexity(proposal);
         let historical_pattern = self.find_similar_proposals(proposal);
@@ -708,8 +819,14 @@ impl ConsensusPredictor {
             return VoteTrend::Neutral;
         }
 
-        let for_votes = votes.iter().filter(|v| matches!(v.direction, VoteDirection::For)).count();
-        let against_votes = votes.iter().filter(|v| matches!(v.direction, VoteDirection::Against)).count();
+        let for_votes = votes
+            .iter()
+            .filter(|v| matches!(v.direction, VoteDirection::For))
+            .count();
+        let against_votes = votes
+            .iter()
+            .filter(|v| matches!(v.direction, VoteDirection::Against))
+            .count();
 
         let ratio = for_votes as f64 / votes.len() as f64;
 
@@ -745,7 +862,12 @@ impl ConsensusPredictor {
         }
     }
 
-    fn calculate_consensus_probability(&self, trend: &VoteTrend, complexity: f64, pattern: &HistoricalPattern) -> f64 {
+    fn calculate_consensus_probability(
+        &self,
+        trend: &VoteTrend,
+        complexity: f64,
+        pattern: &HistoricalPattern,
+    ) -> f64 {
         let trend_factor = match trend {
             VoteTrend::StronglyFor => 0.9,
             VoteTrend::For => 0.7,
@@ -757,7 +879,9 @@ impl ConsensusPredictor {
         let complexity_factor = 1.0 - (complexity * 0.3);
         let historical_factor = pattern.average_success_rate;
 
-        (trend_factor * 0.5 + complexity_factor * 0.2 + historical_factor * 0.3).max(0.0).min(1.0)
+        (trend_factor * 0.5 + complexity_factor * 0.2 + historical_factor * 0.3)
+            .max(0.0)
+            .min(1.0)
     }
 
     fn calculate_prediction_confidence(&self, trend: &VoteTrend, complexity: f64) -> f64 {
@@ -810,7 +934,11 @@ impl AgentPerformanceTracker {
         Ok(())
     }
 
-    pub async fn update_performance(&mut self, proposal_id: Uuid, actual_outcome: ProposalOutcome) -> Result<()> {
+    pub async fn update_performance(
+        &mut self,
+        proposal_id: Uuid,
+        actual_outcome: ProposalOutcome,
+    ) -> Result<()> {
         // Update individual agent performance based on their predictions vs actual outcome
         let mut data = self.performance_data.write().await;
         let mut overall = self.overall_metrics.write().await;
@@ -823,7 +951,8 @@ impl AgentPerformanceTracker {
             if rand::random::<f64>() < 0.7 {
                 perf_data.correct_predictions += 1;
             }
-            perf_data.accuracy = perf_data.correct_predictions as f64 / perf_data.total_predictions as f64;
+            perf_data.accuracy =
+                perf_data.correct_predictions as f64 / perf_data.total_predictions as f64;
         }
 
         overall.total_proposals += 1;
@@ -858,7 +987,11 @@ impl HumanAIInteractionManager {
         Ok(())
     }
 
-    pub async fn process_feedback(&mut self, agent_id: Uuid, feedback: HumanFeedback) -> Result<()> {
+    pub async fn process_feedback(
+        &mut self,
+        agent_id: Uuid,
+        feedback: HumanFeedback,
+    ) -> Result<()> {
         let mut history = self.feedback_history.write().await;
         history.push(feedback);
 
@@ -889,7 +1022,10 @@ impl AgentEvolutionSystem {
         Ok(())
     }
 
-    pub async fn evolve_agents(&mut self, agents: &mut HashMap<Uuid, AIGovernanceAgent>) -> Result<EvolutionReport> {
+    pub async fn evolve_agents(
+        &mut self,
+        agents: &mut HashMap<Uuid, AIGovernanceAgent>,
+    ) -> Result<EvolutionReport> {
         self.generation_counter += 1;
         let mut evolved_count = 0;
         let mut new_agents = Vec::new();
@@ -973,14 +1109,15 @@ impl AgentEvolutionSystem {
         ))
     }
 
-    fn calculate_evolution_metrics(&self, agents: &HashMap<Uuid, AIGovernanceAgent>) -> EvolutionMetrics {
-        let avg_confidence = agents.values()
-            .map(|a| a.confidence_level)
-            .sum::<f64>() / agents.len() as f64;
+    fn calculate_evolution_metrics(
+        &self,
+        agents: &HashMap<Uuid, AIGovernanceAgent>,
+    ) -> EvolutionMetrics {
+        let avg_confidence =
+            agents.values().map(|a| a.confidence_level).sum::<f64>() / agents.len() as f64;
 
-        let avg_version = agents.values()
-            .map(|a| a.version as f64)
-            .sum::<f64>() / agents.len() as f64;
+        let avg_version =
+            agents.values().map(|a| a.version as f64).sum::<f64>() / agents.len() as f64;
 
         EvolutionMetrics {
             average_confidence: avg_confidence,
@@ -1347,11 +1484,16 @@ impl NetworkAnalysisEngine {
         Self {}
     }
 
-    async fn analyze_network_state(&self, network_state: &NetworkState) -> Result<NetworkAnalysisResult> {
+    async fn analyze_network_state(
+        &self,
+        network_state: &NetworkState,
+    ) -> Result<NetworkAnalysisResult> {
         Ok(NetworkAnalysisResult {
             inflation_concern: network_state.inflation_rate > 0.1,
             participation_low: network_state.governance_participation_rate < 0.3,
-            treasury_imbalance: (network_state.treasury_balance as f64 / network_state.total_supply as f64) < 0.05,
+            treasury_imbalance: (network_state.treasury_balance as f64
+                / network_state.total_supply as f64)
+                < 0.05,
             security_update_needed: network_state.error_rate > 0.05,
             current_inflation: network_state.inflation_rate,
             recommended_inflation: (network_state.inflation_rate * 0.8).max(0.02),

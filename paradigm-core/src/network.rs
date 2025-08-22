@@ -1,20 +1,20 @@
+use anyhow::Result;
+use libp2p::{
+    futures::StreamExt,
+    gossipsub,
+    identity::Keypair as LibP2PKeypair,
+    kad, mdns, noise,
+    swarm::{NetworkBehaviour, Swarm, SwarmEvent},
+    tcp, yamux, PeerId, Transport,
+};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use libp2p::{
-    gossipsub, mdns, noise,
-    swarm::{NetworkBehaviour, Swarm, SwarmEvent},
-    tcp, yamux, PeerId, Transport,
-    kad,
-    identity::Keypair as LibP2PKeypair,
-    futures::StreamExt,
-};
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use anyhow::Result;
 
-use crate::transaction::Transaction;
 use crate::ml_tasks::{MLTask, MLTaskResult};
+use crate::transaction::Transaction;
 
 /// Network message types
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,8 +44,6 @@ pub struct P2PBehaviour {
     pub kademlia: kad::Behaviour<kad::store::MemoryStore>,
 }
 
-
-
 /// P2P Network struct
 pub struct P2PNetwork {
     swarm: Swarm<P2PBehaviour>,
@@ -61,7 +59,7 @@ impl P2PNetwork {
         // Generate a random PeerId
         let local_key = LibP2PKeypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
-        
+
         // Create a TCP transport
         let transport = tcp::tokio::Transport::default()
             .upgrade(libp2p::core::upgrade::Version::V1)
@@ -79,7 +77,8 @@ impl P2PNetwork {
         let mut gossipsub = gossipsub::Behaviour::new(
             gossipsub::MessageAuthenticity::Signed(local_key.clone()),
             gossipsub_config,
-        ).map_err(|msg| anyhow::anyhow!("Gossipsub creation error: {}", msg))?;
+        )
+        .map_err(|msg| anyhow::anyhow!("Gossipsub creation error: {}", msg))?;
 
         // Create and subscribe to topics
         let transaction_topic = gossipsub::IdentTopic::new("paradigm-transactions");
@@ -105,7 +104,12 @@ impl P2PNetwork {
         };
 
         // Create swarm
-        let swarm = Swarm::new(transport, behaviour, local_peer_id, libp2p::swarm::Config::with_tokio_executor());
+        let swarm = Swarm::new(
+            transport,
+            behaviour,
+            local_peer_id,
+            libp2p::swarm::Config::with_tokio_executor(),
+        );
 
         Ok(Self {
             swarm,
@@ -125,47 +129,74 @@ impl P2PNetwork {
     pub async fn broadcast_transaction(&mut self, transaction: &Transaction) -> Result<()> {
         let message = NetworkMessage::Transaction(transaction.clone());
         let serialized = serde_json::to_vec(&message)?;
-        
-        if let Err(e) = self.swarm.behaviour_mut().gossipsub.publish(self.transaction_topic.clone(), serialized) {
+
+        if let Err(e) = self
+            .swarm
+            .behaviour_mut()
+            .gossipsub
+            .publish(self.transaction_topic.clone(), serialized)
+        {
             tracing::warn!("Failed to broadcast transaction: {:?}", e);
         }
-        
+
         Ok(())
     }
 
     pub async fn broadcast_ml_task(&mut self, task: &MLTask) -> Result<()> {
         let message = NetworkMessage::MLTask(task.clone());
         let serialized = serde_json::to_vec(&message)?;
-        
-        if let Err(e) = self.swarm.behaviour_mut().gossipsub.publish(self.ml_task_topic.clone(), serialized) {
+
+        if let Err(e) = self
+            .swarm
+            .behaviour_mut()
+            .gossipsub
+            .publish(self.ml_task_topic.clone(), serialized)
+        {
             tracing::warn!("Failed to broadcast ML task: {:?}", e);
         }
-        
+
         Ok(())
     }
 
-    pub async fn broadcast_ml_result(&mut self, task_id: Uuid, result: &MLTaskResult) -> Result<()> {
-        let message = NetworkMessage::MLTaskResult { 
-            task_id, 
-            result: result.result.clone() 
+    pub async fn broadcast_ml_result(
+        &mut self,
+        task_id: Uuid,
+        result: &MLTaskResult,
+    ) -> Result<()> {
+        let message = NetworkMessage::MLTaskResult {
+            task_id,
+            result: result.result.clone(),
         };
         let serialized = serde_json::to_vec(&message)?;
-        
-        if let Err(e) = self.swarm.behaviour_mut().gossipsub.publish(self.ml_task_topic.clone(), serialized) {
+
+        if let Err(e) = self
+            .swarm
+            .behaviour_mut()
+            .gossipsub
+            .publish(self.ml_task_topic.clone(), serialized)
+        {
             tracing::warn!("Failed to broadcast ML result: {:?}", e);
         }
-        
+
         Ok(())
     }
 
     pub async fn sync_network(&mut self, timestamp: i64, data_hash: Vec<u8>) -> Result<()> {
-        let message = NetworkMessage::NetworkSync { timestamp, data_hash };
+        let message = NetworkMessage::NetworkSync {
+            timestamp,
+            data_hash,
+        };
         let serialized = serde_json::to_vec(&message)?;
-        
-        if let Err(e) = self.swarm.behaviour_mut().gossipsub.publish(self.sync_topic.clone(), serialized) {
+
+        if let Err(e) = self
+            .swarm
+            .behaviour_mut()
+            .gossipsub
+            .publish(self.sync_topic.clone(), serialized)
+        {
             tracing::warn!("Failed to sync network: {:?}", e);
         }
-        
+
         Ok(())
     }
 
@@ -179,20 +210,21 @@ impl P2PNetwork {
         &self.connected_peers
     }
 
-    pub async fn handle_network_event(&mut self, event: SwarmEvent<P2PBehaviourEvent>) -> Result<Option<NetworkMessage>> {
+    pub async fn handle_network_event(
+        &mut self,
+        event: SwarmEvent<P2PBehaviourEvent>,
+    ) -> Result<Option<NetworkMessage>> {
         match event {
             SwarmEvent::Behaviour(P2PBehaviourEvent::Gossipsub(gossipsub::Event::Message {
                 message,
                 ..
-            })) => {
-                match serde_json::from_slice::<NetworkMessage>(&message.data) {
-                    Ok(network_message) => Ok(Some(network_message)),
-                    Err(e) => {
-                        tracing::warn!("Failed to deserialize network message: {:?}", e);
-                        Ok(None)
-                    }
+            })) => match serde_json::from_slice::<NetworkMessage>(&message.data) {
+                Ok(network_message) => Ok(Some(network_message)),
+                Err(e) => {
+                    tracing::warn!("Failed to deserialize network message: {:?}", e);
+                    Ok(None)
                 }
-            }
+            },
             SwarmEvent::Behaviour(P2PBehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
                 for (peer_id, multiaddr) in list {
                     self.add_peer(peer_id, multiaddr.to_string());
@@ -224,15 +256,24 @@ impl P2PNetwork {
                 // Forward to consensus engine
                 Ok(())
             }
-            NetworkMessage::PeerDiscovery { peer_id: _, address: _ } => {
+            NetworkMessage::PeerDiscovery {
+                peer_id: _,
+                address: _,
+            } => {
                 tracing::debug!("Peer discovery message received");
                 Ok(())
             }
-            NetworkMessage::NetworkSync { timestamp: _, data_hash: _ } => {
+            NetworkMessage::NetworkSync {
+                timestamp: _,
+                data_hash: _,
+            } => {
                 tracing::debug!("Network sync message received");
                 Ok(())
             }
-            NetworkMessage::Heartbeat { peer_id: _, timestamp: _ } => {
+            NetworkMessage::Heartbeat {
+                peer_id: _,
+                timestamp: _,
+            } => {
                 tracing::debug!("Heartbeat received");
                 Ok(())
             }

@@ -1,25 +1,25 @@
 // Advanced AI Models for Enhanced Governance
 // Phase 4: Ecosystem Development - AI Integration
 
-pub mod neural_consensus;
-pub mod decision_engine;
-pub mod predictive_governance;
 pub mod adaptive_learning;
+pub mod decision_engine;
 pub mod model_federation;
+pub mod neural_consensus;
+pub mod predictive_governance;
 
-pub use neural_consensus::*;
-pub use decision_engine::*;
-pub use predictive_governance::*;
 pub use adaptive_learning::*;
+pub use decision_engine::*;
 pub use model_federation::*;
+pub use neural_consensus::*;
+pub use predictive_governance::*;
 
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use anyhow::Result;
 use uuid::Uuid;
-use serde::{Serialize, Deserialize};
 
 /// Central AI orchestration system
 pub struct AIOrchestrator {
@@ -102,16 +102,16 @@ impl AIOrchestrator {
     pub async fn initialize(&self) -> Result<()> {
         // Initialize neural consensus
         self.neural_consensus.initialize().await?;
-        
+
         // Initialize decision engine
         self.decision_engine.initialize().await?;
-        
+
         // Initialize predictive governance
         self.predictive_governance.initialize().await?;
-        
+
         // Initialize adaptive learning
         self.adaptive_learning.initialize().await?;
-        
+
         // Initialize model federation
         self.model_federation.initialize().await?;
 
@@ -122,45 +122,53 @@ impl AIOrchestrator {
     }
 
     /// Process complex governance decision
-    pub async fn process_governance_decision(&self, decision_context: DecisionContext) -> Result<AIDecision> {
+    pub async fn process_governance_decision(
+        &self,
+        decision_context: DecisionContext,
+    ) -> Result<AIDecision> {
         let start_time = Instant::now();
-        
+
         // Get neural consensus input
-        let consensus_input = self.neural_consensus.analyze_decision_context(&decision_context).await?;
-        
+        let consensus_input = self
+            .neural_consensus
+            .analyze_decision_context(&decision_context)
+            .await?;
+
         // Get predictive analysis
-        let prediction = self.predictive_governance.predict_outcomes(&decision_context).await?;
-        
+        let prediction = self
+            .predictive_governance
+            .predict_outcomes(&decision_context)
+            .await?;
+
         // Process through decision engine
-        let decision = self.decision_engine.make_decision(
-            decision_context,
-            consensus_input,
-            prediction
-        ).await?;
-        
+        let decision = self
+            .decision_engine
+            .make_decision(decision_context, consensus_input, prediction)
+            .await?;
+
         // Update adaptive learning
         self.adaptive_learning.record_decision(&decision).await?;
-        
+
         // Sync with federation
         self.model_federation.sync_decision(&decision).await?;
-        
+
         // Update metrics
         let processing_time = start_time.elapsed();
         self.update_metrics(processing_time, &decision).await;
-        
+
         Ok(decision)
     }
 
     /// Coordinate AI systems
     async fn start_coordination_loop(&self) -> Result<()> {
         let orchestrator = Arc::new(self.clone());
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(60));
-            
+
             loop {
                 interval.tick().await;
-                
+
                 if let Err(e) = orchestrator.coordination_cycle().await {
                     eprintln!("AI coordination error: {}", e);
                 }
@@ -173,16 +181,22 @@ impl AIOrchestrator {
     async fn coordination_cycle(&self) -> Result<()> {
         // Sync learning across systems
         let learning_updates = self.adaptive_learning.get_recent_updates().await?;
-        self.neural_consensus.update_from_learning(&learning_updates).await?;
-        self.decision_engine.update_from_learning(&learning_updates).await?;
-        self.predictive_governance.update_from_learning(&learning_updates).await?;
-        
+        self.neural_consensus
+            .update_from_learning(&learning_updates)
+            .await?;
+        self.decision_engine
+            .update_from_learning(&learning_updates)
+            .await?;
+        self.predictive_governance
+            .update_from_learning(&learning_updates)
+            .await?;
+
         // Federate models
         self.model_federation.federate_models().await?;
-        
+
         // Update orchestration metrics
         self.calculate_orchestration_metrics().await?;
-        
+
         Ok(())
     }
 
@@ -190,32 +204,34 @@ impl AIOrchestrator {
         let mut metrics = self.orchestration_metrics.write().await;
         metrics.decisions_processed += 1;
         metrics.average_decision_time = Duration::from_millis(
-            (metrics.average_decision_time.as_millis() as u64 + processing_time.as_millis() as u64) / 2
+            (metrics.average_decision_time.as_millis() as u64 + processing_time.as_millis() as u64)
+                / 2,
         );
-        
+
         if decision.confidence > 0.9 {
-            metrics.prediction_accuracy = (metrics.prediction_accuracy * 0.95) + (decision.confidence * 0.05);
+            metrics.prediction_accuracy =
+                (metrics.prediction_accuracy * 0.95) + (decision.confidence * 0.05);
         }
     }
 
     async fn calculate_orchestration_metrics(&self) -> Result<()> {
         let mut metrics = self.orchestration_metrics.write().await;
-        
+
         // Get metrics from each system
         let neural_metrics = self.neural_consensus.get_metrics().await;
         let decision_metrics = self.decision_engine.get_metrics().await;
         let prediction_metrics = self.predictive_governance.get_metrics().await;
         let learning_metrics = self.adaptive_learning.get_metrics().await;
         let federation_metrics = self.model_federation.get_metrics().await;
-        
+
         // Aggregate metrics
         metrics.consensus_efficiency = neural_metrics.consensus_efficiency;
         metrics.learning_progress = learning_metrics.learning_progress;
         metrics.federation_sync_rate = federation_metrics.sync_rate;
-        metrics.total_models_active = neural_metrics.active_models + 
-                                     decision_metrics.active_models + 
-                                     prediction_metrics.active_models;
-        
+        metrics.total_models_active = neural_metrics.active_models
+            + decision_metrics.active_models
+            + prediction_metrics.active_models;
+
         Ok(())
     }
 

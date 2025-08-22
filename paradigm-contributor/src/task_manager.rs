@@ -1,11 +1,11 @@
 // GPU-Accelerated Task Manager for Paradigm Contributor
 use anyhow::Result;
+use paradigm_core::MLTask;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tracing::{debug, info};
 use uuid::Uuid;
-use tracing::{info, debug};
-use paradigm_core::MLTask;
 
 use crate::gpu_compute::GpuComputeEngine;
 
@@ -50,7 +50,10 @@ impl TaskManager {
         })
     }
 
-    pub async fn with_gpu_support(gpu_engine: GpuComputeEngine, worker_threads: usize) -> Result<Self> {
+    pub async fn with_gpu_support(
+        gpu_engine: GpuComputeEngine,
+        worker_threads: usize,
+    ) -> Result<Self> {
         Ok(Self {
             max_concurrent_tasks: worker_threads,
             active_tasks: HashMap::new(),
@@ -61,9 +64,9 @@ impl TaskManager {
 
     pub async fn process_task_gpu(&mut self, ml_task: MLTask) -> Result<TaskResult> {
         let start_time = Instant::now();
-        
+
         info!("🔄 Processing ML task {} with GPU acceleration", ml_task.id);
-        
+
         let result_data = if let Some(gpu_engine) = &self.gpu_engine {
             // Use GPU acceleration
             gpu_engine.run_ml_task(&ml_task.data).await?
@@ -71,9 +74,9 @@ impl TaskManager {
             // Fallback to CPU processing
             self.process_cpu_task(&ml_task.data).await?
         };
-        
+
         let processing_time = start_time.elapsed();
-        
+
         Ok(TaskResult {
             task_id: ml_task.id,
             result_data,
@@ -85,11 +88,11 @@ impl TaskManager {
     async fn process_cpu_task(&self, data: &[u8]) -> Result<Vec<u8>> {
         // CPU-based task processing (fallback)
         info!("Processing task on CPU (fallback)");
-        
+
         // Simulate CPU processing time
         let processing_time = std::cmp::max(200, data.len() / 100);
         tokio::time::sleep(Duration::from_millis(processing_time as u64)).await;
-        
+
         // Simple transformation for demonstration
         let mut result = data.to_vec();
         result.reverse();
@@ -121,20 +124,22 @@ impl TaskManager {
         Ok(())
     }
 
-
     pub async fn process_tasks(&mut self) {
         let mut completed_task_ids = Vec::new();
 
         for (task_id, execution) in &self.active_tasks {
             // Simulate task processing time
             let processing_time = Duration::from_secs(5);
-            
+
             if execution.started_at.elapsed() >= processing_time {
                 // Mock task completion
                 let result = self.mock_process_task(&execution.task).await;
-                
-                info!("Completed task {} with result size: {} bytes", 
-                      task_id, result.len());
+
+                info!(
+                    "Completed task {} with result size: {} bytes",
+                    task_id,
+                    result.len()
+                );
 
                 self.completed_tasks.push((execution.task.clone(), result));
                 completed_task_ids.push(*task_id);
@@ -173,7 +178,11 @@ impl TaskManager {
         TaskStats {
             active_tasks: self.active_tasks.len(),
             completed_tasks: self.completed_tasks.len(),
-            total_reward: self.completed_tasks.iter().map(|(task, _)| task.reward).sum(),
+            total_reward: self
+                .completed_tasks
+                .iter()
+                .map(|(task, _)| task.reward)
+                .sum(),
             total_tasks: self.active_tasks.len() + self.completed_tasks.len(),
         }
     }

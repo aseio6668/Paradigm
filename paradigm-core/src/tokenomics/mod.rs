@@ -1,50 +1,49 @@
+pub mod advanced_governance;
+pub mod ai_agent_governance;
+pub mod ai_optimizer;
+pub mod analytics_api;
+pub mod bridge_adapter;
+pub mod contribution_validator;
 /// Modular tokenomics system for Paradigm network
 /// Implements advanced features like ZK proofs, reputation weighting,
 /// temporal dynamics, and cross-platform interoperability
-
 pub mod core_token;
-pub mod contribution_validator;
+pub mod decay_mechanism;
+pub mod governance_module;
+pub mod model_hosting;
+pub mod network_analytics;
+pub mod privacy_preserving;
+pub mod quantum_resistant;
+pub mod reputation_ledger;
 pub mod reward_engine;
 pub mod staking_module;
-pub mod governance_module;
-pub mod reputation_ledger;
-pub mod bridge_adapter;
-pub mod treasury_manager;
-pub mod decay_mechanism;
-pub mod privacy_preserving;
-pub mod model_hosting;
-pub mod ai_optimizer;
-pub mod quantum_resistant;
-pub mod advanced_governance;
-pub mod network_analytics;
-pub mod analytics_api;
-pub mod ai_agent_governance;
 pub mod temporal_evolution;
+pub mod treasury_manager;
 
-pub use core_token::*;
-pub use contribution_validator::*;
-pub use reward_engine::{RewardEngine, NetworkConditions, RewardStats};
-pub use staking_module::*;
-pub use governance_module::*;
-pub use reputation_ledger::{ReputationLedger, ReputationMetrics as LedgerReputationMetrics};
-pub use bridge_adapter::*;
-pub use treasury_manager::*;
-pub use decay_mechanism::*;
-pub use privacy_preserving::*;
-pub use model_hosting::*;
-pub use ai_optimizer::*;
-pub use quantum_resistant::*;
 pub use advanced_governance::*;
-pub use network_analytics::*;
-pub use analytics_api::*;
 pub use ai_agent_governance::*;
+pub use ai_optimizer::*;
+pub use analytics_api::*;
+pub use bridge_adapter::*;
+pub use contribution_validator::*;
+pub use core_token::*;
+pub use decay_mechanism::*;
+pub use governance_module::*;
+pub use model_hosting::*;
+pub use network_analytics::*;
+pub use privacy_preserving::*;
+pub use quantum_resistant::*;
+pub use reputation_ledger::{ReputationLedger, ReputationMetrics as LedgerReputationMetrics};
+pub use reward_engine::{NetworkConditions, RewardEngine, RewardStats};
+pub use staking_module::*;
 pub use temporal_evolution::*;
+pub use treasury_manager::*;
 
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-use chrono::{DateTime, Utc};
 use crate::Address;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use uuid::Uuid;
 
 /// Central tokenomics coordinator that manages all modules
 #[derive(Debug)]
@@ -93,7 +92,7 @@ impl TokenomicsSystem {
 
     pub async fn start(&mut self) -> anyhow::Result<()> {
         tracing::info!("Starting advanced tokenomics system");
-        
+
         // Initialize all modules
         self.core_token.initialize().await?;
         self.contribution_validator.initialize().await?;
@@ -112,7 +111,7 @@ impl TokenomicsSystem {
         self.network_analytics.initialize().await?;
         self.ai_agent_governance.initialize().await?;
         self.temporal_evolution.initialize().await?;
-        
+
         tracing::info!("Advanced tokenomics system started successfully");
         Ok(())
     }
@@ -124,14 +123,13 @@ impl TokenomicsSystem {
         workload_proof: ContributionProof,
     ) -> anyhow::Result<ContributionResult> {
         // 1. Validate contribution using ZK proofs
-        let validation_result = self.contribution_validator
+        let validation_result = self
+            .contribution_validator
             .validate_contribution(contributor, &workload_proof)
             .await?;
 
         // 2. Check reputation and calculate multipliers
-        let ledger_reputation = self.reputation_ledger
-            .get_reputation(contributor)
-            .await?;
+        let ledger_reputation = self.reputation_ledger.get_reputation(contributor).await?;
 
         // Convert to reward engine format
         let reputation = reward_engine::ReputationMetrics {
@@ -143,17 +141,20 @@ impl TokenomicsSystem {
         };
 
         // 3. Calculate reward using advanced engine
-        let reward = self.reward_engine
+        let reward = self
+            .reward_engine
             .calculate_reward(&validation_result, reputation)
             .await?;
 
         // 4. Apply temporal dynamics (decay/evolution)
-        let adjusted_reward = self.decay_mechanism
+        let adjusted_reward = self
+            .decay_mechanism
             .apply_temporal_dynamics(contributor, reward)
             .await?;
 
         // 5. Mint tokens through core token system
-        let tokens_minted = self.core_token
+        let tokens_minted = self
+            .core_token
             .mint_tokens(contributor, adjusted_reward)
             .await?;
 
@@ -169,7 +170,11 @@ impl TokenomicsSystem {
 
         // 8. Record contribution event in analytics
         self.network_analytics
-            .record_contribution(contributor, workload_proof.contribution_type.clone(), tokens_minted)
+            .record_contribution(
+                contributor,
+                workload_proof.contribution_type.clone(),
+                tokens_minted,
+            )
             .await?;
 
         // 9. Record contribution for temporal evolution
@@ -188,8 +193,13 @@ impl TokenomicsSystem {
     }
 
     /// Generate quantum-resistant keys for a contributor
-    pub async fn generate_quantum_resistant_keys(&mut self, contributor: &Address) -> anyhow::Result<ContributorKeys> {
-        self.quantum_resistant.generate_contributor_keys(contributor).await
+    pub async fn generate_quantum_resistant_keys(
+        &mut self,
+        contributor: &Address,
+    ) -> anyhow::Result<ContributorKeys> {
+        self.quantum_resistant
+            .generate_contributor_keys(contributor)
+            .await
     }
 
     /// Create quantum-resistant contribution proof
@@ -202,7 +212,7 @@ impl TokenomicsSystem {
     ) -> anyhow::Result<ContributionProof> {
         let proof_id = Uuid::new_v4();
         let workload_hash = self.compute_workload_hash(workload_data);
-        
+
         // Generate quantum-resistant ZK proof
         let proof_type = self.get_proof_type_for_contribution(&contribution_type);
         let private_inputs = QRPrivateInputs {
@@ -213,17 +223,19 @@ impl TokenomicsSystem {
             statement: workload_hash.clone(),
             challenge: self.generate_challenge(&workload_hash).await?,
         };
-        
-        let qr_zk_proof = self.quantum_resistant
+
+        let qr_zk_proof = self
+            .quantum_resistant
             .generate_qr_zk_proof(&proof_type, &private_inputs, &public_inputs)
             .await?;
-        
+
         // Generate quantum-resistant signature
         let proof_data = serde_json::to_vec(&qr_zk_proof)?;
-        let qr_signature = self.quantum_resistant
+        let qr_signature = self
+            .quantum_resistant
             .sign_contribution_proof(contributor, &proof_data, QRSignatureType::Lattice)
             .await?;
-        
+
         Ok(ContributionProof {
             id: proof_id,
             contributor: contributor.clone(),
@@ -244,17 +256,21 @@ impl TokenomicsSystem {
     ) -> anyhow::Result<bool> {
         // Verify quantum-resistant ZK proof
         if let Some(qr_zk_proof) = &proof.qr_zk_proof {
-            let zk_valid = self.quantum_resistant.verify_qr_zk_proof(qr_zk_proof).await?;
+            let zk_valid = self
+                .quantum_resistant
+                .verify_qr_zk_proof(qr_zk_proof)
+                .await?;
             if !zk_valid {
                 return Ok(false);
             }
         }
-        
+
         // Verify quantum-resistant signature
         if let Some(qr_signature) = &proof.qr_signature {
             if let Some(qr_zk_proof) = &proof.qr_zk_proof {
                 let proof_data = serde_json::to_vec(qr_zk_proof)?;
-                let sig_valid = self.quantum_resistant
+                let sig_valid = self
+                    .quantum_resistant
                     .verify_signature(&proof.contributor, &proof_data, qr_signature)
                     .await?;
                 if !sig_valid {
@@ -262,31 +278,41 @@ impl TokenomicsSystem {
                 }
             }
         }
-        
+
         Ok(true)
     }
 
     /// Perform quantum-safe key exchange with peer
-    pub async fn quantum_safe_key_exchange(&mut self, peer: &Address) -> anyhow::Result<SharedSecret> {
+    pub async fn quantum_safe_key_exchange(
+        &mut self,
+        peer: &Address,
+    ) -> anyhow::Result<SharedSecret> {
         self.quantum_resistant.quantum_safe_key_exchange(peer).await
     }
 
     /// Generate quantum random value for governance
-    pub async fn generate_quantum_governance_random(&mut self, proposal_id: &str) -> anyhow::Result<QuantumRandom> {
+    pub async fn generate_quantum_governance_random(
+        &mut self,
+        proposal_id: &str,
+    ) -> anyhow::Result<QuantumRandom> {
         let entropy_sources = vec![
             format!("proposal_{}", proposal_id),
             format!("timestamp_{}", Utc::now().timestamp()),
             "network_entropy".to_string(),
             "block_hash_entropy".to_string(),
         ];
-        
-        self.quantum_resistant.get_quantum_random(entropy_sources).await
+
+        self.quantum_resistant
+            .get_quantum_random(entropy_sources)
+            .await
     }
 
     // Private helper methods
     fn compute_workload_hash(&self, data: &[u8]) -> Vec<u8> {
         // Simplified hash computation
-        data.iter().map(|&b| b.wrapping_mul(31).wrapping_add(17)).collect()
+        data.iter()
+            .map(|&b| b.wrapping_mul(31).wrapping_add(17))
+            .collect()
     }
 
     async fn generate_secure_randomness(&self) -> anyhow::Result<Vec<u8>> {
@@ -313,11 +339,12 @@ impl TokenomicsSystem {
             ContributionType::GovernanceParticipation => "governance_participation",
             ContributionType::CrossPlatformCompute => "ml_training", // Use ML training proof
             ContributionType::StorageProvision => "data_validation", // Use data validation proof
-            ContributionType::GenerativeMedia => "ml_training", // Use ML training proof
-            ContributionType::SymbolicMath => "model_optimization", // Use optimization proof
-            ContributionType::Simulation => "ml_training", // Use ML training proof
-            ContributionType::MediaGeneration => "ml_training", // Use ML training proof
-        }.to_string()
+            ContributionType::GenerativeMedia => "ml_training",      // Use ML training proof
+            ContributionType::SymbolicMath => "model_optimization",  // Use optimization proof
+            ContributionType::Simulation => "ml_training",           // Use ML training proof
+            ContributionType::MediaGeneration => "ml_training",      // Use ML training proof
+        }
+        .to_string()
     }
 
     /// Create quadratic voting proposal with quantum randomness
@@ -331,7 +358,7 @@ impl TokenomicsSystem {
     ) -> anyhow::Result<Uuid> {
         // Generate quantum randomness for the proposal
         let quantum_random = self.generate_quantum_governance_random(&title).await?;
-        
+
         let proposal_data = QuadraticProposalData {
             title,
             description,
@@ -340,12 +367,10 @@ impl TokenomicsSystem {
             expected_impact,
             required_quorum: 0.1, // 10% participation required
         };
-        
-        self.advanced_governance.create_quadratic_proposal(
-            proposer.clone(),
-            proposal_data,
-            quantum_random,
-        ).await
+
+        self.advanced_governance
+            .create_quadratic_proposal(proposer.clone(), proposal_data, quantum_random)
+            .await
     }
 
     /// Cast quadratic vote on governance proposal
@@ -356,12 +381,9 @@ impl TokenomicsSystem {
         vote_strength: f64,
         max_cost: u64,
     ) -> anyhow::Result<QuadraticVoteResult> {
-        self.advanced_governance.cast_quadratic_vote(
-            voter.clone(),
-            proposal_id,
-            vote_strength,
-            max_cost,
-        ).await
+        self.advanced_governance
+            .cast_quadratic_vote(voter.clone(), proposal_id, vote_strength, max_cost)
+            .await
     }
 
     /// Create futarchy prediction market for complex decisions
@@ -384,12 +406,10 @@ impl TokenomicsSystem {
                 timeline_risk: advanced_governance::RiskLevel::Low,
             },
         };
-        
-        self.advanced_governance.create_futarchy_market(
-            proposer.clone(),
-            proposal_data,
-            success_metrics,
-        ).await
+
+        self.advanced_governance
+            .create_futarchy_market(proposer.clone(), proposal_data, success_metrics)
+            .await
     }
 
     /// Start conviction voting for funding proposals
@@ -407,12 +427,10 @@ impl TokenomicsSystem {
             deliverables,
             timeline: "3-6 months".to_string(),
         };
-        
-        self.advanced_governance.start_conviction_voting(
-            proposer.clone(),
-            proposal_data,
-            funding_requested,
-        ).await
+
+        self.advanced_governance
+            .start_conviction_voting(proposer.clone(), proposal_data, funding_requested)
+            .await
     }
 
     /// Signal conviction for funding proposal
@@ -422,11 +440,9 @@ impl TokenomicsSystem {
         proposal_id: Uuid,
         token_amount: u64,
     ) -> anyhow::Result<ConvictionSignalResult> {
-        self.advanced_governance.signal_conviction(
-            supporter.clone(),
-            proposal_id,
-            token_amount,
-        ).await
+        self.advanced_governance
+            .signal_conviction(supporter.clone(), proposal_id, token_amount)
+            .await
     }
 
     /// Delegate voting power to another participant
@@ -438,13 +454,15 @@ impl TokenomicsSystem {
         duration_days: u32,
     ) -> anyhow::Result<DelegationResult> {
         let expiry = Utc::now() + chrono::Duration::days(duration_days as i64);
-        
-        self.advanced_governance.delegate_voting_power(
-            delegator.clone(),
-            delegatee.clone(),
-            delegation_type,
-            expiry,
-        ).await
+
+        self.advanced_governance
+            .delegate_voting_power(
+                delegator.clone(),
+                delegatee.clone(),
+                delegation_type,
+                expiry,
+            )
+            .await
     }
 
     /// Get comprehensive governance statistics
@@ -455,20 +473,29 @@ impl TokenomicsSystem {
     /// Update network analytics with current system state
     pub async fn update_network_analytics(&mut self) -> anyhow::Result<()> {
         let network_state = self.get_current_network_state().await?;
-        self.network_analytics.update_network_state(&network_state).await
+        self.network_analytics
+            .update_network_state(&network_state)
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to update network analytics: {:?}", e))?;
         Ok(())
     }
 
     /// Get real-time dashboard data
     pub async fn get_dashboard_data(&self) -> anyhow::Result<DashboardData> {
-        self.network_analytics.get_dashboard_data().await
+        self.network_analytics
+            .get_dashboard_data()
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to get dashboard data: {:?}", e))
     }
 
     /// Generate analytics report for specified timeframe
-    pub async fn generate_analytics_report(&self, timeframe: TimeFrame) -> anyhow::Result<AnalyticsReport> {
-        self.network_analytics.generate_report(timeframe).await
+    pub async fn generate_analytics_report(
+        &self,
+        timeframe: TimeFrame,
+    ) -> anyhow::Result<AnalyticsReport> {
+        self.network_analytics
+            .generate_report(timeframe)
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to generate analytics report: {:?}", e))
     }
 
@@ -477,128 +504,195 @@ impl TokenomicsSystem {
         // This would typically gather data from various system components
         // For now, we'll create a representative state
         Ok(NetworkState {
-            total_supply: 1000000, // This would come from core_token
-            active_participants: 100, // This would come from reputation_ledger
-            transaction_volume: 50000, // This would come from transaction data
-            transaction_throughput: 100.0, // Calculated from recent performance
-            uptime_percentage: 0.99, // System uptime
-            avg_consensus_time: 2.5, // Average block time
-            error_rate: 0.01, // Error rate from monitoring
-            resource_utilization: 0.75, // System resource usage
-            token_velocity: 3.2, // Economic metric
-            network_growth: 0.15, // Growth rate
-            inflation_rate: 0.05, // Current inflation
+            total_supply: 1000000,                   // This would come from core_token
+            active_participants: 100,                // This would come from reputation_ledger
+            transaction_volume: 50000,               // This would come from transaction data
+            transaction_throughput: 100.0,           // Calculated from recent performance
+            uptime_percentage: 0.99,                 // System uptime
+            avg_consensus_time: 2.5,                 // Average block time
+            error_rate: 0.01,                        // Error rate from monitoring
+            resource_utilization: 0.75,              // System resource usage
+            token_velocity: 3.2,                     // Economic metric
+            network_growth: 0.15,                    // Growth rate
+            inflation_rate: 0.05,                    // Current inflation
             top_10_validator_stake_percentage: 0.35, // Decentralization metric
-            geographic_diversity_index: 0.8, // Geographic distribution
-            wealth_concentration_gini: 0.4, // Wealth distribution
-            treasury_balance: 500000, // Treasury holdings
-            mint_rate: 0.02, // Token minting rate
-            burn_rate: 0.01, // Token burning rate
-            total_rewards: 10000, // Total rewards distributed
-            productive_work_rewards: 8000, // Rewards for productive work
-            avg_transaction_fee: 0.01, // Average transaction cost
-            contributor_satisfaction_score: 0.85, // User satisfaction
-            governance_participation_rate: 0.6, // Governance engagement
-            monthly_active_user_retention: 0.8, // User retention
+            geographic_diversity_index: 0.8,         // Geographic distribution
+            wealth_concentration_gini: 0.4,          // Wealth distribution
+            treasury_balance: 500000,                // Treasury holdings
+            mint_rate: 0.02,                         // Token minting rate
+            burn_rate: 0.01,                         // Token burning rate
+            total_rewards: 10000,                    // Total rewards distributed
+            productive_work_rewards: 8000,           // Rewards for productive work
+            avg_transaction_fee: 0.01,               // Average transaction cost
+            contributor_satisfaction_score: 0.85,    // User satisfaction
+            governance_participation_rate: 0.6,      // Governance engagement
+            monthly_active_user_retention: 0.8,      // User retention
         })
     }
 
     /// Get AI-generated governance proposals
     pub async fn get_ai_generated_proposals(&mut self) -> anyhow::Result<Vec<AIGeneratedProposal>> {
         let network_state = self.get_current_network_state().await?;
-        self.ai_agent_governance.generate_ai_proposals(&network_state).await
+        self.ai_agent_governance
+            .generate_ai_proposals(&network_state)
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to generate AI proposals: {:?}", e))
     }
 
     /// Get AI agent analysis of a proposal
-    pub async fn get_ai_agent_analysis(&mut self, proposal_id: Uuid, proposal_data: &ProposalData) -> anyhow::Result<Vec<ai_agent_governance::AIAgentVote>> {
-        self.ai_agent_governance.agents_analyze_proposal(proposal_id, proposal_data).await
+    pub async fn get_ai_agent_analysis(
+        &mut self,
+        proposal_id: Uuid,
+        proposal_data: &ProposalData,
+    ) -> anyhow::Result<Vec<ai_agent_governance::AIAgentVote>> {
+        self.ai_agent_governance
+            .agents_analyze_proposal(proposal_id, proposal_data)
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to get AI agent analysis: {:?}", e))
     }
 
     /// Predict consensus likelihood using AI
-    pub async fn predict_proposal_consensus(&self, proposal_data: &ProposalData, current_votes: &[HumanVote]) -> anyhow::Result<ConsensusPrediction> {
-        self.ai_agent_governance.predict_consensus(proposal_data, current_votes).await
+    pub async fn predict_proposal_consensus(
+        &self,
+        proposal_data: &ProposalData,
+        current_votes: &[HumanVote],
+    ) -> anyhow::Result<ConsensusPrediction> {
+        self.ai_agent_governance
+            .predict_consensus(proposal_data, current_votes)
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to predict consensus: {:?}", e))
     }
 
     /// Submit human feedback for AI agents
-    pub async fn submit_agent_feedback(&mut self, agent_id: Uuid, feedback: HumanFeedback) -> anyhow::Result<()> {
-        self.ai_agent_governance.process_human_feedback(agent_id, feedback).await
+    pub async fn submit_agent_feedback(
+        &mut self,
+        agent_id: Uuid,
+        feedback: HumanFeedback,
+    ) -> anyhow::Result<()> {
+        self.ai_agent_governance
+            .process_human_feedback(agent_id, feedback)
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to process agent feedback: {:?}", e))
     }
 
     /// Get AI agent governance statistics
     pub async fn get_ai_agent_statistics(&self) -> anyhow::Result<AgentGovernanceStats> {
-        self.ai_agent_governance.get_agent_statistics().await
+        self.ai_agent_governance
+            .get_agent_statistics()
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to get agent statistics: {:?}", e))
     }
 
     /// Evolve AI agents based on performance
     pub async fn evolve_ai_agents(&mut self) -> anyhow::Result<EvolutionReport> {
-        self.ai_agent_governance.evolve_agents().await
+        self.ai_agent_governance
+            .evolve_agents()
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to evolve AI agents: {:?}", e))
     }
 
     /// Register a new AI governance agent
     pub async fn register_ai_agent(&mut self, agent: AIGovernanceAgent) -> anyhow::Result<Uuid> {
-        self.ai_agent_governance.register_agent(agent).await
+        self.ai_agent_governance
+            .register_agent(agent)
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to register AI agent: {:?}", e))
     }
 
     /// Get all AI governance agents
     pub async fn get_all_ai_agents(&self) -> anyhow::Result<Vec<AIGovernanceAgent>> {
-        self.ai_agent_governance.get_all_agents().await
+        self.ai_agent_governance
+            .get_all_agents()
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to get AI agents: {:?}", e))
     }
 
     /// Evolve tokens for a specific address
     pub async fn evolve_tokens(&mut self, address: &Address) -> anyhow::Result<EvolutionResult> {
         let network_state = self.get_current_network_state().await?;
-        self.temporal_evolution.evolve_tokens(address, &network_state).await
+        self.temporal_evolution
+            .evolve_tokens(address, &network_state)
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to evolve tokens: {:?}", e))
     }
 
     /// Stake tokens with temporal evolution benefits
-    pub async fn stake_tokens_temporal(&mut self, address: &Address, amount: u64, staking_type: TemporalStakingType) -> anyhow::Result<StakingResult> {
-        self.temporal_evolution.stake_tokens(address, amount, staking_type).await
+    pub async fn stake_tokens_temporal(
+        &mut self,
+        address: &Address,
+        amount: u64,
+        staking_type: TemporalStakingType,
+    ) -> anyhow::Result<StakingResult> {
+        self.temporal_evolution
+            .stake_tokens(address, amount, staking_type)
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to stake tokens: {:?}", e))
     }
 
     /// Unstake tokens from temporal staking
-    pub async fn unstake_tokens_temporal(&mut self, address: &Address, stake_id: Uuid) -> anyhow::Result<UnstakingResult> {
-        self.temporal_evolution.unstake_tokens(address, stake_id).await
+    pub async fn unstake_tokens_temporal(
+        &mut self,
+        address: &Address,
+        stake_id: Uuid,
+    ) -> anyhow::Result<UnstakingResult> {
+        self.temporal_evolution
+            .unstake_tokens(address, stake_id)
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to unstake tokens: {:?}", e))
     }
 
     /// Get token evolution state for an address
-    pub async fn get_token_evolution_state(&self, address: &Address) -> anyhow::Result<Option<TokenState>> {
-        self.temporal_evolution.get_token_state(address).await
+    pub async fn get_token_evolution_state(
+        &self,
+        address: &Address,
+    ) -> anyhow::Result<Option<TokenState>> {
+        self.temporal_evolution
+            .get_token_state(address)
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to get token state: {:?}", e))
     }
 
     /// Get temporal staking information
-    pub async fn get_temporal_staking_info(&self, address: &Address) -> anyhow::Result<Vec<TemporalStake>> {
-        self.temporal_evolution.get_staking_info(address).await
+    pub async fn get_temporal_staking_info(
+        &self,
+        address: &Address,
+    ) -> anyhow::Result<Vec<TemporalStake>> {
+        self.temporal_evolution
+            .get_staking_info(address)
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to get staking info: {:?}", e))
     }
 
     /// Predict token evolution for future timeframe
-    pub async fn predict_token_evolution(&self, address: &Address, time_horizon: chrono::Duration) -> anyhow::Result<EvolutionPrediction> {
-        self.temporal_evolution.predict_evolution(address, time_horizon).await
+    pub async fn predict_token_evolution(
+        &self,
+        address: &Address,
+        time_horizon: chrono::Duration,
+    ) -> anyhow::Result<EvolutionPrediction> {
+        self.temporal_evolution
+            .predict_evolution(address, time_horizon)
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to predict evolution: {:?}", e))
     }
 
     /// Process global token evolution for all addresses
-    pub async fn process_global_token_evolution(&mut self) -> anyhow::Result<GlobalEvolutionResult> {
+    pub async fn process_global_token_evolution(
+        &mut self,
+    ) -> anyhow::Result<GlobalEvolutionResult> {
         let network_state = self.get_current_network_state().await?;
-        self.temporal_evolution.process_global_evolution(&network_state).await
+        self.temporal_evolution
+            .process_global_evolution(&network_state)
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to process global evolution: {:?}", e))
     }
 
     /// Get temporal evolution metrics
-    pub async fn get_evolution_metrics(&self) -> anyhow::Result<temporal_evolution::EvolutionMetrics> {
-        self.temporal_evolution.get_evolution_metrics().await
+    pub async fn get_evolution_metrics(
+        &self,
+    ) -> anyhow::Result<temporal_evolution::EvolutionMetrics> {
+        self.temporal_evolution
+            .get_evolution_metrics()
+            .await
             .map_err(|e| anyhow::anyhow!("Failed to get evolution metrics: {:?}", e))
     }
 }
@@ -649,7 +743,7 @@ pub struct ContributionProof {
 pub struct ValidationResult {
     pub valid: bool,
     pub compute_units: u64,
-    pub quality_score: f64, // 0.0 to 1.0
-    pub novelty_score: f64, // 0.0 to 1.0
+    pub quality_score: f64,         // 0.0 to 1.0
+    pub novelty_score: f64,         // 0.0 to 1.0
     pub peer_validation_score: f64, // 0.0 to 1.0
 }

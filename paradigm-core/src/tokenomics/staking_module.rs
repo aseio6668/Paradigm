@@ -3,6 +3,10 @@
 pub struct StakingModule;
 
 impl StakingModule {
-    pub fn new() -> Self { StakingModule }
-    pub async fn initialize(&mut self) -> anyhow::Result<()> { Ok(()) }
+    pub fn new() -> Self {
+        StakingModule
+    }
+    pub async fn initialize(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
 }

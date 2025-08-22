@@ -1,11 +1,11 @@
 //! Enterprise integration capabilities
-//! 
+//!
 //! This module provides enterprise-grade features including API management,
 //! compliance tools, monitoring, and enterprise wallet management.
 
-use crate::types::*;
-use crate::error::{Result, ParadigmError, ErrorExt};
 use crate::client::ParadigmClient;
+use crate::error::{ErrorExt, ParadigmError, Result};
+use crate::types::*;
 use crate::wallet::{Wallet, WalletManager};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -74,9 +74,15 @@ pub enum RateLimitTier {
 impl RateLimitTier {
     pub fn requests_per_minute(&self) -> Option<u32> {
         match self {
-            RateLimitTier::Basic { requests_per_minute } => Some(*requests_per_minute),
-            RateLimitTier::Professional { requests_per_minute } => Some(*requests_per_minute),
-            RateLimitTier::Enterprise { requests_per_minute } => Some(*requests_per_minute),
+            RateLimitTier::Basic {
+                requests_per_minute,
+            } => Some(*requests_per_minute),
+            RateLimitTier::Professional {
+                requests_per_minute,
+            } => Some(*requests_per_minute),
+            RateLimitTier::Enterprise {
+                requests_per_minute,
+            } => Some(*requests_per_minute),
             RateLimitTier::Unlimited => None,
         }
     }
@@ -125,16 +131,16 @@ impl RateLimiter {
             requests_in_window: 0,
         }
     }
-    
+
     pub fn allow_request(&mut self) -> bool {
         let now = SystemTime::now();
-        
+
         // Reset window if a minute has passed
         if now.duration_since(self.window_start).unwrap_or_default() >= Duration::from_secs(60) {
             self.window_start = now;
             self.requests_in_window = 0;
         }
-        
+
         match self.tier.requests_per_minute() {
             Some(limit) => {
                 if self.requests_in_window < limit {
@@ -227,7 +233,9 @@ pub struct EnterpriseConfig {
 impl Default for EnterpriseConfig {
     fn default() -> Self {
         Self {
-            default_rate_limit: RateLimitTier::Professional { requests_per_minute: 1000 },
+            default_rate_limit: RateLimitTier::Professional {
+                requests_per_minute: 1000,
+            },
             enable_audit_logging: true,
             audit_retention_days: 365,
             enable_compliance: true,
@@ -322,7 +330,7 @@ impl EnterpriseApiManager {
             config,
         }
     }
-    
+
     /// Create new API key
     pub async fn create_api_key(
         &self,
@@ -341,45 +349,52 @@ impl EnterpriseApiManager {
             active: true,
             usage_stats: ApiUsageStats::default(),
         };
-        
+
         // Store API key
-        self.api_keys.write().await.insert(api_key.key.clone(), api_key.clone());
-        
+        self.api_keys
+            .write()
+            .await
+            .insert(api_key.key.clone(), api_key.clone());
+
         // Create rate limiter
         self.rate_limiters.write().await.insert(
             api_key.key.clone(),
             RateLimiter::new(api_key.rate_limit_tier.clone()),
         );
-        
+
         Ok(api_key)
     }
-    
+
     /// Validate API key and check permissions
-    pub async fn validate_api_key(&self, key: &str, required_permission: ApiPermission) -> Result<bool> {
+    pub async fn validate_api_key(
+        &self,
+        key: &str,
+        required_permission: ApiPermission,
+    ) -> Result<bool> {
         let api_keys = self.api_keys.read().await;
-        
+
         if let Some(api_key) = api_keys.get(key) {
             if !api_key.active {
                 return Ok(false);
             }
-            
+
             if let Some(expires_at) = api_key.expires_at {
                 if SystemTime::now() > expires_at {
                     return Ok(false);
                 }
             }
-            
-            Ok(api_key.permissions.contains(&required_permission) || 
-               api_key.permissions.contains(&ApiPermission::AdminAccess))
+
+            Ok(api_key.permissions.contains(&required_permission)
+                || api_key.permissions.contains(&ApiPermission::AdminAccess))
         } else {
             Ok(false)
         }
     }
-    
+
     /// Check rate limit for API key
     pub async fn check_rate_limit(&self, key: &str) -> Result<bool> {
         let mut rate_limiters = self.rate_limiters.write().await;
-        
+
         if let Some(rate_limiter) = rate_limiters.get_mut(key) {
             if rate_limiter.allow_request() {
                 // Update usage stats
@@ -394,7 +409,7 @@ impl EnterpriseApiManager {
             Err(ParadigmError::Authentication("Invalid API key".to_string()))
         }
     }
-    
+
     /// Update usage statistics
     async fn update_usage_stats(&self, key: &str, rate_limited: bool) {
         let mut api_keys = self.api_keys.write().await;
@@ -402,17 +417,17 @@ impl EnterpriseApiManager {
             api_key.usage_stats.total_requests += 1;
             api_key.usage_stats.current_period_requests += 1;
             api_key.usage_stats.last_request_at = Some(SystemTime::now());
-            
+
             if rate_limited {
                 api_key.usage_stats.rate_limit_violations += 1;
             }
         }
-        
+
         // Update global analytics
         let mut analytics = self.analytics.write().await;
         analytics.total_calls += 1;
     }
-    
+
     /// Generate secure API key
     fn generate_api_key(&self) -> String {
         use rand::RngCore;
@@ -420,21 +435,23 @@ impl EnterpriseApiManager {
         rand::rngs::OsRng.fill_bytes(&mut bytes);
         format!("pk_{}", hex::encode(bytes))
     }
-    
+
     /// Get API analytics
     pub async fn get_analytics(&self) -> ApiAnalytics {
         self.analytics.read().await.clone()
     }
-    
+
     /// List API keys for organization
     pub async fn list_api_keys(&self, organization: &str) -> Vec<ApiKey> {
-        self.api_keys.read().await
+        self.api_keys
+            .read()
+            .await
             .values()
             .filter(|key| key.organization == organization)
             .cloned()
             .collect()
     }
-    
+
     /// Revoke API key
     pub async fn revoke_api_key(&self, key: &str) -> Result<()> {
         let mut api_keys = self.api_keys.write().await;
@@ -485,7 +502,10 @@ pub enum ComplianceRuleType {
     /// Large transaction threshold
     LargeTransaction { threshold: Amount },
     /// Rapid succession of transactions
-    RapidTransactions { count: u32, time_window_minutes: u32 },
+    RapidTransactions {
+        count: u32,
+        time_window_minutes: u32,
+    },
     /// Unusual transaction patterns
     UnusualPattern { pattern_type: String },
     /// Transactions with watchlist addresses
@@ -677,23 +697,29 @@ impl ComplianceMonitor {
             config,
         }
     }
-    
+
     /// Add compliance rule
     pub async fn add_rule(&self, rule: ComplianceRule) {
         self.rules.write().await.push(rule);
     }
-    
+
     /// Monitor transaction for compliance
-    pub async fn monitor_transaction(&self, transaction: &Transaction) -> Result<Vec<ComplianceAlert>> {
+    pub async fn monitor_transaction(
+        &self,
+        transaction: &Transaction,
+    ) -> Result<Vec<ComplianceAlert>> {
         let rules = self.rules.read().await;
         let mut triggered_alerts = Vec::new();
-        
+
         for rule in rules.iter() {
             if !rule.active {
                 continue;
             }
-            
-            if self.check_rule_against_transaction(rule, transaction).await? {
+
+            if self
+                .check_rule_against_transaction(rule, transaction)
+                .await?
+            {
                 let alert = ComplianceAlert {
                     id: Uuid::new_v4(),
                     rule_id: rule.id,
@@ -706,30 +732,41 @@ impl ComplianceMonitor {
                     assigned_to: None,
                     resolution_notes: None,
                 };
-                
+
                 triggered_alerts.push(alert.clone());
                 self.alerts.write().await.push(alert);
-                
+
                 // Execute compliance actions
-                self.execute_compliance_actions(&rule.actions, transaction).await?;
+                self.execute_compliance_actions(&rule.actions, transaction)
+                    .await?;
             }
         }
-        
+
         Ok(triggered_alerts)
     }
-    
+
     /// Check if rule applies to transaction
-    async fn check_rule_against_transaction(&self, rule: &ComplianceRule, transaction: &Transaction) -> Result<bool> {
+    async fn check_rule_against_transaction(
+        &self,
+        rule: &ComplianceRule,
+        transaction: &Transaction,
+    ) -> Result<bool> {
         match &rule.rule_type {
             ComplianceRuleType::LargeTransaction { threshold } => {
                 Ok(transaction.value >= *threshold)
             }
             ComplianceRuleType::WatchlistInteraction => {
                 let watchlist = self.watchlist.read().await;
-                Ok(watchlist.contains_key(&transaction.from) || 
-                   transaction.to.as_ref().map_or(false, |to| watchlist.contains_key(to)))
+                Ok(watchlist.contains_key(&transaction.from)
+                    || transaction
+                        .to
+                        .as_ref()
+                        .map_or(false, |to| watchlist.contains_key(to)))
             }
-            ComplianceRuleType::RapidTransactions { count: _, time_window_minutes: _ } => {
+            ComplianceRuleType::RapidTransactions {
+                count: _,
+                time_window_minutes: _,
+            } => {
                 // Would need access to transaction history to implement
                 Ok(false)
             }
@@ -747,9 +784,13 @@ impl ComplianceMonitor {
             }
         }
     }
-    
+
     /// Execute compliance actions
-    async fn execute_compliance_actions(&self, actions: &[ComplianceAction], _transaction: &Transaction) -> Result<()> {
+    async fn execute_compliance_actions(
+        &self,
+        actions: &[ComplianceAction],
+        _transaction: &Transaction,
+    ) -> Result<()> {
         for action in actions {
             match action {
                 ComplianceAction::Log => {
@@ -774,28 +815,40 @@ impl ComplianceMonitor {
         }
         Ok(())
     }
-    
+
     /// Add address to watchlist
     pub async fn add_to_watchlist(&self, entry: WatchlistEntry) {
-        self.watchlist.write().await.insert(entry.address.clone(), entry);
+        self.watchlist
+            .write()
+            .await
+            .insert(entry.address.clone(), entry);
     }
-    
+
     /// Remove address from watchlist
     pub async fn remove_from_watchlist(&self, address: &Address) -> bool {
         self.watchlist.write().await.remove(address).is_some()
     }
-    
+
     /// Get all alerts
     pub async fn get_alerts(&self, status_filter: Option<AlertStatus>) -> Vec<ComplianceAlert> {
         let alerts = self.alerts.read().await;
         match status_filter {
-            Some(status) => alerts.iter().filter(|alert| alert.status == status).cloned().collect(),
+            Some(status) => alerts
+                .iter()
+                .filter(|alert| alert.status == status)
+                .cloned()
+                .collect(),
             None => alerts.clone(),
         }
     }
-    
+
     /// Update alert status
-    pub async fn update_alert_status(&self, alert_id: Uuid, status: AlertStatus, assigned_to: Option<String>) -> Result<()> {
+    pub async fn update_alert_status(
+        &self,
+        alert_id: Uuid,
+        status: AlertStatus,
+        assigned_to: Option<String>,
+    ) -> Result<()> {
         let mut alerts = self.alerts.write().await;
         if let Some(alert) = alerts.iter_mut().find(|a| a.id == alert_id) {
             alert.status = status;
@@ -959,7 +1012,7 @@ impl EnterpriseWalletManager {
             config,
         }
     }
-    
+
     /// Create multisig wallet
     pub async fn create_multisig_wallet(
         &self,
@@ -968,9 +1021,11 @@ impl EnterpriseWalletManager {
         signers: Vec<Address>,
     ) -> Result<Uuid> {
         if required_signatures == 0 || required_signatures > signers.len() as u32 {
-            return Err(ParadigmError::Validation("Invalid signature requirements".to_string()));
+            return Err(ParadigmError::Validation(
+                "Invalid signature requirements".to_string(),
+            ));
         }
-        
+
         let multisig_wallet = MultisigWallet {
             id: Uuid::new_v4(),
             name,
@@ -979,13 +1034,16 @@ impl EnterpriseWalletManager {
             pending_transactions: Vec::new(),
             created_at: SystemTime::now(),
         };
-        
+
         let id = multisig_wallet.id;
-        self.multisig_configs.write().await.insert(id, multisig_wallet);
-        
+        self.multisig_configs
+            .write()
+            .await
+            .insert(id, multisig_wallet);
+
         Ok(id)
     }
-    
+
     /// Submit transaction for multisig approval
     pub async fn submit_multisig_transaction(
         &self,
@@ -993,28 +1051,31 @@ impl EnterpriseWalletManager {
         transaction: Transaction,
     ) -> Result<Uuid> {
         let mut multisig_configs = self.multisig_configs.write().await;
-        
+
         if let Some(wallet) = multisig_configs.get_mut(&wallet_id) {
             let pending_tx = PendingMultisigTransaction {
                 id: Uuid::new_v4(),
                 transaction,
                 signatures: Vec::new(),
                 created_at: SystemTime::now(),
-                expires_at: SystemTime::now() + Duration::from_secs(
-                    self.config.multisig_config.signature_timeout_hours as u64 * 3600
-                ),
+                expires_at: SystemTime::now()
+                    + Duration::from_secs(
+                        self.config.multisig_config.signature_timeout_hours as u64 * 3600,
+                    ),
                 status: MultisigTransactionStatus::Pending,
             };
-            
+
             let tx_id = pending_tx.id;
             wallet.pending_transactions.push(pending_tx);
-            
+
             Ok(tx_id)
         } else {
-            Err(ParadigmError::NotFound("Multisig wallet not found".to_string()))
+            Err(ParadigmError::NotFound(
+                "Multisig wallet not found".to_string(),
+            ))
         }
     }
-    
+
     /// Sign multisig transaction
     pub async fn sign_multisig_transaction(
         &self,
@@ -1024,56 +1085,75 @@ impl EnterpriseWalletManager {
         signature: Vec<u8>,
     ) -> Result<()> {
         let mut multisig_configs = self.multisig_configs.write().await;
-        
+
         if let Some(wallet) = multisig_configs.get_mut(&wallet_id) {
             if !wallet.signers.contains(&signer) {
-                return Err(ParadigmError::Authorization("Signer not authorized".to_string()));
+                return Err(ParadigmError::Authorization(
+                    "Signer not authorized".to_string(),
+                ));
             }
-            
-            if let Some(pending_tx) = wallet.pending_transactions.iter_mut().find(|tx| tx.id == transaction_id) {
+
+            if let Some(pending_tx) = wallet
+                .pending_transactions
+                .iter_mut()
+                .find(|tx| tx.id == transaction_id)
+            {
                 if pending_tx.status != MultisigTransactionStatus::Pending {
-                    return Err(ParadigmError::Validation("Transaction not in pending state".to_string()));
+                    return Err(ParadigmError::Validation(
+                        "Transaction not in pending state".to_string(),
+                    ));
                 }
-                
+
                 if SystemTime::now() > pending_tx.expires_at {
                     pending_tx.status = MultisigTransactionStatus::Expired;
                     return Err(ParadigmError::Timeout("Transaction expired".to_string()));
                 }
-                
+
                 // Check if already signed
                 if pending_tx.signatures.iter().any(|sig| sig.signer == signer) {
-                    return Err(ParadigmError::Validation("Already signed by this signer".to_string()));
+                    return Err(ParadigmError::Validation(
+                        "Already signed by this signer".to_string(),
+                    ));
                 }
-                
+
                 // Add signature
                 pending_tx.signatures.push(MultisigSignature {
                     signer,
                     signature,
                     signed_at: SystemTime::now(),
                 });
-                
+
                 // Check if enough signatures
                 if pending_tx.signatures.len() >= wallet.required_signatures as usize {
                     pending_tx.status = MultisigTransactionStatus::Approved;
                 }
-                
+
                 Ok(())
             } else {
-                Err(ParadigmError::NotFound("Pending transaction not found".to_string()))
+                Err(ParadigmError::NotFound(
+                    "Pending transaction not found".to_string(),
+                ))
             }
         } else {
-            Err(ParadigmError::NotFound("Multisig wallet not found".to_string()))
+            Err(ParadigmError::NotFound(
+                "Multisig wallet not found".to_string(),
+            ))
         }
     }
-    
+
     /// Get pending multisig transactions
-    pub async fn get_pending_transactions(&self, wallet_id: Uuid) -> Result<Vec<PendingMultisigTransaction>> {
+    pub async fn get_pending_transactions(
+        &self,
+        wallet_id: Uuid,
+    ) -> Result<Vec<PendingMultisigTransaction>> {
         let multisig_configs = self.multisig_configs.read().await;
-        
+
         if let Some(wallet) = multisig_configs.get(&wallet_id) {
             Ok(wallet.pending_transactions.clone())
         } else {
-            Err(ParadigmError::NotFound("Multisig wallet not found".to_string()))
+            Err(ParadigmError::NotFound(
+                "Multisig wallet not found".to_string(),
+            ))
         }
     }
 }
@@ -1081,91 +1161,101 @@ impl EnterpriseWalletManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_enterprise_api_manager() {
         let config = EnterpriseConfig::default();
         let api_manager = EnterpriseApiManager::new(config);
-        
-        let api_key = api_manager.create_api_key(
-            "TestOrg".to_string(),
-            vec![ApiPermission::ReadBlocks, ApiPermission::ReadTransactions],
-            None,
-        ).await.unwrap();
-        
-        assert!(api_manager.validate_api_key(&api_key.key, ApiPermission::ReadBlocks).await.unwrap());
-        assert!(!api_manager.validate_api_key(&api_key.key, ApiPermission::AdminAccess).await.unwrap());
-        
+
+        let api_key = api_manager
+            .create_api_key(
+                "TestOrg".to_string(),
+                vec![ApiPermission::ReadBlocks, ApiPermission::ReadTransactions],
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert!(api_manager
+            .validate_api_key(&api_key.key, ApiPermission::ReadBlocks)
+            .await
+            .unwrap());
+        assert!(!api_manager
+            .validate_api_key(&api_key.key, ApiPermission::AdminAccess)
+            .await
+            .unwrap());
+
         assert!(api_manager.check_rate_limit(&api_key.key).await.unwrap());
     }
-    
+
     #[tokio::test]
     async fn test_compliance_monitor() {
         let config = ComplianceConfig::default();
         let monitor = ComplianceMonitor::new(config);
-        
+
         let rule = ComplianceRule {
             id: Uuid::new_v4(),
             name: "Large Transaction".to_string(),
             description: "Detect large transactions".to_string(),
-            rule_type: ComplianceRuleType::LargeTransaction { 
-                threshold: Amount::from_paradigm(1000) 
+            rule_type: ComplianceRuleType::LargeTransaction {
+                threshold: Amount::from_paradigm(1000),
             },
             active: true,
             severity: ComplianceSeverity::High,
             actions: vec![ComplianceAction::Alert],
         };
-        
+
         monitor.add_rule(rule).await;
-        
+
         let transaction = Transaction {
             value: Amount::from_paradigm(2000),
             from: crate::utils::crypto::random_address(),
             ..crate::utils::debug::create_debug_transaction()
         };
-        
+
         let alerts = monitor.monitor_transaction(&transaction).await.unwrap();
         assert_eq!(alerts.len(), 1);
         assert_eq!(alerts[0].severity, ComplianceSeverity::High);
     }
-    
+
     #[tokio::test]
     async fn test_multisig_wallet() {
         let config = EnterpriseConfig::default();
         let wallet_manager = EnterpriseWalletManager::new(config);
-        
+
         let signers = vec![
             crate::utils::crypto::random_address(),
             crate::utils::crypto::random_address(),
             crate::utils::crypto::random_address(),
         ];
-        
-        let wallet_id = wallet_manager.create_multisig_wallet(
-            "Test Multisig".to_string(),
-            2,
-            signers.clone(),
-        ).await.unwrap();
-        
+
+        let wallet_id = wallet_manager
+            .create_multisig_wallet("Test Multisig".to_string(), 2, signers.clone())
+            .await
+            .unwrap();
+
         let transaction = crate::utils::debug::create_debug_transaction();
-        let tx_id = wallet_manager.submit_multisig_transaction(wallet_id, transaction).await.unwrap();
-        
+        let tx_id = wallet_manager
+            .submit_multisig_transaction(wallet_id, transaction)
+            .await
+            .unwrap();
+
         // First signature
-        wallet_manager.sign_multisig_transaction(
-            wallet_id,
-            tx_id,
-            signers[0].clone(),
-            vec![0; 65],
-        ).await.unwrap();
-        
+        wallet_manager
+            .sign_multisig_transaction(wallet_id, tx_id, signers[0].clone(), vec![0; 65])
+            .await
+            .unwrap();
+
         // Second signature
-        wallet_manager.sign_multisig_transaction(
-            wallet_id,
-            tx_id,
-            signers[1].clone(),
-            vec![0; 65],
-        ).await.unwrap();
-        
-        let pending_txs = wallet_manager.get_pending_transactions(wallet_id).await.unwrap();
+        wallet_manager
+            .sign_multisig_transaction(wallet_id, tx_id, signers[1].clone(), vec![0; 65])
+            .await
+            .unwrap();
+
+        let pending_txs = wallet_manager
+            .get_pending_transactions(wallet_id)
+            .await
+            .unwrap();
         assert_eq!(pending_txs[0].status, MultisigTransactionStatus::Approved);
     }
 }

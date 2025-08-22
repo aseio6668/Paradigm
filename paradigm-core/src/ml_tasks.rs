@@ -1,9 +1,9 @@
 // ML tasks module - simplified implementation without external ML libraries
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tokio::time::Duration;
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MLTask {
@@ -76,7 +76,10 @@ impl MLTaskEngine {
         task
     }
 
-    pub async fn submit_result(&mut self, result: MLTaskResult) -> Result<bool, crate::error::ParadigmError> {
+    pub async fn submit_result(
+        &mut self,
+        result: MLTaskResult,
+    ) -> Result<bool, crate::error::ParadigmError> {
         if let Some(task) = self.pending_tasks.remove(&result.task_id) {
             // Basic validation - in a real implementation, this would verify the ML computation
             if !result.result.is_empty() && !result.proof.is_empty() {
@@ -143,8 +146,10 @@ mod tests {
     #[tokio::test]
     async fn test_ml_task_creation() {
         let mut engine = MLTaskEngine::new();
-        let task = engine.create_task("test".to_string(), vec![1, 2, 3], 100).await;
-        
+        let task = engine
+            .create_task("test".to_string(), vec![1, 2, 3], 100)
+            .await;
+
         assert_eq!(task.task_type, "test");
         assert_eq!(task.data, vec![1, 2, 3]);
         assert_eq!(task.reward, 100);
@@ -153,8 +158,10 @@ mod tests {
     #[tokio::test]
     async fn test_ml_task_submission() {
         let mut engine = MLTaskEngine::new();
-        let task = engine.create_task("test".to_string(), vec![1, 2, 3], 100).await;
-        
+        let task = engine
+            .create_task("test".to_string(), vec![1, 2, 3], 100)
+            .await;
+
         let result = MLTaskResult {
             task_id: task.id,
             result: vec![4, 5, 6],

@@ -1,16 +1,16 @@
 // Network Scaling and Throughput Optimization
 // Implements advanced networking features for massive scalability
 
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{RwLock, mpsc, Semaphore};
-use anyhow::Result;
+use tokio::sync::{mpsc, RwLock, Semaphore};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
-use serde::{Serialize, Deserialize};
-use tracing::{info, debug, warn, error};
 
-use crate::{Transaction, Address, ParadigmError};
+use crate::{Address, ParadigmError, Transaction};
 
 /// Network scaling configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,19 +47,19 @@ impl Default for NetworkScalingConfig {
 /// Advanced network scaling manager
 pub struct NetworkScalingManager {
     config: NetworkScalingConfig,
-    
+
     // Sharding infrastructure
     shard_manager: Arc<ShardManager>,
     load_balancer: Arc<LoadBalancer>,
-    
+
     // Connection management
     connection_pool: Arc<ConnectionPool>,
     adaptive_router: Arc<AdaptiveRouter>,
-    
+
     // Performance optimization
     compression_engine: Arc<CompressionEngine>,
     multiplexer: Arc<StreamMultiplexer>,
-    
+
     // Metrics and monitoring
     metrics: Arc<RwLock<NetworkScalingMetrics>>,
 }
@@ -341,7 +341,9 @@ impl NetworkScalingManager {
     /// Route transaction to optimal shard
     pub async fn route_transaction(&self, transaction: &Transaction) -> Result<u32> {
         let shard_id = if self.config.enable_sharding {
-            self.shard_manager.get_shard_for_transaction(transaction).await?
+            self.shard_manager
+                .get_shard_for_transaction(transaction)
+                .await?
         } else {
             0 // Single shard fallback
         };
@@ -375,16 +377,24 @@ impl NetworkScalingManager {
     /// Compress data for transmission
     pub async fn compress_data(&self, data: &[u8], content_type: &str) -> Result<Vec<u8>> {
         if self.config.enable_compression {
-            self.compression_engine.compress_adaptive(data, content_type).await
+            self.compression_engine
+                .compress_adaptive(data, content_type)
+                .await
         } else {
             Ok(data.to_vec())
         }
     }
 
     /// Create multiplexed stream
-    pub async fn create_stream(&self, connection_id: Uuid, priority: StreamPriority) -> Result<Uuid> {
+    pub async fn create_stream(
+        &self,
+        connection_id: Uuid,
+        priority: StreamPriority,
+    ) -> Result<Uuid> {
         if self.config.enable_multiplexing {
-            self.multiplexer.create_stream(connection_id, priority).await
+            self.multiplexer
+                .create_stream(connection_id, priority)
+                .await
         } else {
             // Return connection ID as stream ID for single-stream mode
             Ok(connection_id)
@@ -392,28 +402,36 @@ impl NetworkScalingManager {
     }
 
     /// Process high-throughput transaction batch
-    pub async fn process_transaction_batch(&self, transactions: Vec<Transaction>) -> Result<Vec<Uuid>> {
+    pub async fn process_transaction_batch(
+        &self,
+        transactions: Vec<Transaction>,
+    ) -> Result<Vec<Uuid>> {
         let mut batch_results = Vec::new();
-        
+
         // Group transactions by optimal shard
         let mut shard_groups: HashMap<u32, Vec<Transaction>> = HashMap::new();
-        
+
         for transaction in transactions {
             let shard_id = self.route_transaction(&transaction).await?;
-            shard_groups.entry(shard_id).or_insert_with(Vec::new).push(transaction);
+            shard_groups
+                .entry(shard_id)
+                .or_insert_with(Vec::new)
+                .push(transaction);
         }
 
         // Process each shard group in parallel
         let mut tasks = Vec::new();
-        
+
         for (shard_id, shard_transactions) in shard_groups {
             let shard_manager = self.shard_manager.clone();
             let load_balancer = self.load_balancer.clone();
-            
+
             let task = tokio::spawn(async move {
-                shard_manager.process_shard_transactions(shard_id, shard_transactions).await
+                shard_manager
+                    .process_shard_transactions(shard_id, shard_transactions)
+                    .await
             });
-            
+
             tasks.push(task);
         }
 
@@ -434,10 +452,10 @@ impl NetworkScalingManager {
         if self.config.enable_sharding {
             info!("Starting shard rebalancing process");
             self.shard_manager.rebalance_shards().await?;
-            
+
             // Update load balancer with new shard configuration
             self.load_balancer.update_shard_topology().await?;
-            
+
             info!("Shard rebalancing completed successfully");
         }
         Ok(())
@@ -446,7 +464,7 @@ impl NetworkScalingManager {
     /// Optimize network configuration based on current metrics
     pub async fn optimize_network_configuration(&self) -> Result<()> {
         let metrics = self.metrics.read().await;
-        
+
         // Adaptive compression optimization
         if metrics.compression_ratio < 0.5 {
             self.compression_engine.adjust_algorithms().await?;
@@ -491,17 +509,20 @@ impl NetworkScalingManager {
 impl ShardManager {
     pub fn new(config: NetworkScalingConfig) -> Self {
         let mut shards = HashMap::new();
-        
+
         // Initialize shards
         for i in 0..config.shard_count {
-            shards.insert(i as u32, Shard {
-                id: i as u32,
-                node_ids: HashSet::new(),
-                transaction_count: 0,
-                load_factor: 0.0,
-                status: ShardStatus::Active,
-                last_updated: Instant::now(),
-            });
+            shards.insert(
+                i as u32,
+                Shard {
+                    id: i as u32,
+                    node_ids: HashSet::new(),
+                    transaction_count: 0,
+                    load_factor: 0.0,
+                    status: ShardStatus::Active,
+                    last_updated: Instant::now(),
+                },
+            );
         }
 
         Self {
@@ -521,23 +542,28 @@ impl ShardManager {
 
     pub async fn get_primary_node(&self, shard_id: u32) -> Result<Uuid> {
         let shards = self.shards.read().await;
-        let shard = shards.get(&shard_id)
+        let shard = shards
+            .get(&shard_id)
             .ok_or_else(|| ParadigmError::InvalidInput("Invalid shard ID".to_string()))?;
-        
-        Ok(shard.node_ids.iter().next()
-            .copied()
-            .ok_or_else(|| ParadigmError::InvalidInput("No nodes available for shard".to_string()))?)
+
+        Ok(shard.node_ids.iter().next().copied().ok_or_else(|| {
+            ParadigmError::InvalidInput("No nodes available for shard".to_string())
+        })?)
     }
 
-    pub async fn process_shard_transactions(&self, _shard_id: u32, transactions: Vec<Transaction>) -> Result<Vec<Uuid>> {
+    pub async fn process_shard_transactions(
+        &self,
+        _shard_id: u32,
+        transactions: Vec<Transaction>,
+    ) -> Result<Vec<Uuid>> {
         // Process transactions for this shard
         let mut results = Vec::new();
-        
+
         for _transaction in transactions {
             // Simulate transaction processing
             results.push(Uuid::new_v4());
         }
-        
+
         Ok(results)
     }
 
@@ -551,35 +577,41 @@ impl ShardManager {
 
         // Implement shard rebalancing logic
         let shards = self.shards.read().await;
-        
+
         // Calculate load distribution
         let total_load: f64 = shards.values().map(|s| s.load_factor).sum();
         let average_load = total_load / shards.len() as f64;
-        
+
         // Identify overloaded and underloaded shards
         for (shard_id, shard) in shards.iter() {
             if shard.load_factor > average_load * 1.5 {
-                debug!("Shard {} is overloaded (load: {:.2})", shard_id, shard.load_factor);
+                debug!(
+                    "Shard {} is overloaded (load: {:.2})",
+                    shard_id, shard.load_factor
+                );
                 // Trigger shard splitting if needed
             } else if shard.load_factor < average_load * 0.5 {
-                debug!("Shard {} is underloaded (load: {:.2})", shard_id, shard.load_factor);
+                debug!(
+                    "Shard {} is underloaded (load: {:.2})",
+                    shard_id, shard.load_factor
+                );
                 // Consider shard merging
             }
         }
 
         drop(shards);
-        
+
         // Reset rebalancing flag
         let mut rebalancing = self.rebalancing_active.write().await;
         *rebalancing = false;
-        
+
         Ok(())
     }
 
     fn hash_address(&self, address: &Address) -> u64 {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         address.hash(&mut hasher);
         hasher.finish()
@@ -598,7 +630,7 @@ impl LoadBalancer {
 
     pub async fn select_best_node(&self, _shard_id: u32) -> Result<Uuid> {
         let strategy = self.routing_strategy.read().await;
-        
+
         match *strategy {
             RoutingStrategy::LeastConnections => self.select_least_connections().await,
             RoutingStrategy::LeastResponseTime => self.select_least_response_time().await,
@@ -615,24 +647,26 @@ impl LoadBalancer {
 
     async fn select_least_connections(&self) -> Result<Uuid> {
         let load_metrics = self.load_metrics.read().await;
-        
-        let best_node = load_metrics.iter()
+
+        let best_node = load_metrics
+            .iter()
             .min_by_key(|(_, metrics)| metrics.active_connections)
             .map(|(node_id, _)| *node_id)
             .unwrap_or_else(|| Uuid::new_v4());
-            
+
         Ok(best_node)
     }
 
     async fn select_least_response_time(&self) -> Result<Uuid> {
         let node_health = self.node_health.read().await;
-        
-        let best_node = node_health.iter()
+
+        let best_node = node_health
+            .iter()
             .filter(|(_, health)| health.is_healthy)
             .min_by_key(|(_, health)| health.response_time)
             .map(|(node_id, _)| *node_id)
             .unwrap_or_else(|| Uuid::new_v4());
-            
+
         Ok(best_node)
     }
 
@@ -662,7 +696,7 @@ impl ConnectionPool {
 
     pub async fn acquire_connection(&self, node_id: Uuid) -> Result<PooledConnection> {
         let _permit = self.connection_semaphore.acquire().await?;
-        
+
         // Try to get from pool first
         let mut available = self.available_connections.write().await;
         if let Some(mut connection) = available.pop_front() {
@@ -739,7 +773,7 @@ impl CompressionEngine {
         // Simple compression simulation
         if data.len() > 1024 {
             // Simulate compression
-            Ok(data[..data.len()/2].to_vec())
+            Ok(data[..data.len() / 2].to_vec())
         } else {
             Ok(data.to_vec())
         }
@@ -761,9 +795,13 @@ impl StreamMultiplexer {
         }
     }
 
-    pub async fn create_stream(&self, connection_id: Uuid, priority: StreamPriority) -> Result<Uuid> {
+    pub async fn create_stream(
+        &self,
+        connection_id: Uuid,
+        priority: StreamPriority,
+    ) -> Result<Uuid> {
         let stream_id = Uuid::new_v4();
-        
+
         let stream = MultiplexedStream {
             stream_id,
             connection_id,

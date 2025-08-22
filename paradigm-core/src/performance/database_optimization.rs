@@ -1,17 +1,17 @@
 // Database Optimization with Advanced Indexing and Caching
 // Optimizes blockchain data storage and retrieval for maximum performance
 
-use std::collections::{HashMap, BTreeMap, VecDeque};
+use anyhow::Result;
+use lru::LruCache;
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{RwLock, Mutex};
-use anyhow::Result;
+use tokio::sync::{Mutex, RwLock};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
-use serde::{Serialize, Deserialize};
-use tracing::{info, debug, warn, error};
-use lru::LruCache;
 
-use crate::{Transaction, Address, ParadigmError};
+use crate::{Address, ParadigmError, Transaction};
 
 /// Database optimization configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,22 +48,22 @@ impl Default for DatabaseConfig {
 /// High-performance database layer with caching and indexing
 pub struct OptimizedDatabase {
     config: DatabaseConfig,
-    
+
     // Multi-level caching system
     l1_cache: Arc<RwLock<LruCache<String, CacheEntry>>>,
     l2_cache: Arc<RwLock<HashMap<String, CacheEntry>>>,
     bloom_filter: Arc<RwLock<BloomFilter>>,
-    
+
     // Advanced indexing
     indexes: Arc<RwLock<IndexManager>>,
-    
+
     // Write optimization
     write_buffer: Arc<RwLock<WriteBuffer>>,
     pending_writes: Arc<Mutex<VecDeque<WriteOperation>>>,
-    
+
     // Performance metrics
     metrics: Arc<RwLock<DatabaseMetrics>>,
-    
+
     // Background tasks
     compaction_manager: Arc<CompactionManager>,
 }
@@ -94,17 +94,17 @@ pub struct IndexManager {
     // Address-based indexes
     address_to_transactions: HashMap<Address, BTreeMap<u64, Uuid>>, // nonce -> tx_id
     address_balances: HashMap<Address, u64>,
-    
+
     // Transaction indexes
     transaction_by_hash: HashMap<String, Uuid>,
     transactions_by_block: HashMap<u64, Vec<Uuid>>,
-    
+
     // Time-based indexes
     transactions_by_timestamp: BTreeMap<u64, Vec<Uuid>>,
-    
+
     // Amount-based indexes
     large_transactions: BTreeMap<u64, Vec<Uuid>>, // amount -> tx_ids
-    
+
     // Custom indexes for governance and AI features
     governance_proposals: HashMap<Uuid, Vec<Uuid>>,
     ai_decisions: BTreeMap<u64, Vec<Uuid>>,
@@ -159,9 +159,11 @@ pub struct CompactionManager {
 impl OptimizedDatabase {
     pub fn new(config: DatabaseConfig) -> Self {
         let cache_capacity = (config.cache_size_mb * 1024 * 1024) / 1024; // Approximate entry count
-        
+
         let database = Self {
-            l1_cache: Arc::new(RwLock::new(LruCache::new(std::num::NonZero::new(cache_capacity).unwrap()))),
+            l1_cache: Arc::new(RwLock::new(LruCache::new(
+                std::num::NonZero::new(cache_capacity).unwrap(),
+            ))),
             l2_cache: Arc::new(RwLock::new(HashMap::new())),
             bloom_filter: Arc::new(RwLock::new(BloomFilter::new(config.bloom_filter_size))),
             indexes: Arc::new(RwLock::new(IndexManager::new())),
@@ -171,10 +173,10 @@ impl OptimizedDatabase {
             compaction_manager: Arc::new(CompactionManager::new()),
             config,
         };
-        
+
         // Start background tasks
         database.start_background_tasks();
-        
+
         database
     }
 
@@ -183,7 +185,7 @@ impl OptimizedDatabase {
         let start_time = Instant::now();
         let mut metrics = self.metrics.write().await;
         metrics.total_reads += 1;
-        
+
         // Check L1 cache first (fastest)
         {
             let mut l1_cache = self.l1_cache.write().await;
@@ -191,15 +193,19 @@ impl OptimizedDatabase {
                 entry.last_accessed = Instant::now();
                 entry.access_count += 1;
                 metrics.cache_hits += 1;
-                
+
                 let read_time = start_time.elapsed();
-                metrics.average_read_time = self.update_average_time(metrics.average_read_time, read_time, metrics.total_reads);
-                
+                metrics.average_read_time = self.update_average_time(
+                    metrics.average_read_time,
+                    read_time,
+                    metrics.total_reads,
+                );
+
                 debug!("L1 cache hit for key: {}", key);
                 return Ok(Some(entry.data.clone()));
             }
         }
-        
+
         // Check L2 cache
         {
             let l2_cache = self.l2_cache.read().await;
@@ -207,36 +213,40 @@ impl OptimizedDatabase {
                 // Promote to L1 cache
                 let mut l1_cache = self.l1_cache.write().await;
                 l1_cache.put(key.to_string(), entry.clone());
-                
+
                 metrics.cache_hits += 1;
-                
+
                 let read_time = start_time.elapsed();
-                metrics.average_read_time = self.update_average_time(metrics.average_read_time, read_time, metrics.total_reads);
-                
+                metrics.average_read_time = self.update_average_time(
+                    metrics.average_read_time,
+                    read_time,
+                    metrics.total_reads,
+                );
+
                 debug!("L2 cache hit for key: {}, promoted to L1", key);
                 return Ok(Some(entry.data.clone()));
             }
         }
-        
+
         // Check bloom filter before expensive disk read
         {
             let bloom_filter = self.bloom_filter.read().await;
             if !bloom_filter.might_contain(key) {
                 metrics.bloom_filter_hits += 1;
                 metrics.cache_misses += 1;
-                
+
                 debug!("Bloom filter negative hit for key: {}", key);
                 return Ok(None);
             }
         }
-        
+
         // Check indexes for faster lookup
         let data = if self.config.enable_indexing {
             self.read_with_index(key).await?
         } else {
             self.read_from_storage(key).await?
         };
-        
+
         // Cache the result if found
         if let Some(ref data) = data {
             let compressed_data = if self.config.enable_compression {
@@ -244,7 +254,7 @@ impl OptimizedDatabase {
             } else {
                 data.clone()
             };
-            
+
             let entry = CacheEntry {
                 data: data.clone(),
                 created_at: Instant::now(),
@@ -253,50 +263,52 @@ impl OptimizedDatabase {
                 size_bytes: data.len(),
                 is_compressed: self.config.enable_compression,
             };
-            
+
             // Add to both cache levels
             {
                 let mut l1_cache = self.l1_cache.write().await;
                 l1_cache.put(key.to_string(), entry.clone());
             }
-            
+
             {
                 let mut l2_cache = self.l2_cache.write().await;
                 l2_cache.insert(key.to_string(), entry);
             }
-            
+
             // Update bloom filter
             {
                 let mut bloom_filter = self.bloom_filter.write().await;
                 bloom_filter.insert(key);
             }
         }
-        
+
         metrics.cache_misses += 1;
-        
+
         let read_time = start_time.elapsed();
-        metrics.average_read_time = self.update_average_time(metrics.average_read_time, read_time, metrics.total_reads);
-        
+        metrics.average_read_time =
+            self.update_average_time(metrics.average_read_time, read_time, metrics.total_reads);
+
         Ok(data)
     }
 
     /// High-performance write with batching
     pub async fn write(&self, key: &str, value: Vec<u8>) -> Result<()> {
         let start_time = Instant::now();
-        
+
         if self.config.enable_write_batching {
             self.write_batched(key, value).await
         } else {
             self.write_immediate(key, value).await
         }?;
-        
+
         // Update metrics
         let mut metrics = self.metrics.write().await;
         metrics.total_writes += 1;
-        
+
         let write_time = start_time.elapsed();
-        metrics.average_write_time = self.update_average_time(metrics.average_write_time, write_time, metrics.total_writes);
-        
+        metrics.average_write_time =
+            self.update_average_time(metrics.average_write_time, write_time, metrics.total_writes);
+
         Ok(())
     }
 
@@ -308,22 +320,24 @@ impl OptimizedDatabase {
             operation_type: WriteType::Insert,
             timestamp: Instant::now(),
         };
-        
+
         // Add to write buffer
         {
             let mut write_buffer = self.write_buffer.write().await;
-            write_buffer.operations.insert(key.to_string(), operation.clone());
+            write_buffer
+                .operations
+                .insert(key.to_string(), operation.clone());
             write_buffer.total_size += value.len();
         }
-        
+
         // Check if we should flush the buffer
         if self.should_flush_buffer().await {
             self.flush_write_buffer().await?;
         }
-        
+
         // Update cache immediately for read consistency
         self.update_cache_on_write(key, &value).await;
-        
+
         Ok(())
     }
 
@@ -331,20 +345,20 @@ impl OptimizedDatabase {
     async fn write_immediate(&self, key: &str, value: Vec<u8>) -> Result<()> {
         // Write to storage
         self.write_to_storage(key, &value).await?;
-        
+
         // Update cache
         self.update_cache_on_write(key, &value).await;
-        
+
         // Update indexes
         self.update_indexes_on_write(key, &value).await?;
-        
+
         Ok(())
     }
 
     /// Check if write buffer should be flushed
     async fn should_flush_buffer(&self) -> bool {
         let write_buffer = self.write_buffer.read().await;
-        
+
         write_buffer.operations.len() >= self.config.batch_size ||
         write_buffer.total_size >= 1024 * 1024 || // 1MB
         write_buffer.last_flush.elapsed() >= self.config.batch_timeout
@@ -359,28 +373,28 @@ impl OptimizedDatabase {
             write_buffer.last_flush = Instant::now();
             operations
         };
-        
+
         if operations.is_empty() {
             return Ok(());
         }
-        
+
         info!("Flushing {} write operations to storage", operations.len());
-        
+
         // Batch write to storage
         let operations_len = operations.len();
         self.batch_write_to_storage(operations).await?;
-        
+
         // Update metrics
         let mut metrics = self.metrics.write().await;
         metrics.write_batch_efficiency = operations_len as f64 / self.config.batch_size as f64;
-        
+
         Ok(())
     }
 
     /// Read using indexes for faster lookup
     async fn read_with_index(&self, key: &str) -> Result<Option<Vec<u8>>> {
         let indexes = self.indexes.read().await;
-        
+
         // Try different index strategies based on key pattern
         if key.starts_with("tx:") {
             // Transaction lookup
@@ -399,7 +413,7 @@ impl OptimizedDatabase {
                 return self.read_address_data(&address).await;
             }
         }
-        
+
         // Fallback to regular storage
         self.read_from_storage(key).await
     }
@@ -414,19 +428,19 @@ impl OptimizedDatabase {
             size_bytes: value.len(),
             is_compressed: false,
         };
-        
+
         // Update L1 cache
         {
             let mut l1_cache = self.l1_cache.write().await;
             l1_cache.put(key.to_string(), entry.clone());
         }
-        
+
         // Update L2 cache
         {
             let mut l2_cache = self.l2_cache.write().await;
             l2_cache.insert(key.to_string(), entry);
         }
-        
+
         // Update bloom filter
         {
             let mut bloom_filter = self.bloom_filter.write().await;
@@ -439,40 +453,56 @@ impl OptimizedDatabase {
         if !self.config.enable_indexing {
             return Ok(());
         }
-        
+
         let mut indexes = self.indexes.write().await;
-        
+
         // Update indexes based on key type
         if key.starts_with("tx:") {
-            self.update_transaction_indexes(&mut indexes, key, value).await?;
+            self.update_transaction_indexes(&mut indexes, key, value)
+                .await?;
         } else if key.starts_with("addr:") {
-            self.update_address_indexes(&mut indexes, key, value).await?;
+            self.update_address_indexes(&mut indexes, key, value)
+                .await?;
         }
-        
+
         Ok(())
     }
 
     /// Update transaction-related indexes
-    async fn update_transaction_indexes(&self, indexes: &mut IndexManager, key: &str, _value: &[u8]) -> Result<()> {
+    async fn update_transaction_indexes(
+        &self,
+        indexes: &mut IndexManager,
+        key: &str,
+        _value: &[u8],
+    ) -> Result<()> {
         // Parse transaction data and update indexes
         // This would be more complex in a real implementation
         if let Some(tx_id) = self.parse_transaction_key(key) {
             // Mock transaction data parsing
             let timestamp = Instant::now().elapsed().as_secs();
-            indexes.transactions_by_timestamp.entry(timestamp).or_insert_with(Vec::new).push(tx_id);
+            indexes
+                .transactions_by_timestamp
+                .entry(timestamp)
+                .or_insert_with(Vec::new)
+                .push(tx_id);
         }
-        
+
         Ok(())
     }
 
     /// Update address-related indexes
-    async fn update_address_indexes(&self, indexes: &mut IndexManager, key: &str, _value: &[u8]) -> Result<()> {
+    async fn update_address_indexes(
+        &self,
+        indexes: &mut IndexManager,
+        key: &str,
+        _value: &[u8],
+    ) -> Result<()> {
         // Parse address data and update indexes
         if let Some(_address) = self.parse_address_key(key) {
             // Update address-related indexes
             // This would involve parsing balance and transaction data
         }
-        
+
         Ok(())
     }
 
@@ -502,7 +532,7 @@ impl OptimizedDatabase {
     async fn read_from_storage(&self, _key: &str) -> Result<Option<Vec<u8>>> {
         // Simulate storage read latency
         tokio::time::sleep(Duration::from_micros(100)).await;
-        
+
         // Mock data
         Ok(Some(vec![1, 2, 3, 4, 5]))
     }
@@ -513,7 +543,10 @@ impl OptimizedDatabase {
         Ok(())
     }
 
-    async fn batch_write_to_storage(&self, operations: Vec<(String, WriteOperation)>) -> Result<()> {
+    async fn batch_write_to_storage(
+        &self,
+        operations: Vec<(String, WriteOperation)>,
+    ) -> Result<()> {
         // Simulate batch write with better efficiency
         let latency_per_op = Duration::from_micros(50); // Better than individual writes
         tokio::time::sleep(latency_per_op * operations.len() as u32).await;
@@ -522,23 +555,24 @@ impl OptimizedDatabase {
 
     /// Parse transaction ID from key
     fn parse_transaction_key(&self, key: &str) -> Option<Uuid> {
-        key.strip_prefix("tx:").and_then(|id_str| Uuid::parse_str(id_str).ok())
+        key.strip_prefix("tx:")
+            .and_then(|id_str| Uuid::parse_str(id_str).ok())
     }
 
     /// Parse address from key
     fn parse_address_key(&self, key: &str) -> Option<Address> {
         key.strip_prefix("addr:")
-           .and_then(|addr_str| addr_str.strip_prefix("PAR"))
-           .and_then(|hex_str| hex::decode(hex_str).ok())
-           .and_then(|bytes| {
-               if bytes.len() >= 20 {
-                   let mut addr_bytes = [0u8; 32];
-                   addr_bytes[..20].copy_from_slice(&bytes[..20]);
-                   Some(Address(addr_bytes))
-               } else {
-                   None
-               }
-           })
+            .and_then(|addr_str| addr_str.strip_prefix("PAR"))
+            .and_then(|hex_str| hex::decode(hex_str).ok())
+            .and_then(|bytes| {
+                if bytes.len() >= 20 {
+                    let mut addr_bytes = [0u8; 32];
+                    addr_bytes[..20].copy_from_slice(&bytes[..20]);
+                    Some(Address(addr_bytes))
+                } else {
+                    None
+                }
+            })
     }
 
     /// Read transaction by ID using indexes
@@ -554,8 +588,14 @@ impl OptimizedDatabase {
     }
 
     /// Update average time metric
-    fn update_average_time(&self, current_avg: Duration, new_time: Duration, count: u64) -> Duration {
-        let total_millis = current_avg.as_millis() as f64 * (count - 1) as f64 + new_time.as_millis() as f64;
+    fn update_average_time(
+        &self,
+        current_avg: Duration,
+        new_time: Duration,
+        count: u64,
+    ) -> Duration {
+        let total_millis =
+            current_avg.as_millis() as f64 * (count - 1) as f64 + new_time.as_millis() as f64;
         Duration::from_millis((total_millis / count as f64) as u64)
     }
 
@@ -565,7 +605,7 @@ impl OptimizedDatabase {
         tokio::spawn(async move {
             database.background_optimization_loop().await;
         });
-        
+
         if self.config.enable_background_compaction {
             let database = self.clone();
             tokio::spawn(async move {
@@ -577,18 +617,18 @@ impl OptimizedDatabase {
     /// Background optimization loop
     async fn background_optimization_loop(&self) {
         let mut interval = tokio::time::interval(Duration::from_secs(60));
-        
+
         loop {
             interval.tick().await;
-            
+
             // Cleanup expired cache entries
             self.cleanup_cache().await;
-            
+
             // Optimize indexes
             if self.config.enable_indexing {
                 self.optimize_indexes().await;
             }
-            
+
             // Report metrics
             self.log_performance_metrics().await;
         }
@@ -597,17 +637,17 @@ impl OptimizedDatabase {
     /// Background compaction loop
     async fn background_compaction_loop(&self) {
         let mut interval = tokio::time::interval(self.config.compaction_interval);
-        
+
         loop {
             interval.tick().await;
-            
+
             {
                 let compaction_running = self.compaction_manager.compaction_running.read().await;
                 if *compaction_running {
                     continue;
                 }
             }
-            
+
             if let Err(e) = self.run_compaction().await {
                 error!("Compaction failed: {}", e);
             }
@@ -618,20 +658,25 @@ impl OptimizedDatabase {
     async fn cleanup_cache(&self) {
         let mut l2_cache = self.l2_cache.write().await;
         let cutoff_time = Instant::now() - Duration::from_secs(300); // 5 minutes
-        
+
         l2_cache.retain(|_, entry| entry.last_accessed > cutoff_time);
-        
-        debug!("Cache cleanup completed, {} entries remaining", l2_cache.len());
+
+        debug!(
+            "Cache cleanup completed, {} entries remaining",
+            l2_cache.len()
+        );
     }
 
     /// Optimize indexes
     async fn optimize_indexes(&self) {
         let mut indexes = self.indexes.write().await;
-        
+
         // Remove old entries from time-based indexes
         let cutoff_time = Instant::now().elapsed().as_secs() - 86400; // 24 hours
-        indexes.transactions_by_timestamp.retain(|&timestamp, _| timestamp > cutoff_time);
-        
+        indexes
+            .transactions_by_timestamp
+            .retain(|&timestamp, _| timestamp > cutoff_time);
+
         debug!("Index optimization completed");
     }
 
@@ -641,23 +686,23 @@ impl OptimizedDatabase {
             let mut compaction_running = self.compaction_manager.compaction_running.write().await;
             *compaction_running = true;
         }
-        
+
         info!("Starting database compaction");
-        
+
         // Simulate compaction work
         tokio::time::sleep(Duration::from_secs(5)).await;
-        
+
         // Update compression ratio metric
         {
             let mut metrics = self.metrics.write().await;
             metrics.compression_ratio = 0.7; // Mock 70% compression ratio
         }
-        
+
         {
             let mut compaction_running = self.compaction_manager.compaction_running.write().await;
             *compaction_running = false;
         }
-        
+
         info!("Database compaction completed");
         Ok(())
     }
@@ -665,15 +710,15 @@ impl OptimizedDatabase {
     /// Log performance metrics
     async fn log_performance_metrics(&self) {
         let metrics = self.metrics.read().await;
-        
+
         let cache_hit_rate = if metrics.total_reads > 0 {
             metrics.cache_hits as f64 / metrics.total_reads as f64 * 100.0
         } else {
             0.0
         };
-        
+
         info!("Database Performance - Reads: {}, Writes: {}, Cache Hit Rate: {:.2}%, Avg Read: {:?}, Avg Write: {:?}",
-              metrics.total_reads, metrics.total_writes, cache_hit_rate, 
+              metrics.total_reads, metrics.total_writes, cache_hit_rate,
               metrics.average_read_time, metrics.average_write_time);
     }
 

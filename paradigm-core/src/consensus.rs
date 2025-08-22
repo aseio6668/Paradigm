@@ -1,13 +1,13 @@
+use blake3::Hasher;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
 use uuid::Uuid;
-use blake3::Hasher;
 
-use crate::{Address, FIRST_YEAR_DISTRIBUTION};
 use crate::transaction::Transaction;
+use crate::{Address, FIRST_YEAR_DISTRIBUTION};
 
 /// Task capabilities for ML workers
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,8 +40,8 @@ pub struct MLTask {
     pub id: Uuid,
     pub task_type: MLTaskType,
     pub data: Vec<u8>,
-    pub difficulty: u8,  // 1-10 scale
-    pub reward: u64,     // PAR reward for completion
+    pub difficulty: u8, // 1-10 scale
+    pub reward: u64,    // PAR reward for completion
     pub deadline: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
     pub assigned_to: Option<Address>,
@@ -111,10 +111,10 @@ impl ConsensusEngine {
 
     pub async fn start(&mut self) -> anyhow::Result<()> {
         tracing::info!("Starting ML-based consensus engine");
-        
+
         // Initialize with some basic tasks
         self.generate_initial_tasks().await?;
-        
+
         Ok(())
     }
 
@@ -163,20 +163,12 @@ impl ConsensusEngine {
     pub async fn get_available_tasks(&self, contributor: &Address) -> Vec<&MLTask> {
         self.active_tasks
             .values()
-            .filter(|task| {
-                !task.completed
-                    && task.assigned_to.is_none()
-                    && !task.is_expired()
-            })
+            .filter(|task| !task.completed && task.assigned_to.is_none() && !task.is_expired())
             .collect()
     }
 
     /// Assign a task to a contributor
-    pub async fn assign_task(
-        &mut self,
-        task_id: Uuid,
-        contributor: Address,
-    ) -> anyhow::Result<()> {
+    pub async fn assign_task(&mut self, task_id: Uuid, contributor: Address) -> anyhow::Result<()> {
         if let Some(task) = self.active_tasks.get_mut(&task_id) {
             if task.assigned_to.is_some() {
                 return Err(anyhow::anyhow!("Task already assigned"));
@@ -189,7 +181,11 @@ impl ConsensusEngine {
             }
 
             task.assign_to(contributor.clone());
-            tracing::info!("Assigned task {} to contributor {}", task_id, contributor.to_string());
+            tracing::info!(
+                "Assigned task {} to contributor {}",
+                task_id,
+                contributor.to_string()
+            );
             Ok(())
         } else {
             Err(anyhow::anyhow!("Task not found"))
@@ -226,7 +222,8 @@ impl ConsensusEngine {
             *self.pending_rewards.entry(contributor.clone()).or_insert(0) += final_reward;
 
             // Update contributor score (moved outside the borrow scope)
-            self.update_contributor_score(&contributor, task_difficulty).await;
+            self.update_contributor_score(&contributor, task_difficulty)
+                .await;
 
             tracing::info!(
                 "Task {} completed by {}, reward: {} PAR",
@@ -244,18 +241,19 @@ impl ConsensusEngine {
     /// Update contributor score based on performance
     async fn update_contributor_score(&mut self, contributor: &Address, task_difficulty: u8) {
         let current_score = self.contributor_scores.get(contributor).unwrap_or(&1.0);
-        
+
         // Increase score based on task difficulty
         let score_increase = (task_difficulty as f64) * 0.1;
         let new_score = (current_score + score_increase).min(2.0); // Cap at 2.0x multiplier
-        
-        self.contributor_scores.insert(contributor.clone(), new_score);
+
+        self.contributor_scores
+            .insert(contributor.clone(), new_score);
     }
 
     /// Process pending rewards and create reward transactions
     pub async fn process_pending_rewards(&mut self) -> Vec<Transaction> {
         let mut reward_transactions = Vec::new();
-        
+
         for (contributor, reward) in self.pending_rewards.drain() {
             // Create a reward transaction from the network treasury
             // Note: In a real implementation, this would come from the AI governance system
@@ -333,11 +331,17 @@ mod tests {
 
         // Assign a task
         let task_id = tasks[0].id;
-        engine.assign_task(task_id, contributor.clone()).await.unwrap();
+        engine
+            .assign_task(task_id, contributor.clone())
+            .await
+            .unwrap();
 
         // Submit result
         let result = b"task_result_data".to_vec();
-        let reward = engine.submit_task_result(task_id, contributor, result).await.unwrap();
+        let reward = engine
+            .submit_task_result(task_id, contributor, result)
+            .await
+            .unwrap();
         assert!(reward > 0);
     }
 

@@ -33,7 +33,11 @@
       "Bash(if not exist target\\paradigm-release mkdir target\\paradigm-release)",
       "Bash(copy target\\release\\paradigm-core.exe target\\paradigm-release\\ )",
       "Bash(if exist \"target\\paradigm-release\\paradigm-core.exe\" echo \"File exists\")",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(cargo fmt:*)",
+      "Bash(cargo audit:*)",
+      "Bash(cargo install:*)",
+      "Bash(cargo:*)"
     ],
     "deny": [],
     "ask": [],

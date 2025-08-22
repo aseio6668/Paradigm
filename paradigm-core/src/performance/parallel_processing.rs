@@ -1,17 +1,17 @@
 // Parallel Transaction Processing Engine
 // Maximizes transaction throughput through intelligent parallelization
 
+use anyhow::Result;
+use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{RwLock, Semaphore, mpsc};
-use anyhow::Result;
+use tokio::sync::{mpsc, RwLock, Semaphore};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
-use serde::{Serialize, Deserialize};
-use tracing::{info, debug, warn, error};
-use rayon::prelude::*;
 
-use crate::{Transaction, Address, ParadigmError};
+use crate::{Address, ParadigmError, Transaction};
 
 /// Parallel processing configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,11 +74,11 @@ pub struct ParallelExecutor {
     worker_pool: Arc<rayon::ThreadPool>,
     execution_semaphore: Arc<Semaphore>,
     metrics: Arc<RwLock<ParallelMetrics>>,
-    
+
     // Dependency and conflict tracking
     dependency_analyzer: DependencyAnalyzer,
     conflict_detector: ConflictDetector,
-    
+
     // Speculative execution
     speculative_state: Arc<RwLock<HashMap<Address, Vec<u8>>>>,
     rollback_log: Arc<RwLock<Vec<StateChange>>>,
@@ -115,7 +115,9 @@ impl ParallelExecutor {
 
         Ok(Self {
             execution_semaphore: Arc::new(Semaphore::new(config.max_worker_threads)),
-            dependency_analyzer: DependencyAnalyzer { config: config.clone() },
+            dependency_analyzer: DependencyAnalyzer {
+                config: config.clone(),
+            },
             conflict_detector: ConflictDetector {
                 read_write_sets: Arc::new(RwLock::new(HashMap::new())),
             },
@@ -128,62 +130,85 @@ impl ParallelExecutor {
     }
 
     /// Execute transactions in parallel with conflict detection
-    pub async fn execute_parallel(&self, transactions: Vec<Transaction>) -> Result<Vec<ExecutionResult>> {
+    pub async fn execute_parallel(
+        &self,
+        transactions: Vec<Transaction>,
+    ) -> Result<Vec<ExecutionResult>> {
         let start_time = Instant::now();
-        info!("Starting parallel execution of {} transactions", transactions.len());
+        info!(
+            "Starting parallel execution of {} transactions",
+            transactions.len()
+        );
 
         // Phase 1: Dependency and conflict analysis
         let execution_plan = self.analyze_and_plan(&transactions).await?;
-        
+
         // Phase 2: Execute in parallel waves based on dependencies
         let results = self.execute_in_waves(execution_plan).await?;
-        
+
         // Phase 3: Update metrics
         self.update_metrics(&results, start_time.elapsed()).await;
-        
-        info!("Parallel execution completed: {} transactions in {:?}", 
-              transactions.len(), start_time.elapsed());
-        
+
+        info!(
+            "Parallel execution completed: {} transactions in {:?}",
+            transactions.len(),
+            start_time.elapsed()
+        );
+
         Ok(results)
     }
 
     /// Analyze transactions and create execution plan
     async fn analyze_and_plan(&self, transactions: &[Transaction]) -> Result<ExecutionPlan> {
         let start_time = Instant::now();
-        
+
         // Analyze dependencies and conflicts in parallel
         let analysis_results = if self.config.enable_dependency_analysis {
             self.analyze_dependencies_parallel(transactions).await?
         } else {
             // Simple plan without dependency analysis
-            transactions.iter().map(|tx| (tx.clone(), ConflictAnalysis {
-                read_set: HashSet::new(),
-                write_set: HashSet::new(),
-                dependencies: Vec::new(),
-                conflicts_with: Vec::new(),
-            })).collect()
+            transactions
+                .iter()
+                .map(|tx| {
+                    (
+                        tx.clone(),
+                        ConflictAnalysis {
+                            read_set: HashSet::new(),
+                            write_set: HashSet::new(),
+                            dependencies: Vec::new(),
+                            conflicts_with: Vec::new(),
+                        },
+                    )
+                })
+                .collect()
         };
 
         // Create execution waves based on dependencies
         let waves = self.create_execution_waves(analysis_results)?;
-        
-        debug!("Created execution plan with {} waves in {:?}", 
-               waves.len(), start_time.elapsed());
-        
+
+        debug!(
+            "Created execution plan with {} waves in {:?}",
+            waves.len(),
+            start_time.elapsed()
+        );
+
         Ok(ExecutionPlan { waves })
     }
 
     /// Analyze dependencies for all transactions in parallel
-    async fn analyze_dependencies_parallel(&self, transactions: &[Transaction]) -> Result<Vec<(Transaction, ConflictAnalysis)>> {
+    async fn analyze_dependencies_parallel(
+        &self,
+        transactions: &[Transaction],
+    ) -> Result<Vec<(Transaction, ConflictAnalysis)>> {
         let chunk_size = std::cmp::max(1, transactions.len() / self.config.max_worker_threads);
         let chunks: Vec<_> = transactions.chunks(chunk_size).collect();
-        
+
         let mut handles = Vec::new();
-        
+
         for chunk in chunks {
             let chunk_transactions = chunk.to_vec();
             let analyzer = self.dependency_analyzer.clone();
-            
+
             let handle = tokio::spawn(async move {
                 let mut results = Vec::new();
                 for transaction in chunk_transactions {
@@ -192,20 +217,21 @@ impl ParallelExecutor {
                 }
                 results
             });
-            
+
             handles.push(handle);
         }
 
         let mut all_results = Vec::new();
         for handle in handles {
-            let chunk_results = handle.await
+            let chunk_results = handle
+                .await
                 .map_err(|e| ParadigmError::InvalidInput(e.to_string()))?;
             all_results.extend(chunk_results);
         }
 
         // Detect conflicts between transactions
         self.detect_conflicts(&mut all_results).await;
-        
+
         Ok(all_results)
     }
 
@@ -215,19 +241,19 @@ impl ParallelExecutor {
             for j in (i + 1)..analyses.len() {
                 let tx_a_id = analyses[i].0.id;
                 let tx_b_id = analyses[j].0.id;
-                
+
                 // Check for read-write conflicts
                 let has_conflict = {
                     let (_, analysis_a) = &analyses[i];
                     let (_, analysis_b) = &analyses[j];
-                    
+
                     // Write-write conflict
                     !analysis_a.write_set.is_disjoint(&analysis_b.write_set) ||
                     // Read-write conflict
                     !analysis_a.read_set.is_disjoint(&analysis_b.write_set) ||
                     !analysis_a.write_set.is_disjoint(&analysis_b.read_set)
                 };
-                
+
                 if has_conflict {
                     analyses[i].1.conflicts_with.push(tx_b_id);
                     analyses[j].1.conflicts_with.push(tx_a_id);
@@ -237,28 +263,37 @@ impl ParallelExecutor {
     }
 
     /// Create execution waves based on dependencies
-    fn create_execution_waves(&self, mut analyses: Vec<(Transaction, ConflictAnalysis)>) -> Result<Vec<ExecutionWave>> {
+    fn create_execution_waves(
+        &self,
+        mut analyses: Vec<(Transaction, ConflictAnalysis)>,
+    ) -> Result<Vec<ExecutionWave>> {
         let mut waves = Vec::new();
-        let mut remaining_transactions: HashMap<Uuid, (Transaction, ConflictAnalysis)> = 
-            analyses.into_iter().map(|(tx, analysis)| (tx.id, (tx, analysis))).collect();
-        
+        let mut remaining_transactions: HashMap<Uuid, (Transaction, ConflictAnalysis)> = analyses
+            .into_iter()
+            .map(|(tx, analysis)| (tx.id, (tx, analysis)))
+            .collect();
+
         while !remaining_transactions.is_empty() {
             let mut current_wave = Vec::new();
             let mut wave_tx_ids = HashSet::new();
-            
+
             // Find transactions that can execute in this wave
             for (tx_id, (transaction, analysis)) in remaining_transactions.iter() {
-                let can_execute = analysis.dependencies.iter()
-                    .all(|dep_id| !remaining_transactions.contains_key(dep_id)) &&
-                    analysis.conflicts_with.iter()
-                    .all(|conflict_id| !wave_tx_ids.contains(conflict_id));
-                
+                let can_execute = analysis
+                    .dependencies
+                    .iter()
+                    .all(|dep_id| !remaining_transactions.contains_key(dep_id))
+                    && analysis
+                        .conflicts_with
+                        .iter()
+                        .all(|conflict_id| !wave_tx_ids.contains(conflict_id));
+
                 if can_execute {
                     current_wave.push(transaction.clone());
                     wave_tx_ids.insert(*tx_id);
                 }
             }
-            
+
             if current_wave.is_empty() {
                 // Break circular dependencies by forcing execution of oldest transaction
                 if let Some((tx_id, (transaction, _))) = remaining_transactions.iter().next() {
@@ -266,33 +301,37 @@ impl ParallelExecutor {
                     wave_tx_ids.insert(*tx_id);
                 }
             }
-            
+
             // Remove executed transactions
             for tx_id in &wave_tx_ids {
                 remaining_transactions.remove(tx_id);
             }
-            
+
             waves.push(ExecutionWave {
                 transactions: current_wave,
                 parallelism_factor: wave_tx_ids.len(),
             });
         }
-        
+
         Ok(waves)
     }
 
     /// Execute transactions in waves
     async fn execute_in_waves(&self, plan: ExecutionPlan) -> Result<Vec<ExecutionResult>> {
         let mut all_results = Vec::new();
-        
+
         for (wave_index, wave) in plan.waves.into_iter().enumerate() {
-            debug!("Executing wave {} with {} transactions (parallelism: {})", 
-                   wave_index, wave.transactions.len(), wave.parallelism_factor);
-            
+            debug!(
+                "Executing wave {} with {} transactions (parallelism: {})",
+                wave_index,
+                wave.transactions.len(),
+                wave.parallelism_factor
+            );
+
             let wave_results = self.execute_wave(wave).await?;
             all_results.extend(wave_results);
         }
-        
+
         Ok(all_results)
     }
 
@@ -300,24 +339,26 @@ impl ParallelExecutor {
     async fn execute_wave(&self, wave: ExecutionWave) -> Result<Vec<ExecutionResult>> {
         let transactions = wave.transactions;
         let chunk_size = std::cmp::max(1, transactions.len() / self.config.max_worker_threads);
-        
+
         // Use rayon for CPU-intensive parallel processing
         let worker_pool = Arc::clone(&self.worker_pool);
         let executor = self.clone();
-        
+
         let (tx, mut rx) = mpsc::channel(transactions.len());
-        
+
         // Spawn async task to coordinate with rayon
         let coordination_handle = tokio::spawn(async move {
             let results: Vec<ExecutionResult> = worker_pool.install(|| {
-                transactions.par_chunks(chunk_size)
+                transactions
+                    .par_chunks(chunk_size)
                     .flat_map(|chunk| {
                         chunk.par_iter().map(|transaction| {
                             // Execute transaction (blocking operation)
                             let start_time = Instant::now();
-                            let result = executor.execute_single_transaction_sync(transaction.clone());
+                            let result =
+                                executor.execute_single_transaction_sync(transaction.clone());
                             let execution_time = start_time.elapsed();
-                            
+
                             ExecutionResult {
                                 transaction_id: transaction.id,
                                 success: result.is_ok(),
@@ -330,7 +371,7 @@ impl ParallelExecutor {
                     })
                     .collect()
             });
-            
+
             // Send results back
             for result in results {
                 if tx.send(result).await.is_err() {
@@ -338,21 +379,25 @@ impl ParallelExecutor {
                 }
             }
         });
-        
+
         // Collect results
         let mut wave_results = Vec::new();
         while let Some(result) = rx.recv().await {
             wave_results.push(result);
         }
-        
-        coordination_handle.await
+
+        coordination_handle
+            .await
             .map_err(|e| ParadigmError::InvalidInput(e.to_string()))?;
-        
+
         Ok(wave_results)
     }
 
     /// Execute single transaction synchronously (for rayon compatibility)
-    fn execute_single_transaction_sync(&self, transaction: Transaction) -> Result<Vec<StateChange>, ParadigmError> {
+    fn execute_single_transaction_sync(
+        &self,
+        transaction: Transaction,
+    ) -> Result<Vec<StateChange>, ParadigmError> {
         // Simplified transaction execution
         // In a real implementation, this would:
         // 1. Validate transaction
@@ -360,45 +405,54 @@ impl ParallelExecutor {
         // 3. Execute smart contract code
         // 4. Update state
         // 5. Record state changes
-        
+
         let state_change = StateChange {
             address: transaction.from.clone(),
             field: "balance".to_string(),
             old_value: vec![0, 0, 0, 0], // Mock old balance
             new_value: vec![1, 0, 0, 0], // Mock new balance
         };
-        
+
         Ok(vec![state_change])
     }
 
     /// Execute with speculative execution for maximum throughput
-    pub async fn execute_speculative(&self, transactions: Vec<Transaction>) -> Result<Vec<ExecutionResult>> {
+    pub async fn execute_speculative(
+        &self,
+        transactions: Vec<Transaction>,
+    ) -> Result<Vec<ExecutionResult>> {
         if !self.config.enable_speculative_execution {
             return self.execute_parallel(transactions).await;
         }
 
-        info!("Starting speculative parallel execution of {} transactions", transactions.len());
-        
+        info!(
+            "Starting speculative parallel execution of {} transactions",
+            transactions.len()
+        );
+
         // Execute all transactions speculatively in parallel
         let speculative_results = self.execute_all_speculatively(&transactions).await?;
-        
+
         // Validate and commit/rollback based on conflicts
         let final_results = self.validate_and_commit(speculative_results).await?;
-        
+
         Ok(final_results)
     }
 
     /// Execute all transactions speculatively
-    async fn execute_all_speculatively(&self, transactions: &[Transaction]) -> Result<Vec<ExecutionResult>> {
+    async fn execute_all_speculatively(
+        &self,
+        transactions: &[Transaction],
+    ) -> Result<Vec<ExecutionResult>> {
         let chunk_size = std::cmp::max(1, transactions.len() / self.config.max_worker_threads);
         let chunks: Vec<_> = transactions.chunks(chunk_size).collect();
-        
+
         let mut handles = Vec::new();
-        
+
         for chunk in chunks {
             let chunk_transactions = chunk.to_vec();
             let executor = self.clone();
-            
+
             let handle = tokio::spawn(async move {
                 let mut results = Vec::new();
                 for transaction in chunk_transactions {
@@ -413,7 +467,7 @@ impl ParallelExecutor {
                                 execution_time: start_time.elapsed(),
                                 error: None,
                             });
-                        },
+                        }
                         Err(e) => {
                             results.push(ExecutionResult {
                                 transaction_id: transaction.id,
@@ -428,13 +482,14 @@ impl ParallelExecutor {
                 }
                 results
             });
-            
+
             handles.push(handle);
         }
 
         let mut all_results = Vec::new();
         for handle in handles {
-            let chunk_results = handle.await
+            let chunk_results = handle
+                .await
                 .map_err(|e| ParadigmError::InvalidInput(e.to_string()))?;
             all_results.extend(chunk_results);
         }
@@ -443,15 +498,18 @@ impl ParallelExecutor {
     }
 
     /// Validate speculative results and commit/rollback
-    async fn validate_and_commit(&self, mut results: Vec<ExecutionResult>) -> Result<Vec<ExecutionResult>> {
+    async fn validate_and_commit(
+        &self,
+        mut results: Vec<ExecutionResult>,
+    ) -> Result<Vec<ExecutionResult>> {
         // Simplified conflict detection and rollback
         // In a real implementation, this would:
         // 1. Detect actual conflicts in state changes
         // 2. Rollback conflicting transactions
         // 3. Re-execute rolled back transactions
-        
+
         let mut rollback_count = 0;
-        
+
         // Mock conflict detection - rollback 5% of transactions for simulation
         for (i, result) in results.iter_mut().enumerate() {
             if i % 20 == 0 && result.success {
@@ -460,49 +518,56 @@ impl ParallelExecutor {
                 rollback_count += 1;
             }
         }
-        
+
         // Update rollback metrics
         let mut metrics = self.metrics.write().await;
         metrics.rollback_count += rollback_count;
-        
+
         if rollback_count > 0 {
-            debug!("Rolled back {} transactions due to conflicts", rollback_count);
+            debug!(
+                "Rolled back {} transactions due to conflicts",
+                rollback_count
+            );
         }
-        
+
         Ok(results)
     }
 
     /// Update performance metrics
     async fn update_metrics(&self, results: &[ExecutionResult], total_time: Duration) {
         let mut metrics = self.metrics.write().await;
-        
+
         metrics.total_transactions_processed += results.len() as u64;
         metrics.parallel_batches_executed += 1;
-        
+
         // Calculate average parallelism (simplified)
         let successful_transactions = results.iter().filter(|r| r.success).count();
         let parallelism = successful_transactions as f64 / self.config.max_worker_threads as f64;
-        
-        metrics.average_parallelism = 
-            (metrics.average_parallelism * (metrics.parallel_batches_executed - 1) as f64 + parallelism) 
+
+        metrics.average_parallelism = (metrics.average_parallelism
+            * (metrics.parallel_batches_executed - 1) as f64
+            + parallelism)
             / metrics.parallel_batches_executed as f64;
-        
+
         // Calculate conflict rate
         let failed_transactions = results.iter().filter(|r| !r.success).count();
         let conflict_rate = failed_transactions as f64 / results.len() as f64;
-        metrics.conflict_rate = 
-            (metrics.conflict_rate * (metrics.parallel_batches_executed - 1) as f64 + conflict_rate) 
+        metrics.conflict_rate = (metrics.conflict_rate
+            * (metrics.parallel_batches_executed - 1) as f64
+            + conflict_rate)
             / metrics.parallel_batches_executed as f64;
-        
+
         // Calculate throughput improvement
         let sequential_time_estimate = Duration::from_millis(results.len() as u64 * 1); // 1ms per transaction
         let improvement = sequential_time_estimate.as_secs_f64() / total_time.as_secs_f64();
         metrics.throughput_improvement = improvement;
-        
+
         // Update average execution time
         let avg_execution_time = total_time / results.len() as u32;
-        let total_avg_time = metrics.average_execution_time.as_millis() as f64 * (metrics.parallel_batches_executed - 1) as f64;
-        let new_avg = (total_avg_time + avg_execution_time.as_millis() as f64) / metrics.parallel_batches_executed as f64;
+        let total_avg_time = metrics.average_execution_time.as_millis() as f64
+            * (metrics.parallel_batches_executed - 1) as f64;
+        let new_avg = (total_avg_time + avg_execution_time.as_millis() as f64)
+            / metrics.parallel_batches_executed as f64;
         metrics.average_execution_time = Duration::from_millis(new_avg as u64);
     }
 
@@ -542,15 +607,15 @@ impl DependencyAnalyzer {
         // 1. Analyze smart contract code
         // 2. Determine read/write sets
         // 3. Find data dependencies
-        
+
         let mut read_set = HashSet::new();
         let mut write_set = HashSet::new();
-        
+
         // Basic analysis: read from sender, write to both sender and recipient
         read_set.insert(transaction.from.clone());
         write_set.insert(transaction.from.clone());
         write_set.insert(transaction.to.clone());
-        
+
         ConflictAnalysis {
             read_set,
             write_set,

@@ -1,16 +1,16 @@
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use dashmap::DashMap;
+use serde::{Deserialize, Serialize};
+use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use sqlx::{SqlitePool, Row};
-use anyhow::Result;
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-use chrono::{DateTime, Utc};
 use tokio::sync::RwLock;
-use dashmap::DashMap;
+use uuid::Uuid;
 
-use crate::{Address, transaction::Transaction};
 use crate::consensus::{MLTask, NetworkStats};
+use crate::{transaction::Transaction, Address};
 
 /// High-performance cache for frequently accessed data
 #[derive(Debug, Clone)]
@@ -58,20 +58,24 @@ impl PerformanceCache {
     }
 
     pub fn set_transaction(&self, tx_id: String, transaction: Transaction) {
-        self.transactions.insert(tx_id, (transaction, Instant::now()));
+        self.transactions
+            .insert(tx_id, (transaction, Instant::now()));
     }
 
     pub fn cleanup_expired(&self) {
         let now = Instant::now();
-        
+
         // Clean expired balances
-        self.balances.retain(|_, v| now.duration_since(v.1) < self.cache_ttl);
-        
+        self.balances
+            .retain(|_, v| now.duration_since(v.1) < self.cache_ttl);
+
         // Clean expired transactions
-        self.transactions.retain(|_, v| now.duration_since(v.1) < self.cache_ttl);
-        
+        self.transactions
+            .retain(|_, v| now.duration_since(v.1) < self.cache_ttl);
+
         // Clean expired ML tasks
-        self.ml_tasks.retain(|_, v| now.duration_since(v.1) < self.cache_ttl);
+        self.ml_tasks
+            .retain(|_, v| now.duration_since(v.1) < self.cache_ttl);
     }
 }
 
@@ -149,18 +153,26 @@ impl ParadigmStorage {
     pub async fn new_with_config(database_url: &str, config: StorageConfig) -> Result<Self> {
         // Extract the actual file path from the database URL
         let file_path = if database_url.starts_with("sqlite://") {
-            database_url.strip_prefix("sqlite://").unwrap().split('?').next().unwrap()
+            database_url
+                .strip_prefix("sqlite://")
+                .unwrap()
+                .split('?')
+                .next()
+                .unwrap()
         } else {
             database_url
         };
-        
+
         // Ensure the directory exists
         if let Some(parent) = std::path::Path::new(file_path).parent() {
             std::fs::create_dir_all(parent)?;
         }
-        
-        tracing::info!("Connecting to high-performance database: sqlite://{}", file_path);
-        
+
+        tracing::info!(
+            "Connecting to high-performance database: sqlite://{}",
+            file_path
+        );
+
         // Create optimized connection pool
         let pool = sqlx::sqlite::SqlitePoolOptions::new()
             .max_connections(config.max_connections)
@@ -170,40 +182,51 @@ impl ParadigmStorage {
             .connect_with(
                 sqlx::sqlite::SqliteConnectOptions::new()
                     .filename(file_path)
-                    .create_if_missing(true)  // This should create the database if it doesn't exist
+                    .create_if_missing(true) // This should create the database if it doesn't exist
                     .pragma("cache_size", "-64000") // 64MB cache
                     .pragma("temp_store", "memory")
                     .pragma("mmap_size", "268435456") // 256MB mmap
                     .pragma("synchronous", "NORMAL")
                     .pragma("journal_mode", "WAL")
                     .pragma("foreign_keys", "ON")
-                    .busy_timeout(Duration::from_millis(config.busy_timeout_ms))
-            ).await?;
-        
-        let storage = ParadigmStorage { 
+                    .busy_timeout(Duration::from_millis(config.busy_timeout_ms)),
+            )
+            .await?;
+
+        let storage = ParadigmStorage {
             db_pool: pool,
             cache: PerformanceCache::new(config.cache_ttl_secs),
             batch_manager: BatchOperationManager::new(config.batch_size, config.batch_timeout_ms),
             connection_stats: Arc::new(RwLock::new(ConnectionStats::default())),
         };
-        
+
         storage.initialize_optimized_tables().await?;
         storage.optimize_database().await?;
-        
+
         // Start background maintenance tasks
         storage.start_maintenance_tasks().await?;
-        
+
         Ok(storage)
     }
 
     /// Initialize database tables with performance optimizations
     async fn initialize_optimized_tables(&self) -> Result<()> {
         // Enable performance optimizations at connection level
-        sqlx::query("PRAGMA cache_size = -64000").execute(&self.db_pool).await?;
-        sqlx::query("PRAGMA temp_store = memory").execute(&self.db_pool).await?;
-        sqlx::query("PRAGMA mmap_size = 268435456").execute(&self.db_pool).await?;
-        sqlx::query("PRAGMA synchronous = NORMAL").execute(&self.db_pool).await?;
-        sqlx::query("PRAGMA journal_mode = WAL").execute(&self.db_pool).await?;
+        sqlx::query("PRAGMA cache_size = -64000")
+            .execute(&self.db_pool)
+            .await?;
+        sqlx::query("PRAGMA temp_store = memory")
+            .execute(&self.db_pool)
+            .await?;
+        sqlx::query("PRAGMA mmap_size = 268435456")
+            .execute(&self.db_pool)
+            .await?;
+        sqlx::query("PRAGMA synchronous = NORMAL")
+            .execute(&self.db_pool)
+            .await?;
+        sqlx::query("PRAGMA journal_mode = WAL")
+            .execute(&self.db_pool)
+            .await?;
 
         // Optimized transactions table with better indexing
         sqlx::query(
@@ -317,7 +340,7 @@ impl ParadigmStorage {
 
         // Performance indexes for optimal query speed
         self.create_performance_indexes().await?;
-        
+
         tracing::info!("Optimized database tables initialized successfully");
         Ok(())
     }
@@ -329,18 +352,28 @@ impl ParadigmStorage {
             .execute(&self.db_pool).await?;
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_transactions_to ON transactions(to_address, timestamp DESC)")
             .execute(&self.db_pool).await?;
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_transactions_timestamp ON transactions(timestamp DESC)")
-            .execute(&self.db_pool).await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_transactions_timestamp ON transactions(timestamp DESC)",
+        )
+        .execute(&self.db_pool)
+        .await?;
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_transactions_confirmed ON transactions(confirmed, timestamp DESC)")
             .execute(&self.db_pool).await?;
 
         // ML task indexes
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_ml_tasks_type ON ml_tasks(task_type, created_at DESC)")
-            .execute(&self.db_pool).await?;
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_ml_tasks_assigned ON ml_tasks(assigned_to, completed)")
-            .execute(&self.db_pool).await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_ml_tasks_type ON ml_tasks(task_type, created_at DESC)",
+        )
+        .execute(&self.db_pool)
+        .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_ml_tasks_assigned ON ml_tasks(assigned_to, completed)",
+        )
+        .execute(&self.db_pool)
+        .await?;
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_ml_tasks_deadline ON ml_tasks(deadline ASC)")
-            .execute(&self.db_pool).await?;
+            .execute(&self.db_pool)
+            .await?;
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_ml_tasks_priority ON ml_tasks(priority DESC, created_at ASC)")
             .execute(&self.db_pool).await?;
 
@@ -353,8 +386,11 @@ impl ParadigmStorage {
             .execute(&self.db_pool).await?;
 
         // Peer indexes
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_peers_active ON peers(is_active, last_seen DESC)")
-            .execute(&self.db_pool).await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_peers_active ON peers(is_active, last_seen DESC)",
+        )
+        .execute(&self.db_pool)
+        .await?;
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_peers_reputation ON peers(reputation_score DESC, contribution_score DESC)")
             .execute(&self.db_pool).await?;
 
@@ -366,10 +402,12 @@ impl ParadigmStorage {
     async fn optimize_database(&self) -> Result<()> {
         // Analyze tables for query optimization
         sqlx::query("ANALYZE").execute(&self.db_pool).await?;
-        
+
         // Optimize database file
-        sqlx::query("PRAGMA optimize").execute(&self.db_pool).await?;
-        
+        sqlx::query("PRAGMA optimize")
+            .execute(&self.db_pool)
+            .await?;
+
         tracing::info!("Database optimization completed");
         Ok(())
     }
@@ -379,14 +417,14 @@ impl ParadigmStorage {
         let cache = Arc::new(self.cache.clone());
         let db_pool = self.db_pool.clone();
         let stats = self.connection_stats.clone();
-        
+
         // Cache cleanup task
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(300)); // 5 minutes
             loop {
                 interval.tick().await;
                 cache.cleanup_expired();
-                
+
                 // Update connection stats
                 {
                     let mut conn_stats = stats.write().await;
@@ -403,7 +441,9 @@ impl ParadigmStorage {
             loop {
                 interval.tick().await;
                 if let Err(e) = sqlx::query("PRAGMA wal_checkpoint(TRUNCATE)")
-                    .execute(&db_pool_wal).await {
+                    .execute(&db_pool_wal)
+                    .await
+                {
                     tracing::warn!("WAL checkpoint failed: {}", e);
                 } else {
                     tracing::debug!("WAL checkpoint completed");
@@ -433,13 +473,18 @@ impl ParadigmStorage {
     pub async fn store_transaction_optimized(&self, transaction: &Transaction) -> Result<()> {
         // Check cache first
         let tx_id = transaction.id.to_string();
-        self.cache.set_transaction(tx_id.clone(), transaction.clone());
-        
+        self.cache
+            .set_transaction(tx_id.clone(), transaction.clone());
+
         // Add to batch or store immediately if batch is full
-        if self.batch_manager.add_transaction(transaction.clone()).await {
+        if self
+            .batch_manager
+            .add_transaction(transaction.clone())
+            .await
+        {
             self.flush_transaction_batch().await?;
         }
-        
+
         Ok(())
     }
 
@@ -452,7 +497,7 @@ impl ParadigmStorage {
 
         // Batch insert for optimal performance
         let mut tx = self.db_pool.begin().await?;
-        
+
         for transaction in &transactions {
             sqlx::query(
                 r#"
@@ -473,16 +518,16 @@ impl ParadigmStorage {
             .execute(&mut *tx)
             .await?;
         }
-        
+
         tx.commit().await?;
-        
+
         // Update stats
         {
             let mut stats = self.connection_stats.write().await;
             stats.total_queries += transactions.len() as u64;
             stats.batch_operations += 1;
         }
-        
+
         tracing::debug!("Flushed {} transactions in batch", transactions.len());
         Ok(())
     }
@@ -513,12 +558,10 @@ impl ParadigmStorage {
 
     /// Get transaction by ID
     pub async fn get_transaction(&self, transaction_id: &Uuid) -> Result<Option<Transaction>> {
-        let row = sqlx::query(
-            "SELECT * FROM transactions WHERE id = ?"
-        )
-        .bind(transaction_id.to_string())
-        .fetch_optional(&self.db_pool)
-        .await?;
+        let row = sqlx::query("SELECT * FROM transactions WHERE id = ?")
+            .bind(transaction_id.to_string())
+            .fetch_optional(&self.db_pool)
+            .await?;
 
         if let Some(row) = row {
             // Reconstruct transaction from database row
@@ -530,7 +573,10 @@ impl ParadigmStorage {
     }
 
     /// Get transactions for an address
-    pub async fn get_transactions_for_address(&self, address: &Address) -> Result<Vec<Transaction>> {
+    pub async fn get_transactions_for_address(
+        &self,
+        address: &Address,
+    ) -> Result<Vec<Transaction>> {
         let rows = sqlx::query(
             "SELECT * FROM transactions WHERE from_address = ? OR to_address = ? ORDER BY timestamp DESC"
         )
@@ -553,7 +599,7 @@ impl ParadigmStorage {
         let from_str: String = row.get("from_address");
         let to_str: String = row.get("to_address");
         let timestamp_str: String = row.get("timestamp");
-        
+
         // Parse the data
         let id = Uuid::parse_str(&id_str)?;
         let from = self.parse_address(&from_str)?;
@@ -587,7 +633,9 @@ impl ParadigmStorage {
                     addr_bytes[..20].copy_from_slice(&bytes[..20]);
                     Ok(Address(addr_bytes))
                 } else {
-                    Err(anyhow::anyhow!("Invalid address format - insufficient bytes"))
+                    Err(anyhow::anyhow!(
+                        "Invalid address format - insufficient bytes"
+                    ))
                 }
             } else {
                 Err(anyhow::anyhow!("Invalid address format - not hex"))
@@ -600,7 +648,7 @@ impl ParadigmStorage {
     /// Update balance for an address
     pub async fn update_balance(&self, address: &Address, balance: u64) -> Result<()> {
         sqlx::query(
-            "INSERT OR REPLACE INTO balances (address, balance, last_updated) VALUES (?, ?, ?)"
+            "INSERT OR REPLACE INTO balances (address, balance, last_updated) VALUES (?, ?, ?)",
         )
         .bind(address.to_string())
         .bind(balance as i64)
@@ -613,12 +661,10 @@ impl ParadigmStorage {
 
     /// Get balance for an address
     pub async fn get_balance(&self, address: &Address) -> Result<u64> {
-        let row = sqlx::query(
-            "SELECT balance FROM balances WHERE address = ?"
-        )
-        .bind(address.to_string())
-        .fetch_optional(&self.db_pool)
-        .await?;
+        let row = sqlx::query("SELECT balance FROM balances WHERE address = ?")
+            .bind(address.to_string())
+            .fetch_optional(&self.db_pool)
+            .await?;
 
         if let Some(row) = row {
             Ok(row.get::<i64, _>("balance") as u64)
@@ -654,12 +700,10 @@ impl ParadigmStorage {
 
     /// Get ML task by ID
     pub async fn get_ml_task(&self, task_id: &Uuid) -> Result<Option<MLTask>> {
-        let row = sqlx::query(
-            "SELECT * FROM ml_tasks WHERE id = ?"
-        )
-        .bind(task_id.to_string())
-        .fetch_optional(&self.db_pool)
-        .await?;
+        let row = sqlx::query("SELECT * FROM ml_tasks WHERE id = ?")
+            .bind(task_id.to_string())
+            .fetch_optional(&self.db_pool)
+            .await?;
 
         if let Some(row) = row {
             Ok(Some(self.row_to_ml_task(row)?))
@@ -674,7 +718,7 @@ impl ParadigmStorage {
         let task_type_str: String = row.get("task_type");
         let deadline_str: String = row.get("deadline");
         let created_at_str: String = row.get("created_at");
-        
+
         let id = Uuid::parse_str(&id_str)?;
         let task_type = self.parse_task_type(&task_type_str)?;
         let data: Vec<u8> = row.get("data");
@@ -709,13 +753,17 @@ impl ParadigmStorage {
     fn parse_task_type(&self, type_str: &str) -> Result<crate::consensus::MLTaskType> {
         match type_str {
             "ImageClassification" => Ok(crate::consensus::MLTaskType::ImageClassification),
-            "NaturalLanguageProcessing" => Ok(crate::consensus::MLTaskType::NaturalLanguageProcessing),
+            "NaturalLanguageProcessing" => {
+                Ok(crate::consensus::MLTaskType::NaturalLanguageProcessing)
+            }
             "TimeSeriesAnalysis" => Ok(crate::consensus::MLTaskType::TimeSeriesAnalysis),
             "ReinforcementLearning" => Ok(crate::consensus::MLTaskType::ReinforcementLearning),
             "AutoML" => Ok(crate::consensus::MLTaskType::AutoML),
             "DistributedTraining" => Ok(crate::consensus::MLTaskType::DistributedTraining),
             "Oracle" => Ok(crate::consensus::MLTaskType::Oracle),
-            "SmartContractOptimization" => Ok(crate::consensus::MLTaskType::SmartContractOptimization),
+            "SmartContractOptimization" => {
+                Ok(crate::consensus::MLTaskType::SmartContractOptimization)
+            }
             "NetworkOptimization" => Ok(crate::consensus::MLTaskType::NetworkOptimization),
             _ => Err(anyhow::anyhow!("Unknown task type: {}", type_str)),
         }
@@ -744,12 +792,10 @@ impl ParadigmStorage {
 
     /// Get recent network metrics
     pub async fn get_recent_metrics(&self, limit: i64) -> Result<Vec<NetworkStats>> {
-        let rows = sqlx::query(
-            "SELECT * FROM network_metrics ORDER BY timestamp DESC LIMIT ?"
-        )
-        .bind(limit)
-        .fetch_all(&self.db_pool)
-        .await?;
+        let rows = sqlx::query("SELECT * FROM network_metrics ORDER BY timestamp DESC LIMIT ?")
+            .bind(limit)
+            .fetch_all(&self.db_pool)
+            .await?;
 
         let mut metrics = Vec::new();
         for row in rows {
@@ -788,12 +834,11 @@ impl ParadigmStorage {
 
     /// Get data chunks after timestamp
     pub async fn get_data_chunks_after(&self, timestamp: i64) -> Result<Vec<DataChunk>> {
-        let rows = sqlx::query(
-            "SELECT * FROM data_chunks WHERE timestamp > ? ORDER BY timestamp ASC"
-        )
-        .bind(timestamp)
-        .fetch_all(&self.db_pool)
-        .await?;
+        let rows =
+            sqlx::query("SELECT * FROM data_chunks WHERE timestamp > ? ORDER BY timestamp ASC")
+                .bind(timestamp)
+                .fetch_all(&self.db_pool)
+                .await?;
 
         let mut chunks = Vec::new();
         for row in rows {
@@ -848,13 +893,11 @@ impl ParadigmStorage {
     /// Cleanup old data (for maintenance)
     pub async fn cleanup_old_data(&self, days_to_keep: i64) -> Result<u64> {
         let cutoff_date = Utc::now() - chrono::Duration::days(days_to_keep);
-        
-        let result = sqlx::query(
-            "DELETE FROM network_metrics WHERE timestamp < ?"
-        )
-        .bind(cutoff_date.to_rfc3339())
-        .execute(&self.db_pool)
-        .await?;
+
+        let result = sqlx::query("DELETE FROM network_metrics WHERE timestamp < ?")
+            .bind(cutoff_date.to_rfc3339())
+            .execute(&self.db_pool)
+            .await?;
 
         Ok(result.rows_affected())
     }
@@ -933,47 +976,47 @@ impl ConnectionStats {
 mod tests {
     use super::*;
     use tempfile::tempdir;
-    
+
     #[tokio::test]
     async fn test_storage_creation() {
         let temp_dir = tempdir().unwrap();
         let db_path = temp_dir.path().join("test.db");
-        
+
         let storage = ParadigmStorage::new(db_path.to_str().unwrap()).await;
         assert!(storage.is_ok());
     }
-    
+
     #[tokio::test]
     async fn test_cache_functionality() {
         let cache = PerformanceCache::new(60);
-        
+
         // Test balance cache
         cache.set_balance("test_address".to_string(), 1000);
         assert_eq!(cache.get_balance("test_address"), Some(1000));
         assert_eq!(cache.get_balance("non_existent"), None);
-        
+
         // Test cache expiration (would need to wait for TTL in real scenario)
         cache.cleanup_expired();
     }
-    
+
     #[tokio::test]
     async fn test_batch_operations() {
         let batch_manager = BatchOperationManager::new(3, 1000);
-        
+
         // Test that batch doesn't trigger until size is reached
         let tx1 = create_test_transaction();
         let tx2 = create_test_transaction();
-        
+
         assert!(!batch_manager.add_transaction(tx1).await);
         assert!(!batch_manager.add_transaction(tx2).await);
-        
+
         let tx3 = create_test_transaction();
         assert!(batch_manager.add_transaction(tx3).await); // Should trigger batch
-        
+
         let drained = batch_manager.drain_transactions().await;
         assert_eq!(drained.len(), 3);
     }
-    
+
     fn create_test_transaction() -> Transaction {
         Transaction {
             id: uuid::Uuid::new_v4(),

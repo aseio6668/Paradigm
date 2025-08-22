@@ -1,8 +1,8 @@
-use std::sync::Arc;
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn, debug};
+use std::sync::Arc;
 use tokio::sync::RwLock;
+use tracing::{debug, info, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum GpuBackend {
@@ -39,23 +39,23 @@ pub struct GpuComputeEngine {
 impl GpuComputeEngine {
     pub async fn new() -> Result<Self> {
         info!("Initializing GPU compute engine...");
-        
+
         let capabilities = Self::detect_gpu_capabilities().await?;
         info!("Detected GPU capabilities: {:?}", capabilities);
-        
+
         let engine = Self {
             active_backend: capabilities.preferred_backend.clone(),
             capabilities,
             task_queue: Arc::new(RwLock::new(Vec::new())),
         };
-        
+
         info!("✅ GPU compute engine initialized successfully");
         Ok(engine)
     }
 
     pub async fn detect_gpu_capabilities() -> Result<GpuCapabilities> {
         info!("🔍 Detecting GPU capabilities...");
-        
+
         // Mock GPU detection - in a real implementation this would use actual GPU APIs
         let cpu_device = GpuInfo {
             backend: GpuBackend::Cpu,
@@ -82,7 +82,7 @@ impl GpuComputeEngine {
                 supports_fp16: true,
                 supports_bf16: false,
             };
-            
+
             preferred_backend = GpuBackend::Wgpu;
             total_memory += 4096;
             available_devices.push(wgpu_device);
@@ -106,7 +106,7 @@ impl GpuComputeEngine {
 
     pub async fn run_ml_task(&self, data: &[u8]) -> Result<Vec<u8>> {
         debug!("🚀 Running ML task with {} bytes of data", data.len());
-        
+
         match self.active_backend {
             GpuBackend::Wgpu => self.run_wgpu_task(data).await,
             GpuBackend::Cpu => self.run_cpu_task(data).await,
@@ -115,38 +115,38 @@ impl GpuComputeEngine {
 
     async fn run_wgpu_task(&self, data: &[u8]) -> Result<Vec<u8>> {
         info!("🎯 Processing task with WGPU acceleration");
-        
+
         // Mock WGPU processing - simulate GPU acceleration
         let processing_time = std::cmp::max(50, data.len() / 200); // Faster than CPU
         tokio::time::sleep(std::time::Duration::from_millis(processing_time as u64)).await;
-        
+
         // Simulate GPU-accelerated computation
         let mut result = data.to_vec();
-        
+
         // Mock ML computation (matrix operations, etc.)
         for i in 0..result.len() {
             result[i] = (result[i].wrapping_mul(3).wrapping_add(7)) ^ 0xAA;
         }
-        
+
         debug!("✅ WGPU task completed, {} bytes processed", result.len());
         Ok(result)
     }
 
     async fn run_cpu_task(&self, data: &[u8]) -> Result<Vec<u8>> {
         info!("🔄 Processing task with CPU (fallback)");
-        
+
         // CPU processing is slower but more compatible
         let processing_time = std::cmp::max(100, data.len() / 100);
         tokio::time::sleep(std::time::Duration::from_millis(processing_time as u64)).await;
-        
+
         // Simulate CPU-based ML computation
         let mut result = data.to_vec();
-        
+
         // Mock CPU computation
         for i in 0..result.len() {
             result[i] = result[i].wrapping_mul(2).wrapping_add(5);
         }
-        
+
         debug!("✅ CPU task completed, {} bytes processed", result.len());
         Ok(result)
     }
@@ -161,32 +161,35 @@ impl GpuComputeEngine {
 
     pub async fn benchmark_performance(&self) -> Result<f64> {
         info!("🏃 Running GPU performance benchmark...");
-        
+
         let test_data = vec![0x42; 1024]; // 1KB test data
         let start_time = std::time::Instant::now();
-        
+
         // Run 10 iterations for benchmark
         for _ in 0..10 {
             let _result = self.run_ml_task(&test_data).await?;
         }
-        
+
         let elapsed = start_time.elapsed();
         let throughput = (test_data.len() * 10) as f64 / elapsed.as_secs_f64();
-        
-        info!("📊 Benchmark completed: {:.2} bytes/sec throughput", throughput);
+
+        info!(
+            "📊 Benchmark completed: {:.2} bytes/sec throughput",
+            throughput
+        );
         Ok(throughput)
     }
 
     pub fn calculate_performance_multiplier(&self) -> f64 {
         match self.active_backend {
-            GpuBackend::Wgpu => 2.0,    // 2x faster than CPU
-            GpuBackend::Cpu => 1.0,     // Baseline performance
+            GpuBackend::Wgpu => 2.0, // 2x faster than CPU
+            GpuBackend::Cpu => 1.0,  // Baseline performance
         }
     }
 
     pub async fn optimize_for_task_type(&mut self, task_type: &str) -> Result<()> {
         info!("🎯 Optimizing GPU engine for task type: {}", task_type);
-        
+
         match task_type {
             "image_classification" | "computer_vision" => {
                 info!("📸 Optimizing for computer vision tasks");
@@ -204,7 +207,7 @@ impl GpuComputeEngine {
                 info!("⚙️  Using general-purpose GPU configuration");
             }
         }
-        
+
         Ok(())
     }
 }

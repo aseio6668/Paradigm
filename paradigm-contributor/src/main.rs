@@ -1,18 +1,18 @@
 // Paradigm Contributor - ML Task Processing Client with GPU Acceleration
-use paradigm_core::MLTask;
-use clap::Parser;
 use anyhow::Result;
+use clap::Parser;
+use paradigm_core::MLTask;
 use std::time::Duration;
 use tracing::info;
 use uuid::Uuid;
 
-mod task_manager;
-mod performance_monitor;
 mod gpu_compute;
+mod performance_monitor;
+mod task_manager;
 
-use task_manager::TaskManager;
+use gpu_compute::{GpuBackend, GpuComputeEngine};
 use performance_monitor::PerformanceMonitor;
-use gpu_compute::{GpuComputeEngine, GpuBackend};
+use task_manager::TaskManager;
 
 #[derive(Parser)]
 #[command(name = "paradigm-contributor")]
@@ -21,21 +21,20 @@ pub struct Args {
     /// Node address to connect to
     #[arg(long, default_value = "127.0.0.1:8080")]
     node_address: String,
-    
+
     /// Number of worker threads (0 = auto-detect)
     #[arg(long, default_value_t = 0)]
     threads: usize,
-    
+
     /*
     /// Preferred GPU backend: auto, cuda, opencl, wgpu, cpu
     #[arg(long, default_value = "auto")]
     gpu_backend: String,
-    
+
     /// Run performance benchmark on startup
     #[arg(long)]
     benchmark: bool,
     */
-    
     /// Enable verbose logging
     #[arg(short, long)]
     verbose: bool,
@@ -44,7 +43,7 @@ pub struct Args {
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
-    
+
     // Initialize logging
     if args.verbose {
         tracing_subscriber::fmt()
@@ -70,13 +69,13 @@ async fn main() -> Result<()> {
             info!("🎯 Recommended backend: {:?}", caps.recommended_backend);
             info!("💾 Total GPU memory: {} MB", caps.total_memory_mb);
             info!("⚡ Performance score: {:.1}", caps.estimated_performance_score);
-            
+
             // Display detected GPUs
             for (i, gpu) in caps.available_gpus.iter().enumerate() {
-                info!("  GPU {}: {} ({:?}) - {} MB", 
+                info!("  GPU {}: {} ({:?}) - {} MB",
                      i, gpu.device_name, gpu.backend, gpu.memory_mb);
             }
-            
+
             engine
         }
         Err(e) => {
@@ -108,7 +107,7 @@ async fn main() -> Result<()> {
 
     info!("🔧 Using {} worker threads", num_workers);
 
-    // Initialize task manager 
+    // Initialize task manager
     let _task_manager = TaskManager::new(num_workers).await?;
     let mut performance_monitor = PerformanceMonitor::new();
 
@@ -123,7 +122,7 @@ async fn main() -> Result<()> {
             _ = tokio::time::sleep(Duration::from_secs(5)) => {
                 // In a real implementation, this would connect to the Paradigm network
                 // and fetch actual ML tasks. For now, we simulate task processing.
-                
+
                 // Generate a mock ML task
                 let mock_task = MLTask {
                     id: Uuid::new_v4(),
@@ -142,32 +141,32 @@ async fn main() -> Result<()> {
                 let start_time = std::time::Instant::now();
                 // Simulate task processing - in real implementation would fetch actual tasks
                 tokio::time::sleep(Duration::from_millis(500)).await;
-                
+
                 task_count += 1;
                 let completion_time = start_time.elapsed();
                 let reward_par = mock_task.reward as f64 / 100_000_000.0;
-                
-                info!("✅ Completed task #{} in {:?} - earned {:.8} PAR", 
+
+                info!("✅ Completed task #{} in {:?} - earned {:.8} PAR",
                       task_count, completion_time, reward_par);
-                
+
                 // Update performance stats
                 performance_monitor.record_task_completion(completion_time);
             }
-            
+
             // Update performance metrics and log status
             _ = tokio::time::sleep(Duration::from_secs(30)) => {
                 performance_monitor.update_metrics().await;
-                
+
                 let stats = performance_monitor.get_stats();
-                info!("📊 Performance: {} tasks completed, avg time: {:?}", 
+                info!("📊 Performance: {} tasks completed, avg time: {:?}",
                       stats.total_tasks, stats.average_time);
-                      
+
                 // Log CPU processing status
                 if task_count % 6 == 0 {
                     info!("💡 CPU task processing active");
                 }
             }
-            
+
             // Handle shutdown signal
             _ = tokio::signal::ctrl_c() => {
                 info!("🛑 Shutdown signal received");

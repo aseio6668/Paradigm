@@ -1,17 +1,17 @@
 // Transaction Batching and Pipelining System
 // Optimizes transaction processing by batching multiple transactions together
 
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{RwLock, Mutex, Semaphore};
-use anyhow::Result;
+use tokio::sync::{Mutex, RwLock, Semaphore};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
-use serde::{Serialize, Deserialize};
-use tracing::{info, debug, warn, error};
 
-use crate::{Transaction, Address, ParadigmError};
 use super::PerformanceMetrics;
+use crate::{Address, ParadigmError, Transaction};
 
 /// Transaction batch for optimized processing
 #[derive(Debug, Clone)]
@@ -78,7 +78,7 @@ pub struct BatchingMetrics {
 impl TransactionBatcher {
     pub fn new(config: BatchingConfig) -> Self {
         let max_concurrent = config.max_concurrent_batches;
-        
+
         let mut priority_queues = HashMap::new();
         priority_queues.insert(BatchPriority::Low, VecDeque::new());
         priority_queues.insert(BatchPriority::Normal, VecDeque::new());
@@ -100,7 +100,7 @@ impl TransactionBatcher {
         if self.config.enable_priority_batching {
             let priority = self.calculate_transaction_priority(&transaction).await;
             let mut queues = self.priority_queues.write().await;
-            
+
             if let Some(queue) = queues.get_mut(&priority) {
                 queue.push_back(transaction);
                 debug!("Added transaction to {:?} priority queue", priority);
@@ -118,7 +118,8 @@ impl TransactionBatcher {
     /// Calculate transaction priority based on various factors
     async fn calculate_transaction_priority(&self, transaction: &Transaction) -> BatchPriority {
         // Priority based on transaction fee, age, and type
-        let base_priority = if transaction.amount > 1_000_000_000 { // Large transactions
+        let base_priority = if transaction.amount > 1_000_000_000 {
+            // Large transactions
             BatchPriority::High
         } else if transaction.amount > 100_000_000 {
             BatchPriority::Normal
@@ -156,19 +157,24 @@ impl TransactionBatcher {
 
         if let Some(batch) = batch {
             let batch_id = batch.id;
-            
+
             // Store active batch
             let mut active_batches = self.active_batches.write().await;
             active_batches.insert(batch_id, batch.clone());
-            
+
             // Update metrics
             let mut metrics = self.metrics.write().await;
             metrics.batches_created += 1;
             metrics.total_transactions_batched += batch.transactions.len() as u64;
-            metrics.average_batch_size = metrics.total_transactions_batched as f64 / metrics.batches_created as f64;
-            
-            info!("Created batch {} with {} transactions", batch_id, batch.transactions.len());
-            
+            metrics.average_batch_size =
+                metrics.total_transactions_batched as f64 / metrics.batches_created as f64;
+
+            info!(
+                "Created batch {} with {} transactions",
+                batch_id,
+                batch.transactions.len()
+            );
+
             // Start processing batch asynchronously
             let batcher = self.clone();
             tokio::spawn(async move {
@@ -176,7 +182,7 @@ impl TransactionBatcher {
                     error!("Failed to process batch {}: {}", batch_id, e);
                 }
             });
-            
+
             Ok(Some(batch_id))
         } else {
             // Release semaphore if no batch was created
@@ -192,8 +198,13 @@ impl TransactionBatcher {
         let mut batch_priority = BatchPriority::Low;
 
         // Process queues in priority order (Critical -> High -> Normal -> Low)
-        let priorities = [BatchPriority::Critical, BatchPriority::High, BatchPriority::Normal, BatchPriority::Low];
-        
+        let priorities = [
+            BatchPriority::Critical,
+            BatchPriority::High,
+            BatchPriority::Normal,
+            BatchPriority::Low,
+        ];
+
         for priority in priorities.iter() {
             if let Some(queue) = queues.get_mut(priority) {
                 while batch_transactions.len() < self.config.max_batch_size && !queue.is_empty() {
@@ -202,7 +213,7 @@ impl TransactionBatcher {
                         batch_priority = priority.clone();
                     }
                 }
-                
+
                 if batch_transactions.len() >= self.config.min_batch_size {
                     break;
                 }
@@ -225,11 +236,11 @@ impl TransactionBatcher {
     /// Create simple batch from pending queue
     async fn create_simple_batch(&self) -> Result<Option<TransactionBatch>> {
         let mut pending = self.pending_transactions.write().await;
-        
+
         if pending.len() >= self.config.min_batch_size {
             let batch_size = std::cmp::min(self.config.max_batch_size, pending.len());
             let batch_transactions: Vec<Transaction> = pending.drain(..batch_size).collect();
-            
+
             Ok(Some(TransactionBatch {
                 id: Uuid::new_v4(),
                 transactions: batch_transactions.clone(),
@@ -246,11 +257,17 @@ impl TransactionBatcher {
     async fn estimate_batch_gas(&self, transactions: &[Transaction]) -> u64 {
         if self.config.enable_gas_optimization {
             // Optimized gas calculation considering batch processing savings
-            let base_gas: u64 = transactions.iter().map(|tx| self.estimate_transaction_gas(tx)).sum();
+            let base_gas: u64 = transactions
+                .iter()
+                .map(|tx| self.estimate_transaction_gas(tx))
+                .sum();
             // Apply batch discount (10% savings for batch processing)
             (base_gas as f64 * 0.9) as u64
         } else {
-            transactions.iter().map(|tx| self.estimate_transaction_gas(tx)).sum()
+            transactions
+                .iter()
+                .map(|tx| self.estimate_transaction_gas(tx))
+                .sum()
         }
     }
 
@@ -262,38 +279,56 @@ impl TransactionBatcher {
     /// Process a transaction batch
     async fn process_batch(&self, batch_id: Uuid) -> Result<()> {
         let start_time = Instant::now();
-        
+
         let batch = {
             let active_batches = self.active_batches.read().await;
-            active_batches.get(&batch_id).cloned()
+            active_batches
+                .get(&batch_id)
+                .cloned()
                 .ok_or_else(|| ParadigmError::InvalidInput("Batch not found".to_string()))?
         };
 
-        info!("Processing batch {} with {} transactions (Priority: {:?})", 
-              batch_id, batch.transactions.len(), batch.priority);
+        info!(
+            "Processing batch {} with {} transactions (Priority: {:?})",
+            batch_id,
+            batch.transactions.len(),
+            batch.priority
+        );
 
         // Process transactions in parallel within the batch
-        let results = self.process_transactions_parallel(&batch.transactions).await?;
-        
+        let results = self
+            .process_transactions_parallel(&batch.transactions)
+            .await?;
+
         // Validate all transactions succeeded
         let successful_count = results.iter().filter(|r| r.is_ok()).count();
-        
+
         if successful_count == batch.transactions.len() {
-            info!("Batch {} processed successfully: {}/{} transactions", 
-                  batch_id, successful_count, batch.transactions.len());
+            info!(
+                "Batch {} processed successfully: {}/{} transactions",
+                batch_id,
+                successful_count,
+                batch.transactions.len()
+            );
         } else {
-            warn!("Batch {} partially failed: {}/{} transactions successful", 
-                  batch_id, successful_count, batch.transactions.len());
+            warn!(
+                "Batch {} partially failed: {}/{} transactions successful",
+                batch_id,
+                successful_count,
+                batch.transactions.len()
+            );
         }
 
         // Update metrics
         let processing_time = start_time.elapsed();
         let mut metrics = self.metrics.write().await;
         metrics.batches_processed += 1;
-        
+
         // Update average processing time
-        let total_time = metrics.average_batch_processing_time.as_millis() as f64 * (metrics.batches_processed - 1) as f64;
-        let new_average = (total_time + processing_time.as_millis() as f64) / metrics.batches_processed as f64;
+        let total_time = metrics.average_batch_processing_time.as_millis() as f64
+            * (metrics.batches_processed - 1) as f64;
+        let new_average =
+            (total_time + processing_time.as_millis() as f64) / metrics.batches_processed as f64;
         metrics.average_batch_processing_time = Duration::from_millis(new_average as u64);
 
         // Calculate throughput improvement
@@ -303,7 +338,7 @@ impl TransactionBatcher {
         // Remove from active batches
         let mut active_batches = self.active_batches.write().await;
         active_batches.remove(&batch_id);
-        
+
         // Release semaphore
         self.batch_semaphore.add_permits(1);
 
@@ -312,12 +347,15 @@ impl TransactionBatcher {
     }
 
     /// Process transactions in parallel within a batch
-    async fn process_transactions_parallel(&self, transactions: &[Transaction]) -> Result<Vec<Result<(), ParadigmError>>> {
+    async fn process_transactions_parallel(
+        &self,
+        transactions: &[Transaction],
+    ) -> Result<Vec<Result<(), ParadigmError>>> {
         let chunk_size = std::cmp::max(1, transactions.len() / num_cpus::get());
         let chunks: Vec<_> = transactions.chunks(chunk_size).collect();
-        
+
         let mut handles = Vec::new();
-        
+
         for chunk in chunks {
             let chunk_transactions = chunk.to_vec();
             let handle = tokio::spawn(async move {
@@ -334,7 +372,9 @@ impl TransactionBatcher {
 
         let mut all_results = Vec::new();
         for handle in handles {
-            let chunk_results = handle.await.map_err(|e| ParadigmError::InvalidInput(e.to_string()))?;
+            let chunk_results = handle
+                .await
+                .map_err(|e| ParadigmError::InvalidInput(e.to_string()))?;
             all_results.extend(chunk_results);
         }
 
@@ -345,7 +385,7 @@ impl TransactionBatcher {
     async fn process_single_transaction(_transaction: Transaction) -> Result<(), ParadigmError> {
         // Simulate transaction processing time
         tokio::time::sleep(Duration::from_micros(100)).await;
-        
+
         // Mock validation and processing
         // In real implementation, this would validate signatures, check balances, etc.
         Ok(())
@@ -440,14 +480,17 @@ impl BatchPipeline {
     }
 
     pub async fn start_pipeline(&self) -> Result<()> {
-        info!("Starting transaction batch pipeline with {} stages", self.pipeline_stages.len());
-        
+        info!(
+            "Starting transaction batch pipeline with {} stages",
+            self.pipeline_stages.len()
+        );
+
         // Initialize stage metrics
         let mut metrics = self.stage_metrics.write().await;
         for stage in &self.pipeline_stages {
             metrics.insert(stage.name.clone(), StageMetrics::default());
         }
-        
+
         // Start pipeline monitoring
         let pipeline = self.clone();
         tokio::spawn(async move {
@@ -459,14 +502,14 @@ impl BatchPipeline {
 
     async fn monitor_pipeline(&self) {
         let mut interval = tokio::time::interval(Duration::from_secs(10));
-        
+
         loop {
             interval.tick().await;
-            
+
             let pending_count = self.batcher.get_pending_count().await;
             let active_batches = self.batcher.get_active_batch_count().await;
             let metrics = self.batcher.get_metrics().await;
-            
+
             info!("Pipeline Status - Pending: {}, Active Batches: {}, Processed: {}, Throughput: {:.2} TPS", 
                   pending_count, active_batches, metrics.batches_processed, metrics.throughput_improvement);
         }

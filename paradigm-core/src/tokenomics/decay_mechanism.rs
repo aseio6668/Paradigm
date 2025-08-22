@@ -1,5 +1,5 @@
-use chrono::{DateTime, Utc};
 use crate::Address;
+use chrono::{DateTime, Utc};
 
 /// Temporal token decay mechanism - adds living dimension to currency
 #[derive(Debug)]
@@ -14,9 +14,9 @@ impl DecayMechanism {
         }
     }
 
-    pub async fn initialize(&mut self) -> anyhow::Result<()> { 
+    pub async fn initialize(&mut self) -> anyhow::Result<()> {
         tracing::debug!("Initialized decay mechanism");
-        Ok(()) 
+        Ok(())
     }
 
     /// Apply temporal dynamics (decay/evolution) to token rewards

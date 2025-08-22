@@ -1,13 +1,13 @@
-/// Memory optimization and management for Paradigm
-use std::alloc::{GlobalAlloc, System, Layout};
-use std::collections::{HashMap, VecDeque};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::time::{Duration, Instant};
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
-use tokio::sync::{RwLock, Mutex};
 use dashmap::DashMap;
+use serde::{Deserialize, Serialize};
+/// Memory optimization and management for Paradigm
+use std::alloc::{GlobalAlloc, Layout, System};
+use std::collections::{HashMap, VecDeque};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tokio::sync::{Mutex, RwLock};
 
 /// Custom allocator wrapper for tracking memory usage
 #[derive(Debug)]
@@ -34,7 +34,7 @@ impl TrackingAllocator {
         let allocated = self.allocated.load(Ordering::Relaxed);
         let deallocated = self.deallocated.load(Ordering::Relaxed);
         let current_usage = allocated.saturating_sub(deallocated);
-        
+
         MemoryStats {
             current_usage_bytes: current_usage,
             peak_usage_bytes: self.peak_usage.load(Ordering::Relaxed),
@@ -59,7 +59,7 @@ unsafe impl GlobalAlloc for TrackingAllocator {
             let size = layout.size() as u64;
             self.allocated.fetch_add(size, Ordering::Relaxed);
             self.allocation_count.fetch_add(1, Ordering::Relaxed);
-            
+
             // Update peak usage
             let allocated = self.allocated.load(Ordering::Relaxed);
             let deallocated = self.deallocated.load(Ordering::Relaxed);
@@ -67,7 +67,10 @@ unsafe impl GlobalAlloc for TrackingAllocator {
             let mut peak = self.peak_usage.load(Ordering::Relaxed);
             while current > peak {
                 match self.peak_usage.compare_exchange_weak(
-                    peak, current, Ordering::Relaxed, Ordering::Relaxed
+                    peak,
+                    current,
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
                 ) {
                     Ok(_) => break,
                     Err(x) => peak = x,
@@ -132,7 +135,7 @@ where
     pub async fn acquire(&self) -> PooledObject<T> {
         let mut pool = self.pool.lock().await;
         let object = pool.pop_front().unwrap_or_else(|| (self.create_fn)());
-        
+
         PooledObject {
             object: Some(object),
             pool: self.pool.clone(),
@@ -168,7 +171,7 @@ impl<T: Send + 'static> Drop for PooledObject<T> {
     fn drop(&mut self) {
         if let Some(mut object) = self.object.take() {
             (self.reset_fn)(&mut object);
-            
+
             // Return to pool if not at capacity
             let pool = self.pool.clone();
             let max_size = self.max_pool_size;
@@ -194,20 +197,16 @@ pub struct BufferManager {
 impl BufferManager {
     pub fn new() -> Self {
         Self {
-            small_buffers: ObjectPool::new(
-                100,
-                || Vec::with_capacity(1024),
-                |buf| buf.clear()
-            ),
+            small_buffers: ObjectPool::new(100, || Vec::with_capacity(1024), |buf| buf.clear()),
             medium_buffers: ObjectPool::new(
                 50,
                 || Vec::with_capacity(64 * 1024),
-                |buf| buf.clear()
+                |buf| buf.clear(),
             ),
             large_buffers: ObjectPool::new(
                 10,
                 || Vec::with_capacity(1024 * 1024),
-                |buf| buf.clear()
+                |buf| buf.clear(),
             ),
             stats: Arc::new(RwLock::new(BufferStats::default())),
         }
@@ -261,7 +260,7 @@ where
     pub fn new(capacity: usize, max_size_bytes: usize) -> Self {
         Self {
             cache: Arc::new(RwLock::new(lru::LruCache::new(
-                std::num::NonZeroUsize::new(capacity).unwrap()
+                std::num::NonZeroUsize::new(capacity).unwrap(),
             ))),
             max_size_bytes,
             current_size_bytes: Arc::new(AtomicUsize::new(0)),
@@ -287,7 +286,7 @@ where
         }
 
         let mut cache = self.cache.write().await;
-        
+
         // Check if we need to evict items to make space
         while self.current_size_bytes.load(Ordering::Relaxed) + size_bytes > self.max_size_bytes {
             if cache.pop_lru().is_none() {
@@ -298,7 +297,8 @@ where
         }
 
         cache.put(key, value);
-        self.current_size_bytes.fetch_add(size_bytes, Ordering::Relaxed);
+        self.current_size_bytes
+            .fetch_add(size_bytes, Ordering::Relaxed);
         true
     }
 
@@ -366,9 +366,9 @@ pub enum MemoryPressureLevel {
 impl Default for MemoryThresholds {
     fn default() -> Self {
         Self {
-            low_threshold_mb: 512,      // 512MB
+            low_threshold_mb: 512,       // 512MB
             moderate_threshold_mb: 1024, // 1GB
-            high_threshold_mb: 2048,    // 2GB
+            high_threshold_mb: 2048,     // 2GB
             critical_threshold_mb: 4096, // 4GB
         }
     }
@@ -394,7 +394,7 @@ impl MemoryPressureManager {
 
     pub async fn start_monitoring(&self, interval: Duration) -> Result<()> {
         *self.monitoring_active.write().await = true;
-        
+
         let thresholds = self.thresholds.clone();
         let callbacks = self.callbacks.clone();
         let current_level = self.current_level.clone();
@@ -404,11 +404,11 @@ impl MemoryPressureManager {
             while *monitoring_active.read().await {
                 let memory_usage = Self::get_current_memory_usage().await;
                 let new_level = Self::calculate_pressure_level(&thresholds, memory_usage);
-                
+
                 let mut current = current_level.write().await;
                 if new_level != *current {
                     *current = new_level;
-                    
+
                     // Notify all callbacks
                     let callbacks_guard = callbacks.read().await;
                     for callback in callbacks_guard.iter() {
@@ -416,7 +416,7 @@ impl MemoryPressureManager {
                     }
                 }
                 drop(current);
-                
+
                 tokio::time::sleep(interval).await;
             }
         });
@@ -441,7 +441,10 @@ impl MemoryPressureManager {
         system.used_memory() / 1024 / 1024 // Convert to MB
     }
 
-    fn calculate_pressure_level(thresholds: &MemoryThresholds, usage_mb: u64) -> MemoryPressureLevel {
+    fn calculate_pressure_level(
+        thresholds: &MemoryThresholds,
+        usage_mb: u64,
+    ) -> MemoryPressureLevel {
         if usage_mb >= thresholds.critical_threshold_mb {
             MemoryPressureLevel::Critical
         } else if usage_mb >= thresholds.high_threshold_mb {
@@ -491,20 +494,18 @@ impl MemoryManager {
     pub fn new(config: MemoryConfig) -> Self {
         let allocator_stats = Arc::new(TrackingAllocator::new());
         let buffer_manager = Arc::new(BufferManager::new());
-        
+
         let transaction_cache = Arc::new(LruCache::new(
             config.transaction_cache_size,
             config.max_cache_size_mb * 1024 * 1024 / 2, // Half for transactions
         ));
-        
+
         let ml_task_cache = Arc::new(LruCache::new(
             config.ml_task_cache_size,
             config.max_cache_size_mb * 1024 * 1024 / 2, // Half for ML tasks
         ));
-        
-        let pressure_manager = Arc::new(MemoryPressureManager::new(
-            MemoryThresholds::default()
-        ));
+
+        let pressure_manager = Arc::new(MemoryPressureManager::new(MemoryThresholds::default()));
 
         Self {
             allocator_stats,
@@ -518,55 +519,59 @@ impl MemoryManager {
 
     pub async fn start(&self) -> Result<()> {
         // Start pressure monitoring
-        self.pressure_manager.start_monitoring(self.config.pressure_monitoring_interval).await?;
-        
+        self.pressure_manager
+            .start_monitoring(self.config.pressure_monitoring_interval)
+            .await?;
+
         // Register memory pressure callbacks
         let transaction_cache = self.transaction_cache.clone();
         let ml_task_cache = self.ml_task_cache.clone();
         let enable_gc = self.config.enable_aggressive_gc;
-        
-        self.pressure_manager.register_callback(move |level| {
-            let tx_cache = transaction_cache.clone();
-            let ml_cache = ml_task_cache.clone();
-            
-            tokio::spawn(async move {
-                match level {
-                    MemoryPressureLevel::Low => {
-                        // Light cleanup
-                        tracing::info!("Low memory pressure - performing light cleanup");
-                    },
-                    MemoryPressureLevel::Moderate => {
-                        // More aggressive cleanup
-                        tracing::warn!("Moderate memory pressure - clearing 25% of caches");
-                        // Implementation would clear portion of caches
-                    },
-                    MemoryPressureLevel::High => {
-                        // Aggressive cleanup
-                        tracing::warn!("High memory pressure - clearing 50% of caches");
-                        // Implementation would clear more caches
-                    },
-                    MemoryPressureLevel::Critical => {
-                        // Emergency cleanup
-                        tracing::error!("Critical memory pressure - clearing all caches");
-                        tx_cache.clear().await;
-                        ml_cache.clear().await;
-                        
-                        if enable_gc {
-                            // Force garbage collection
-                            #[cfg(not(target_arch = "wasm32"))]
-                            {
-                                // This is a no-op in Rust, but represents where you might
-                                // trigger more aggressive memory reclamation
-                                tracing::info!("Triggered aggressive memory reclamation");
+
+        self.pressure_manager
+            .register_callback(move |level| {
+                let tx_cache = transaction_cache.clone();
+                let ml_cache = ml_task_cache.clone();
+
+                tokio::spawn(async move {
+                    match level {
+                        MemoryPressureLevel::Low => {
+                            // Light cleanup
+                            tracing::info!("Low memory pressure - performing light cleanup");
+                        }
+                        MemoryPressureLevel::Moderate => {
+                            // More aggressive cleanup
+                            tracing::warn!("Moderate memory pressure - clearing 25% of caches");
+                            // Implementation would clear portion of caches
+                        }
+                        MemoryPressureLevel::High => {
+                            // Aggressive cleanup
+                            tracing::warn!("High memory pressure - clearing 50% of caches");
+                            // Implementation would clear more caches
+                        }
+                        MemoryPressureLevel::Critical => {
+                            // Emergency cleanup
+                            tracing::error!("Critical memory pressure - clearing all caches");
+                            tx_cache.clear().await;
+                            ml_cache.clear().await;
+
+                            if enable_gc {
+                                // Force garbage collection
+                                #[cfg(not(target_arch = "wasm32"))]
+                                {
+                                    // This is a no-op in Rust, but represents where you might
+                                    // trigger more aggressive memory reclamation
+                                    tracing::info!("Triggered aggressive memory reclamation");
+                                }
                             }
                         }
-                    },
-                    MemoryPressureLevel::Normal => {
-                        tracing::info!("Memory pressure returned to normal");
-                    },
-                }
-            });
-        }).await;
+                        MemoryPressureLevel::Normal => {
+                            tracing::info!("Memory pressure returned to normal");
+                        }
+                    }
+                });
+            })
+            .await;
 
         tracing::info!("Memory manager started with monitoring enabled");
         Ok(())
@@ -581,13 +586,13 @@ impl MemoryManager {
         let allocator_stats = self.allocator_stats.get_stats();
         let buffer_stats = self.buffer_manager.get_stats().await;
         let pressure_level = self.pressure_manager.get_current_level().await;
-        
+
         let tx_cache_stats = CacheStats {
             size: self.transaction_cache.len().await,
             hit_ratio: self.transaction_cache.get_hit_ratio(),
             size_bytes: self.transaction_cache.current_size_bytes(),
         };
-        
+
         let ml_cache_stats = CacheStats {
             size: self.ml_task_cache.len().await,
             hit_ratio: self.ml_task_cache.get_hit_ratio(),
@@ -613,7 +618,7 @@ impl MemoryManager {
     pub async fn optimize_for_performance(&self) {
         // Pre-warm caches, adjust thresholds, etc.
         tracing::info!("Optimizing memory manager for performance");
-        
+
         // This could include:
         // - Pre-allocating buffer pools
         // - Adjusting cache sizes based on current memory availability
@@ -623,12 +628,12 @@ impl MemoryManager {
     pub async fn optimize_for_memory(&self) {
         // Reduce cache sizes, more aggressive cleanup, etc.
         tracing::info!("Optimizing memory manager for low memory usage");
-        
+
         // Clear half of each cache
         // In a real implementation, you'd have methods to resize caches
         let tx_len = self.transaction_cache.len().await;
         let ml_len = self.ml_task_cache.len().await;
-        
+
         tracing::info!("Reduced cache sizes - TX: {}, ML: {}", tx_len, ml_len);
     }
 }
@@ -657,19 +662,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_object_pool() {
-        let pool = ObjectPool::new(
-            5,
-            || Vec::with_capacity(1024),
-            |v| v.clear()
-        );
+        let pool = ObjectPool::new(5, || Vec::with_capacity(1024), |v| v.clear());
 
         let mut obj1 = pool.acquire().await;
         obj1.as_mut().push(42u8);
         assert_eq!(obj1.as_ref().len(), 1);
-        
+
         let initial_pool_size = pool.size().await;
         drop(obj1);
-        
+
         // Object should return to pool
         tokio::time::sleep(Duration::from_millis(10)).await;
         let final_pool_size = pool.size().await;
@@ -679,31 +680,42 @@ mod tests {
     #[tokio::test]
     async fn test_lru_cache() {
         let cache = LruCache::new(3, 1024);
-        
-        cache.put("key1".to_string(), "value1".to_string(), 100).await;
-        cache.put("key2".to_string(), "value2".to_string(), 100).await;
-        cache.put("key3".to_string(), "value3".to_string(), 100).await;
-        
+
+        cache
+            .put("key1".to_string(), "value1".to_string(), 100)
+            .await;
+        cache
+            .put("key2".to_string(), "value2".to_string(), 100)
+            .await;
+        cache
+            .put("key3".to_string(), "value3".to_string(), 100)
+            .await;
+
         assert_eq!(cache.len().await, 3);
-        assert_eq!(cache.get(&"key1".to_string()).await, Some("value1".to_string()));
-        
+        assert_eq!(
+            cache.get(&"key1".to_string()).await,
+            Some("value1".to_string())
+        );
+
         // Adding fourth item should evict least recently used
-        cache.put("key4".to_string(), "value4".to_string(), 100).await;
+        cache
+            .put("key4".to_string(), "value4".to_string(), 100)
+            .await;
         assert_eq!(cache.len().await, 3);
     }
 
     #[tokio::test]
     async fn test_buffer_manager() {
         let manager = BufferManager::new();
-        
+
         let small_buf = manager.get_buffer(512).await;
         let medium_buf = manager.get_buffer(32768).await;
         let large_buf = manager.get_buffer(1048576).await;
-        
+
         assert!(small_buf.as_ref().capacity() >= 512);
         assert!(medium_buf.as_ref().capacity() >= 32768);
         assert!(large_buf.as_ref().capacity() >= 1048576);
-        
+
         let stats = manager.get_stats().await;
         assert_eq!(stats.requests, 3);
         assert_eq!(stats.small_buffer_requests, 1);
@@ -719,9 +731,9 @@ mod tests {
             high_threshold_mb: 30,
             critical_threshold_mb: 40,
         };
-        
+
         let manager = MemoryPressureManager::new(thresholds);
-        
+
         // Test level calculation
         assert_eq!(
             MemoryPressureManager::calculate_pressure_level(&manager.thresholds, 5),
@@ -741,13 +753,13 @@ mod tests {
     async fn test_memory_manager() {
         let config = MemoryConfig::default();
         let manager = MemoryManager::new(config);
-        
+
         manager.start().await.unwrap();
-        
+
         let stats = manager.get_comprehensive_stats().await;
         assert_eq!(stats.transaction_cache.size, 0);
         assert_eq!(stats.ml_task_cache.size, 0);
-        
+
         manager.stop().await;
     }
 

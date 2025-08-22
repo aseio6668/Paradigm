@@ -1,12 +1,12 @@
+use crate::{transaction::Transaction, Address, AddressExt, Keypair, PublicKey};
+use anyhow::Result;
+use blake3::Hasher;
+use ed25519_dalek::{SecretKey, SigningKey, VerifyingKey};
+use rand::thread_rng;
+use serde::{Deserialize, Serialize};
+use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
 use std::path::Path;
-use serde::{Deserialize, Serialize};
-use ed25519_dalek::{SigningKey, VerifyingKey, SecretKey};
-use crate::{Keypair, PublicKey, Address, AddressExt, transaction::Transaction};
-use rand::thread_rng;
-use blake3::Hasher;
-use anyhow::Result;
-use sqlx::{SqlitePool, Row};
 
 /// Paradigm wallet for managing keys and transactions
 #[derive(Debug)]
@@ -23,13 +23,13 @@ impl Wallet {
     pub fn new() -> Self {
         use rand::rngs::OsRng;
         use rand::RngCore;
-        
-        // Generate random bytes for the keypair  
+
+        // Generate random bytes for the keypair
         let mut secret_bytes = [0u8; 32];
         OsRng.fill_bytes(&mut secret_bytes);
         let keypair = Keypair::from_bytes(&secret_bytes);
         let address = AddressExt::from_public_key(&keypair.verifying_key());
-        
+
         Wallet {
             keypair,
             address,
@@ -43,7 +43,7 @@ impl Wallet {
     pub fn from_private_key(private_key: &[u8; 32]) -> Result<Self> {
         let keypair = SigningKey::from_bytes(private_key);
         let address = AddressExt::from_public_key(&keypair.verifying_key());
-        
+
         Ok(Wallet {
             keypair,
             address,
@@ -57,7 +57,7 @@ impl Wallet {
     pub async fn initialize_storage<P: AsRef<Path>>(&mut self, db_path: P) -> Result<()> {
         let db_url = format!("sqlite:{}", db_path.as_ref().display());
         let pool = SqlitePool::connect(&db_url).await?;
-        
+
         // Create tables
         sqlx::query(
             r#"
@@ -91,7 +91,7 @@ impl Wallet {
 
         self.db_pool = Some(pool);
         self.load_from_storage().await?;
-        
+
         Ok(())
     }
 
@@ -162,12 +162,7 @@ impl Wallet {
     }
 
     /// Create a new transaction
-    pub fn create_transaction(
-        &self,
-        to: Address,
-        amount: u64,
-        fee: u64,
-    ) -> Result<Transaction> {
+    pub fn create_transaction(&self, to: Address, amount: u64, fee: u64) -> Result<Transaction> {
         if amount + fee > self.balance {
             return Err(anyhow::anyhow!("Insufficient balance"));
         }
@@ -187,14 +182,16 @@ impl Wallet {
         // Update balance based on transaction
         if transaction.from == self.address {
             // Outgoing transaction
-            self.balance = self.balance.saturating_sub(transaction.amount + transaction.fee);
+            self.balance = self
+                .balance
+                .saturating_sub(transaction.amount + transaction.fee);
         } else if transaction.to == self.address {
             // Incoming transaction
             self.balance = self.balance.saturating_add(transaction.amount);
         }
 
         self.transaction_history.push(transaction.clone());
-        
+
         // Save to database
         if let Some(pool) = &self.db_pool {
             sqlx::query(
@@ -239,10 +236,18 @@ impl Wallet {
         // Simplified seed phrase generation
         // In a real implementation, use proper BIP39 wordlist
         vec![
-            "paradigm".to_string(), "crypto".to_string(), "machine".to_string(), 
-            "learning".to_string(), "network".to_string(), "autonomous".to_string(),
-            "secure".to_string(), "instant".to_string(), "transaction".to_string(), 
-            "reward".to_string(), "contribution".to_string(), "future".to_string()
+            "paradigm".to_string(),
+            "crypto".to_string(),
+            "machine".to_string(),
+            "learning".to_string(),
+            "network".to_string(),
+            "autonomous".to_string(),
+            "secure".to_string(),
+            "instant".to_string(),
+            "transaction".to_string(),
+            "reward".to_string(),
+            "contribution".to_string(),
+            "future".to_string(),
         ]
     }
 
@@ -256,7 +261,7 @@ impl Wallet {
         }
         let hash = hasher.finalize();
         let private_key: [u8; 32] = hash.as_bytes()[..32].try_into()?;
-        
+
         Self::from_private_key(&private_key)
     }
 
@@ -272,21 +277,26 @@ impl Wallet {
         if signature.len() != 64 {
             return false;
         }
-        
+
         let sig_bytes: [u8; 64] = signature.try_into().unwrap_or([0; 64]);
         let signature = ed25519_dalek::Signature::from_bytes(&sig_bytes);
-        self.keypair.verifying_key().verify(message, &signature).is_ok()
+        self.keypair
+            .verifying_key()
+            .verify(message, &signature)
+            .is_ok()
     }
 
     /// Get wallet statistics
     pub fn get_stats(&self) -> WalletStats {
-        let total_sent = self.transaction_history
+        let total_sent = self
+            .transaction_history
             .iter()
             .filter(|tx| tx.from == self.address)
             .map(|tx| tx.amount + tx.fee)
             .sum();
 
-        let total_received = self.transaction_history
+        let total_received = self
+            .transaction_history
             .iter()
             .filter(|tx| tx.to == self.address)
             .map(|tx| tx.amount)
@@ -364,7 +374,7 @@ mod tests {
         let private_key = [1u8; 32];
         let wallet1 = Wallet::from_private_key(&private_key).unwrap();
         let wallet2 = Wallet::from_private_key(&private_key).unwrap();
-        
+
         assert_eq!(wallet1.get_address(), wallet2.get_address());
     }
 
@@ -379,15 +389,15 @@ mod tests {
     async fn test_wallet_storage() {
         let temp_dir = tempdir().unwrap();
         let db_path = temp_dir.path().join("test_wallet.db");
-        
+
         let mut wallet = Wallet::new();
         wallet.initialize_storage(&db_path).await.unwrap();
         wallet.update_balance(1000000000).await.unwrap(); // 10 PAR
-        
+
         // Create new wallet instance with same storage
         let mut wallet2 = Wallet::from_private_key(&wallet.export_private_key()).unwrap();
         wallet2.initialize_storage(&db_path).await.unwrap();
-        
+
         assert_eq!(wallet2.get_balance(), 1000000000);
     }
 
@@ -395,14 +405,16 @@ mod tests {
     fn test_transaction_creation() {
         let mut wallet = Wallet::new();
         wallet.balance = 2000000000; // 20 PAR
-        
+
         let to_wallet = Wallet::new();
-        let transaction = wallet.create_transaction(
-            to_wallet.get_address().clone(),
-            1000000000, // 10 PAR
-            10000000,   // 0.1 PAR fee
-        ).unwrap();
-        
+        let transaction = wallet
+            .create_transaction(
+                to_wallet.get_address().clone(),
+                1000000000, // 10 PAR
+                10000000,   // 0.1 PAR fee
+            )
+            .unwrap();
+
         assert_eq!(transaction.amount, 1000000000);
         assert_eq!(transaction.fee, 10000000);
         assert_eq!(transaction.from, *wallet.get_address());
@@ -414,7 +426,7 @@ mod tests {
         let wallet = Wallet::new();
         let message = b"test message";
         let signature = wallet.sign_message(message);
-        
+
         assert!(wallet.verify_signature(message, &signature));
         assert!(!wallet.verify_signature(b"different message", &signature));
     }

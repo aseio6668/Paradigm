@@ -1,12 +1,12 @@
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 // Removing candle_core as we're using simplified ML approach
 use anyhow::Result;
 
-use crate::{Address, FIRST_YEAR_DISTRIBUTION};
 use crate::consensus::{MLTask, MLTaskType, NetworkStats};
+use crate::{Address, FIRST_YEAR_DISTRIBUTION};
 
 /// AI Governance system for autonomous network management
 #[derive(Debug)]
@@ -31,11 +31,14 @@ impl AIGovernance {
 
     pub async fn start(&mut self) -> Result<()> {
         tracing::info!("Starting AI Governance system");
-        tracing::info!("Treasury balance: {} PAR", self.treasury_balance as f64 / 100_000_000.0);
-        
+        tracing::info!(
+            "Treasury balance: {} PAR",
+            self.treasury_balance as f64 / 100_000_000.0
+        );
+
         // Initialize the distribution model
         self.distribution_model.initialize().await?;
-        
+
         Ok(())
     }
 
@@ -73,42 +76,44 @@ impl AIGovernance {
         network_stats: &NetworkStats,
     ) -> Result<HashMap<Address, u64>> {
         let mut rewards = HashMap::new();
-        
+
         // Update network metrics
         self.network_metrics.update_from_stats(network_stats);
-        
+
         // Calculate total contribution score
         let total_score: f64 = contributors.values().sum();
         if total_score == 0.0 {
             return Ok(rewards);
         }
-        
+
         // Calculate rewards based on current distribution model
         let available_rewards = self.calculate_available_rewards().await?;
-        
+
         for (address, score) in contributors {
             let reward_ratio = score / total_score;
             let reward = (available_rewards as f64 * reward_ratio) as u64;
-            
+
             if reward > 0 {
                 rewards.insert(address.clone(), reward);
             }
         }
-        
+
         // Record the decision
         let decision = GovernanceDecision {
             id: Uuid::new_v4(),
             decision_type: DecisionType::RewardDistribution,
             timestamp: Utc::now(),
             parameters: serde_json::to_value(&rewards)?,
-            outcome: format!("Distributed {} PAR to {} contributors", 
-                           available_rewards as f64 / 100_000_000.0, 
-                           rewards.len()),
+            outcome: format!(
+                "Distributed {} PAR to {} contributors",
+                available_rewards as f64 / 100_000_000.0,
+                rewards.len()
+            ),
         };
-        
+
         self.decision_history.push(decision);
         self.treasury_balance = self.treasury_balance.saturating_sub(available_rewards);
-        
+
         Ok(rewards)
     }
 
@@ -116,11 +121,11 @@ impl AIGovernance {
     async fn calculate_available_rewards(&self) -> Result<u64> {
         // Use ML model to determine optimal reward amount
         let base_reward = 1_000_000_00000000u64; // 10 PAR base
-        
+
         // Adjust based on network activity
         let activity_multiplier = self.network_metrics.get_activity_multiplier();
         let adjusted_reward = (base_reward as f64 * activity_multiplier) as u64;
-        
+
         // Don't exceed treasury balance
         Ok(adjusted_reward.min(self.treasury_balance / 100)) // Max 1% of treasury per cycle
     }
@@ -128,7 +133,7 @@ impl AIGovernance {
     /// Generate new ML tasks based on network needs
     pub async fn generate_tasks(&mut self) -> Result<Vec<MLTask>> {
         let mut tasks = Vec::new();
-        
+
         // Analyze network metrics to determine needed tasks
         if self.network_metrics.transaction_throughput < 1000.0 {
             // Need network optimization
@@ -140,7 +145,7 @@ impl AIGovernance {
                 Utc::now() + chrono::Duration::hours(24),
             ));
         }
-        
+
         if self.network_metrics.oracle_accuracy < 0.95 {
             // Need better oracle data
             tasks.push(MLTask::new(
@@ -151,7 +156,7 @@ impl AIGovernance {
                 Utc::now() + chrono::Duration::hours(6),
             ));
         }
-        
+
         // Always generate some basic tasks
         tasks.push(MLTask::new(
             MLTaskType::DistributedTraining,
@@ -160,7 +165,7 @@ impl AIGovernance {
             150_000_000, // 1.5 PAR
             Utc::now() + chrono::Duration::hours(48),
         ));
-        
+
         Ok(tasks)
     }
 
@@ -182,10 +187,10 @@ impl AIGovernance {
             votes_against: 0,
             status: ProposalStatus::Active,
         };
-        
+
         let proposal_id = proposal.id;
         self.active_proposals.insert(proposal_id, proposal);
-        
+
         Ok(proposal_id)
     }
 
@@ -197,10 +202,10 @@ impl AIGovernance {
         } else {
             return Err(anyhow::anyhow!("Proposal not found"));
         };
-        
+
         // AI analysis of the proposal
         let vote = self.analyze_proposal(&proposal_clone).await?;
-        
+
         // Now update the proposal
         if let Some(proposal) = self.active_proposals.get_mut(&proposal_id) {
             if vote {
@@ -208,7 +213,7 @@ impl AIGovernance {
             } else {
                 proposal.votes_against += 1;
             }
-            
+
             // Check if voting period is over
             if Utc::now() > proposal.voting_deadline {
                 proposal.status = if proposal.votes_for > proposal.votes_against {
@@ -218,7 +223,7 @@ impl AIGovernance {
                 };
             }
         }
-        
+
         Ok(())
     }
 
@@ -231,7 +236,13 @@ impl AIGovernance {
             }
             ProposalType::TreasurySpend => {
                 // Analyze if treasury spending is beneficial
-                Ok(proposal.parameters.get("amount").unwrap_or(&serde_json::Value::Number(serde_json::Number::from(0))).as_u64().unwrap_or(0) < self.treasury_balance / 10)
+                Ok(proposal
+                    .parameters
+                    .get("amount")
+                    .unwrap_or(&serde_json::Value::Number(serde_json::Number::from(0)))
+                    .as_u64()
+                    .unwrap_or(0)
+                    < self.treasury_balance / 10)
             }
             ProposalType::NetworkUpgrade => {
                 // Analyze if upgrade improves network
@@ -289,9 +300,11 @@ impl DistributionModel {
     pub async fn initialize(&mut self) -> Result<()> {
         // Initialize model parameters
         self.parameters.insert("base_reward_rate".to_string(), 0.1);
-        self.parameters.insert("difficulty_multiplier".to_string(), 1.5);
-        self.parameters.insert("network_health_bonus".to_string(), 0.2);
-        
+        self.parameters
+            .insert("difficulty_multiplier".to_string(), 1.5);
+        self.parameters
+            .insert("network_health_bonus".to_string(), 0.2);
+
         Ok(())
     }
 }
@@ -312,7 +325,11 @@ impl NetworkMetrics {
         self.transaction_throughput = (stats.completed_tasks as f64) * 10.0; // Simplified
         self.oracle_accuracy = 0.95; // Simplified
         self.network_uptime = 0.99; // Simplified
-        self.contributor_satisfaction = if stats.active_contributors > 0 { 0.8 } else { 0.5 };
+        self.contributor_satisfaction = if stats.active_contributors > 0 {
+            0.8
+        } else {
+            0.5
+        };
     }
 
     pub fn get_activity_multiplier(&self) -> f64 {
@@ -320,7 +337,7 @@ impl NetworkMetrics {
         let base = 1.0;
         let throughput_bonus = (self.transaction_throughput / 1000.0).min(0.5);
         let uptime_bonus = self.network_uptime * 0.3;
-        
+
         base + throughput_bonus + uptime_bonus
     }
 }
@@ -386,7 +403,10 @@ mod tests {
     #[tokio::test]
     async fn test_task_processing() {
         let governance = AIGovernance::new();
-        let result = governance.process_task(b"optimize_transaction_routing".to_vec()).await.unwrap();
+        let result = governance
+            .process_task(b"optimize_transaction_routing".to_vec())
+            .await
+            .unwrap();
         assert!(!result.is_empty());
     }
 
@@ -394,11 +414,11 @@ mod tests {
     async fn test_reward_calculation() {
         let mut governance = AIGovernance::new();
         governance.start().await.unwrap();
-        
+
         let mut contributors = HashMap::new();
         let addr = Address([1u8; 32]);
         contributors.insert(addr.clone(), 1.0);
-        
+
         let stats = NetworkStats {
             total_tasks: 10,
             completed_tasks: 8,
@@ -406,8 +426,11 @@ mod tests {
             total_rewards_pending: 0,
             network_difficulty: 5,
         };
-        
-        let rewards = governance.calculate_reward_distribution(&contributors, &stats).await.unwrap();
+
+        let rewards = governance
+            .calculate_reward_distribution(&contributors, &stats)
+            .await
+            .unwrap();
         assert!(rewards.contains_key(&addr));
         assert!(rewards[&addr] > 0);
     }
