@@ -1,13 +1,10 @@
-use blake3::Hasher;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::transaction::Transaction;
-use crate::{Address, FIRST_YEAR_DISTRIBUTION};
+use crate::Address;
 
 /// Task capabilities for ML workers
 #[derive(Debug, Clone, Serialize, Deserialize)]
