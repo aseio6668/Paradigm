@@ -24,7 +24,7 @@ rand = { workspace = true }
 
 [features]
 default = []
-# wgpu-compute = ["wgpu"]
+wgpu-compute = []
 
 [[bin]]
 name = "paradigm-contributor"

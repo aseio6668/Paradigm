@@ -15,9 +15,21 @@ pub mod wallet;
 pub mod ml_tasks;
 pub mod storage;
 pub mod governance;
+pub mod tokenomics;
 
 // Type aliases for easier use
-pub type Address = String;
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub struct Address(pub [u8; 32]);
+
+impl Address {
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+    
+    pub fn to_string(&self) -> String {
+        format!("PAR{}", hex::encode(&self.0[..20]))
+    }
+}
 pub type Hash = [u8; 32];
 pub type Amount = u64;
 pub type PublicKey = ed25519_dalek::VerifyingKey;
@@ -31,6 +43,7 @@ pub use consensus::MLTask;
 pub use network::{P2PNetwork, NetworkMessage};
 pub use wallet::Wallet;
 pub use governance::{ProposalStatus, ProposalType};
+pub use tokenomics::{TokenomicsSystem, ContributionType, ContributionProof};
 
 pub const PARADIGM_VERSION: &str = "0.1.0";
 
@@ -44,7 +57,9 @@ impl AddressExt for Address {
         let mut hasher = Hasher::new();
         hasher.update(public_key.as_bytes());
         let hash = hasher.finalize();
-        format!("PAR{}", hex::encode(&hash.as_bytes()[..20]))
+        let mut addr = [0u8; 32];
+        addr.copy_from_slice(hash.as_bytes());
+        Address(addr)
     }
 }
 
@@ -71,6 +86,7 @@ pub struct ParadigmNode {
     pub consensus: Arc<RwLock<consensus::ConsensusEngine>>,
     pub storage: Arc<RwLock<storage::ParadigmStorage>>,
     pub governance: Arc<RwLock<governance::AIGovernance>>,
+    pub tokenomics: Arc<RwLock<tokenomics::TokenomicsSystem>>,
     pub keypair: Keypair,
 }
 
@@ -132,18 +148,29 @@ impl ParadigmNode {
             governance::AIGovernance::new()
         ));
 
+        let tokenomics = Arc::new(RwLock::new(
+            tokenomics::TokenomicsSystem::new()
+        ));
+
         Ok(ParadigmNode {
             config,
             network,
             consensus,
             storage,
             governance,
+            tokenomics,
             keypair,
         })
     }
 
     pub async fn start(&mut self) -> anyhow::Result<()> {
         tracing::info!("Starting Paradigm node with ID: {}", self.config.node_id);
+        
+        // Start tokenomics system
+        {
+            let mut tokenomics = self.tokenomics.write().await;
+            tokenomics.start().await?;
+        }
         
         // Start network layer
         {

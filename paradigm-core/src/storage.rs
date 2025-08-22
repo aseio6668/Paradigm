@@ -237,8 +237,20 @@ impl ParadigmStorage {
 
     /// Parse address string to Address
     fn parse_address(&self, addr_str: &str) -> Result<Address> {
-        if addr_str.starts_with("PAR") {
-            Ok(addr_str.to_string())
+        if addr_str.starts_with("PAR") && addr_str.len() >= 43 {
+            // Extract hex part and convert to bytes
+            let hex_part = &addr_str[3..];
+            if let Ok(bytes) = hex::decode(hex_part) {
+                if bytes.len() >= 20 {
+                    let mut addr_bytes = [0u8; 32];
+                    addr_bytes[..20].copy_from_slice(&bytes[..20]);
+                    Ok(Address(addr_bytes))
+                } else {
+                    Err(anyhow::anyhow!("Invalid address format - insufficient bytes"))
+                }
+            } else {
+                Err(anyhow::anyhow!("Invalid address format - not hex"))
+            }
         } else {
             Err(anyhow::anyhow!("Invalid address format"))
         }

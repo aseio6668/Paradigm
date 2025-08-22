@@ -4,10 +4,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
-use tracing::{info, debug, error};
+use tracing::{info, debug};
 use paradigm_core::MLTask;
 
-#[cfg(feature = "wgpu-compute")]
 use crate::gpu_compute::GpuComputeEngine;
 
 #[derive(Debug, Clone)]
@@ -122,47 +121,6 @@ impl TaskManager {
         Ok(())
     }
 
-    pub async fn process_tasks(&mut self) {
-        let mut completed_tasks = Vec::new();
-
-        for (task_id, execution) in &self.active_tasks {
-            // Simulate task processing
-            if execution.started_at.elapsed() > Duration::from_secs(5) {
-                let result = vec![0u8; execution.task.data.len()]; // Mock result
-                completed_tasks.push((*task_id, result));
-            }
-        }
-
-        for (task_id, result) in completed_tasks {
-            if let Some(execution) = self.active_tasks.remove(&task_id) {
-                self.completed_tasks.push((execution.task, result));
-                debug!("Completed task: {}", task_id);
-            }
-        }
-    }
-
-    pub fn get_stats(&self) -> TaskStats {
-        TaskStats {
-            active_tasks: self.active_tasks.len(),
-            completed_tasks: self.completed_tasks.len(),
-            total_tasks: self.active_tasks.len() + self.completed_tasks.len(),
-        }
-    }
-            };
-
-            debug!("Fetched new task: {:?}", task.id);
-            
-            let execution = TaskExecution {
-                task: task.clone(),
-                started_at: Instant::now(),
-                worker_id: self.active_tasks.len(),
-            };
-
-            self.active_tasks.insert(task.id, execution);
-        }
-
-        Ok(())
-    }
 
     pub async fn process_tasks(&mut self) {
         let mut completed_task_ids = Vec::new();
@@ -216,6 +174,7 @@ impl TaskManager {
             active_tasks: self.active_tasks.len(),
             completed_tasks: self.completed_tasks.len(),
             total_reward: self.completed_tasks.iter().map(|(task, _)| task.reward).sum(),
+            total_tasks: self.active_tasks.len() + self.completed_tasks.len(),
         }
     }
 }
@@ -225,4 +184,5 @@ pub struct TaskStats {
     pub active_tasks: usize,
     pub completed_tasks: usize,
     pub total_reward: u64,
+    pub total_tasks: usize,
 }

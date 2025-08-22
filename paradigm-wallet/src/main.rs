@@ -7,7 +7,6 @@ use anyhow::Result;
 use tracing_subscriber;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
-use rand::RngCore;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct WalletInfo {

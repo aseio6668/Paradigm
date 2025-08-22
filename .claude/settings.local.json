@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo check:*)",
+      "Bash(cargo test:*)",
+      "Bash(build.bat)",
+      "Bash(cmd /c:*)",
+      "Bash(cargo --version)",
+      "Bash(rustc --version)",
+      "Bash(cargo build:*)",
+      "Bash(paradigm-core.exe:*)",
+      "Bash(./paradigm-core.exe --help)",
+      "Bash(./paradigm-wallet.exe --help)",
+      "Bash(set BUILD_DIR=targetparadigm-release-test)",
+      "Bash(mkdir \"%BUILD_DIR%\")",
+      "Bash(mkdir \"%BUILD_DIR%\\config\")",
+      "Bash(mkdir \"%BUILD_DIR%\\docs\")",
+      "Bash(dir \"%BUILD_DIR%\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

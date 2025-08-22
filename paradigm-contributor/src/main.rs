@@ -1,19 +1,18 @@
 // Paradigm Contributor - ML Task Processing Client with GPU Acceleration
-use paradigm_core::{MLTask, ParadigmError};
+use paradigm_core::MLTask;
 use clap::Parser;
 use anyhow::Result;
 use std::time::Duration;
-use tracing::{info, warn, error};
+use tracing::info;
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 
 mod task_manager;
 mod performance_monitor;
-//mod gpu_compute;
+mod gpu_compute;
 
 use task_manager::TaskManager;
 use performance_monitor::PerformanceMonitor;
-//use gpu_compute::{GpuComputeEngine, GpuBackend};
+use gpu_compute::{GpuComputeEngine, GpuBackend};
 
 #[derive(Parser)]
 #[command(name = "paradigm-contributor")]
@@ -110,7 +109,7 @@ async fn main() -> Result<()> {
     info!("🔧 Using {} worker threads", num_workers);
 
     // Initialize task manager 
-    let mut task_manager = TaskManager::new(num_workers).await?;
+    let _task_manager = TaskManager::new(num_workers).await?;
     let mut performance_monitor = PerformanceMonitor::new();
 
     info!("✅ Contributor initialized successfully");

@@ -38,7 +38,7 @@ async fn main() -> Result<()> {
 
     let data_dir = PathBuf::from(matches.get_one::<String>("data-dir").unwrap());
     let port: u16 = matches.get_one::<String>("port").unwrap().parse()?;
-    let bootstrap_peers: Vec<String> = matches
+    let _bootstrap_peers: Vec<String> = matches
         .get_one::<String>("bootstrap-peers")
         .unwrap()
         .split(',')
