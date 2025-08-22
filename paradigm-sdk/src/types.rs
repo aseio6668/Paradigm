@@ -67,6 +67,12 @@ impl FromStr for Address {
     }
 }
 
+impl Default for Address {
+    fn default() -> Self {
+        Self::zero()
+    }
+}
+
 /// Hash type (32 bytes)
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Hash {
@@ -129,6 +135,12 @@ impl FromStr for Hash {
     }
 }
 
+impl Default for Hash {
+    fn default() -> Self {
+        Self::zero()
+    }
+}
+
 /// Signature type
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Signature {
@@ -185,6 +197,11 @@ impl Amount {
     
     /// Get amount in wei
     pub fn value(&self) -> u64 {
+        self.wei
+    }
+    
+    /// Get amount in wei (alias for compatibility)
+    pub fn wei(&self) -> u64 {
         self.wei
     }
     
@@ -393,8 +410,14 @@ pub struct Transaction {
     /// Transaction data
     pub data: Vec<u8>,
     
+    /// Transaction input (alias for data)
+    pub input: Vec<u8>,
+    
     /// Gas limit
     pub gas_limit: u64,
+    
+    /// Gas used (alias for gas_limit)
+    pub gas: u64,
     
     /// Gas price
     pub gas_price: Amount,
@@ -413,6 +436,9 @@ pub struct Transaction {
     
     /// Transaction index in block
     pub transaction_index: Option<u32>,
+    
+    /// Block hash (None if pending)
+    pub block_hash: Option<Hash>,
     
     /// Transaction status
     pub status: TransactionStatus,
@@ -457,14 +483,17 @@ impl Transaction {
             from,
             to,
             value,
-            data,
+            data: data.clone(),
+            input: data,
             gas_limit,
+            gas: gas_limit,
             gas_price,
             nonce,
             chain_id,
             signature: None,
             block_number: None,
             transaction_index: None,
+            block_hash: None,
             status: TransactionStatus::Pending,
         }
     }
@@ -491,6 +520,40 @@ impl Transaction {
             _ => 0,
         }
     }
+    
+    /// Calculate transaction hash
+    pub fn hash(&self) -> Hash {
+        self.hash.clone()
+    }
+    
+    /// Convert transaction to bytes for signing/transmission
+    pub fn to_bytes(&self) -> Result<Vec<u8>, crate::error::ParadigmError> {
+        serde_json::to_vec(self)
+            .map_err(|e| crate::error::ParadigmError::Serialization(e.to_string()))
+    }
+}
+
+impl Default for Transaction {
+    fn default() -> Self {
+        Self {
+            hash: Hash::default(),
+            from: Address::default(),
+            to: None,
+            value: Amount::zero(),
+            data: Vec::new(),
+            input: Vec::new(),
+            gas_limit: 21000,
+            gas: 21000,
+            gas_price: Amount::from_wei(20_000_000_000),
+            nonce: 0,
+            chain_id: 1,
+            signature: None,
+            block_number: None,
+            transaction_index: None,
+            block_hash: None,
+            status: TransactionStatus::Pending,
+        }
+    }
 }
 
 /// Block type
@@ -511,6 +574,9 @@ pub struct Block {
     /// Block author/miner
     pub author: Address,
     
+    /// Block miner (alias for author)
+    pub miner: Address,
+    
     /// Transactions in block
     pub transactions: Vec<Hash>,
     
@@ -522,6 +588,9 @@ pub struct Block {
     
     /// Transactions root
     pub transactions_root: Hash,
+    
+    /// Transaction root (alias)
+    pub transaction_root: Hash,
     
     /// Receipts root
     pub receipts_root: Hash,
@@ -535,8 +604,17 @@ pub struct Block {
     /// Extra data
     pub extra_data: Vec<u8>,
     
-    /// Block size
+    /// Block difficulty
+    pub difficulty: u64,
+    
+    /// Total difficulty
+    pub total_difficulty: u64,
+    
+    /// Block size in bytes
     pub size: u64,
+    
+    /// Block nonce
+    pub nonce: u64,
 }
 
 impl Block {

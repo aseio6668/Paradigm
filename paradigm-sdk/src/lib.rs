@@ -50,15 +50,16 @@ pub mod enterprise;
 #[cfg(feature = "testing")]
 pub mod testing;
 
-#[cfg(feature = "cli")]
-pub mod cli;
+// Note: CLI and server modules will be implemented later
+// #[cfg(feature = "cli")]
+// pub mod cli;
 
-#[cfg(feature = "server")]
-pub mod server;
+// #[cfg(feature = "server")]
+// pub mod server;
 
 // Re-exports for convenience
 pub use client::{ParadigmClient, ClientConfig};
-pub use wallet::{Wallet, WalletManager, KeyPair};
+pub use wallet::{Wallet, WalletManager};
 pub use contracts::{Contract, ContractBuilder, ContractCall};
 pub use network::{NetworkConfig, NetworkStatus, PeerInfo};
 pub use types::{
@@ -78,8 +79,11 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Git commit hash (if available)
 pub const GIT_HASH: Option<&str> = option_env!("GIT_HASH");
 
-/// Build timestamp
-pub const BUILD_TIME: &str = env!("BUILD_TIME");
+/// Build timestamp (fallback if not available)
+pub const BUILD_TIME: &str = "unknown";
+
+/// Mainnet chain ID (re-exported for convenience)
+pub const MAINNET_CHAIN_ID: u64 = constants::MAINNET_CHAIN_ID;
 
 /// Paradigm network constants
 pub mod constants {
@@ -488,7 +492,7 @@ pub use serde_json::Value as JsonValue;
 pub mod prelude {
     pub use crate::{
         ParadigmClient, ClientConfig,
-        Wallet, WalletManager, KeyPair,
+        Wallet, WalletManager,
         Contract, ContractBuilder, ContractCall,
         NetworkConfig, NetworkStatus,
         Address, Transaction, Block, Hash, Signature,

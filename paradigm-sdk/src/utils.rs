@@ -6,7 +6,7 @@
 use crate::types::*;
 use crate::error::{Result, ParadigmError};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};

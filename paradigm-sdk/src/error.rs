@@ -388,7 +388,7 @@ impl ParadigmError {
 }
 
 /// Error categories for grouping related errors
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ErrorCategory {
     /// Network and connectivity errors
     Network,

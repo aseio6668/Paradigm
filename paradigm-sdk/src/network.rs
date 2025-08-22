@@ -292,7 +292,7 @@ impl ConsensusConfig {
             algorithm: ConsensusAlgorithm::ProofOfStake,
             block_time_seconds: 12,
             epoch_length: 32,
-            min_validator_stake: Amount::from_paradigm(32000),
+            min_validator_stake: Amount::from_paradigm(32000.0),
             max_validators: 1000,
             slash_conditions: vec![
                 SlashCondition::DoubleSign { penalty_percent: 5 },
@@ -308,7 +308,7 @@ impl ConsensusConfig {
             algorithm: ConsensusAlgorithm::ProofOfStake,
             block_time_seconds: 6,
             epoch_length: 16,
-            min_validator_stake: Amount::from_paradigm(1000),
+            min_validator_stake: Amount::from_paradigm(1000.0),
             max_validators: 100,
             slash_conditions: vec![
                 SlashCondition::DoubleSign { penalty_percent: 1 },
@@ -324,7 +324,7 @@ impl ConsensusConfig {
             algorithm: ConsensusAlgorithm::ProofOfAuthority,
             block_time_seconds: 2,
             epoch_length: 8,
-            min_validator_stake: Amount::from_paradigm(100),
+            min_validator_stake: Amount::from_paradigm(100.0),
             max_validators: 10,
             slash_conditions: vec![],
             finality_confirmations: 1,

@@ -255,7 +255,7 @@ pub struct MultisigConfig {
 impl Default for MultisigConfig {
     fn default() -> Self {
         Self {
-            threshold_amount: Amount::from_paradigm(10000),
+            threshold_amount: Amount::from_paradigm(10000.0),
             min_signatures: 2,
             max_signers: 10,
             signature_timeout_hours: 24,

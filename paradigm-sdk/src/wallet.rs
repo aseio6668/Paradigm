@@ -12,7 +12,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use tokio::sync::RwLock;
-use ed25519_dalek::{Keypair, PublicKey, SecretKey, Signature, Signer, Verifier};
+use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
+pub use ed25519_dalek::{VerifyingKey as PublicKey, SigningKey as SecretKey};
 use rand::rngs::OsRng;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
@@ -86,16 +87,17 @@ impl WalletAccount {
     /// Create a new wallet account with random keys
     pub fn new(name: String) -> Result<Self> {
         let mut csprng = OsRng{};
-        let keypair = Keypair::generate(&mut csprng);
+        let signing_key = SigningKey::generate(&mut csprng);
+        let verifying_key = signing_key.verifying_key();
         
-        let address = Address::from_public_key(&keypair.public)?;
+        let address = Address::from_public_key(&verifying_key)?;
         
         Ok(Self {
             id: Uuid::new_v4(),
             name,
             address,
-            public_key: keypair.public,
-            secret_key: keypair.secret,
+            public_key: verifying_key,
+            secret_key: signing_key,
             derivation_path: None,
             created_at: SystemTime::now(),
             last_used: SystemTime::now(),
