@@ -21,9 +21,24 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(timeout 60s cargo check --package paradigm-sdk)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(timeout 60s cargo check --package paradigm-core)",
+      "Bash(timeout 30s cargo check --package paradigm-core)",
+      "Bash(timeout 20s cargo check --package paradigm-core)",
+      "Bash(timeout:*)",
+      "Bash(cargo metadata:*)",
+      "Bash(./paradigm-core.exe)",
+      "Bash(sqlite3:*)",
+      "Bash(move QUICKSTART.md PRODUCTION.md ADVANCED_TOKENOMICS_IMPLEMENTATION.md ADVANCED_FEATURES_DEMO.md TESTING_DOCUMENTATION.md NETWORK_ANALYTICS_SUMMARY.md CONTRIBUTING.md NETWORK_SETUP_GUIDE.md QUICK_START.md release-package.md START-NETWORK.md docs)",
+      "Bash(if not exist target\\paradigm-release mkdir target\\paradigm-release)",
+      "Bash(copy target\\release\\paradigm-core.exe target\\paradigm-release\\ )",
+      "Bash(if exist \"target\\paradigm-release\\paradigm-core.exe\" echo \"File exists\")",
+      "Bash(rm:*)"
     ],
     "deny": [],
-    "ask": []
+    "ask": [],
+    "additionalDirectories": [
+      "C:\\"
+    ]
   }
 }

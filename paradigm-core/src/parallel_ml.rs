@@ -45,6 +45,7 @@ pub struct WorkerNode {
     pub total_completed: u64,
     pub total_failed: u64,
     pub average_execution_time_ms: f64,
+    #[serde(skip, default = "Instant::now")]
     pub last_heartbeat: Instant,
     pub is_active: bool,
     pub gpu_available: bool,
@@ -569,6 +570,8 @@ impl ParallelMLProcessor {
         tasks: Vec<MLTask>, 
         priority: TaskPriority
     ) -> Result<Vec<TaskExecutionResult>> {
+        let task_count = tasks.len();
+        
         // Submit all tasks
         for task in tasks {
             self.submit_task(task, priority).await?;
@@ -579,7 +582,7 @@ impl ParallelMLProcessor {
         let start_time = Instant::now();
         let batch_timeout = Duration::from_secs(300); // 5 minutes for batch processing
         
-        while start_time.elapsed() < batch_timeout && results.len() < tasks.len() {
+        while start_time.elapsed() < batch_timeout && results.len() < task_count {
             if let Some(result) = self.get_result().await {
                 results.push(result);
             } else {

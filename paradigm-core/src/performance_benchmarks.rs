@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use rayon::prelude::*;
 use uuid::Uuid;
-use sysinfo::{System, SystemExt, ProcessExt, CpuExt};
+use sysinfo::{System, Pid};
 
 use crate::storage::{ParadigmStorage, StorageConfig};
 use crate::crypto_optimization::{CryptoEngine, BenchmarkResults as CryptoBenchmarks};
@@ -299,10 +299,12 @@ impl PerformanceBenchmarker {
         let worker = WorkerNode::new(
             "bench_worker".to_string(),
             TaskCapabilities {
+                has_gpu: false,
+                has_high_memory: true,
+                supports_distributed: true,
+                supports_realtime: false,
+                supports_large_dataset: true,
                 max_difficulty: 10,
-                estimated_time_per_unit: Duration::from_millis(100),
-                memory_requirement: 1024 * 1024,
-                gpu_required: false,
             },
             4
         );

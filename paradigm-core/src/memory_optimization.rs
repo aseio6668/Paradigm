@@ -105,7 +105,6 @@ impl MemoryStats {
 }
 
 /// Object pool for reusing expensive objects
-#[derive(Debug)]
 pub struct ObjectPool<T> {
     pool: Arc<Mutex<VecDeque<T>>>,
     max_size: usize,
@@ -148,15 +147,14 @@ where
 }
 
 /// Pooled object wrapper that automatically returns to pool on drop
-#[derive(Debug)]
-pub struct PooledObject<T> {
+pub struct PooledObject<T: Send + 'static> {
     object: Option<T>,
     pool: Arc<Mutex<VecDeque<T>>>,
     reset_fn: Arc<dyn Fn(&mut T) + Send + Sync>,
     max_pool_size: usize,
 }
 
-impl<T> PooledObject<T> {
+impl<T: Send + 'static> PooledObject<T> {
     pub fn as_ref(&self) -> &T {
         self.object.as_ref().unwrap()
     }
@@ -166,7 +164,7 @@ impl<T> PooledObject<T> {
     }
 }
 
-impl<T> Drop for PooledObject<T> {
+impl<T: Send + 'static> Drop for PooledObject<T> {
     fn drop(&mut self) {
         if let Some(mut object) = self.object.take() {
             (self.reset_fn)(&mut object);
@@ -186,7 +184,6 @@ impl<T> Drop for PooledObject<T> {
 }
 
 /// Memory buffer manager for efficient buffer reuse
-#[derive(Debug)]
 pub struct BufferManager {
     small_buffers: ObjectPool<Vec<u8>>,  // < 1KB
     medium_buffers: ObjectPool<Vec<u8>>, // 1KB - 64KB
@@ -248,7 +245,7 @@ pub struct BufferStats {
 
 /// Least Recently Used (LRU) cache with size limits
 #[derive(Debug)]
-pub struct LruCache<K, V> {
+pub struct LruCache<K: std::hash::Hash + std::cmp::Eq, V> {
     cache: Arc<RwLock<lru::LruCache<K, V>>>,
     max_size_bytes: usize,
     current_size_bytes: Arc<AtomicUsize>,
@@ -342,7 +339,6 @@ where
 }
 
 /// Memory pressure monitor and manager
-#[derive(Debug)]
 pub struct MemoryPressureManager {
     thresholds: MemoryThresholds,
     callbacks: Arc<RwLock<Vec<Box<dyn Fn(MemoryPressureLevel) + Send + Sync>>>>,
@@ -439,7 +435,7 @@ impl MemoryPressureManager {
     async fn get_current_memory_usage() -> u64 {
         // This is a simplified implementation
         // In reality, you'd use system APIs to get actual memory usage
-        use sysinfo::{System, SystemExt};
+        use sysinfo::System;
         let mut system = System::new_all();
         system.refresh_memory();
         system.used_memory() / 1024 / 1024 // Convert to MB
@@ -461,7 +457,6 @@ impl MemoryPressureManager {
 }
 
 /// Comprehensive memory manager for Paradigm
-#[derive(Debug)]
 pub struct MemoryManager {
     pub allocator_stats: Arc<TrackingAllocator>,
     pub buffer_manager: Arc<BufferManager>,

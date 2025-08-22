@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use sqlx::{SqlitePool, Row, Executor};
+use sqlx::{SqlitePool, Row};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -13,7 +13,7 @@ use crate::{Address, transaction::Transaction};
 use crate::consensus::{MLTask, NetworkStats};
 
 /// High-performance cache for frequently accessed data
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PerformanceCache {
     balances: DashMap<String, (u64, Instant)>,
     transactions: DashMap<String, (Transaction, Instant)>,
@@ -147,38 +147,38 @@ impl ParadigmStorage {
 
     /// Create storage with custom performance configuration
     pub async fn new_with_config(database_url: &str, config: StorageConfig) -> Result<Self> {
-        // Handle both file paths and SQLite URLs with performance optimizations
-        let connection_string = if database_url.starts_with("sqlite://") {
-            format!("{}?mode=rwc&cache=shared&synchronous=NORMAL&journal_mode=WAL&temp_store=memory&mmap_size=268435456", database_url)
+        // Extract the actual file path from the database URL
+        let file_path = if database_url.starts_with("sqlite://") {
+            database_url.strip_prefix("sqlite://").unwrap().split('?').next().unwrap()
         } else {
-            // Ensure the directory exists
-            if let Some(parent) = std::path::Path::new(database_url).parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            // Convert path separators to forward slashes for SQLite URL with performance settings
-            let normalized_path = database_url.replace('\\', "/");
-            format!("sqlite://{}?mode=rwc&cache=shared&synchronous=NORMAL&journal_mode=WAL&temp_store=memory&mmap_size=268435456", normalized_path)
+            database_url
         };
         
-        tracing::info!("Connecting to high-performance database: {}", connection_string);
+        // Ensure the directory exists
+        if let Some(parent) = std::path::Path::new(file_path).parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        
+        tracing::info!("Connecting to high-performance database: sqlite://{}", file_path);
         
         // Create optimized connection pool
-        let pool = SqlitePool::connect_with(
-            sqlx::sqlite::SqliteConnectOptions::from_str(&connection_string)?
-                .pragma("cache_size", "-64000") // 64MB cache
-                .pragma("temp_store", "memory")
-                .pragma("mmap_size", "268435456") // 256MB mmap
-                .pragma("synchronous", "NORMAL")
-                .pragma("journal_mode", "WAL")
-                .pragma("foreign_keys", "ON")
-                .busy_timeout(Duration::from_millis(config.busy_timeout_ms))
-        ).await?;
-
-        // Set pool configuration for optimal performance
-        pool.set_max_connections(config.max_connections).await;
-        pool.set_min_connections(config.min_connections).await;
-        pool.set_acquire_timeout(Duration::from_millis(config.acquire_timeout_ms)).await;
-        pool.set_idle_timeout(Some(Duration::from_secs(config.idle_timeout_secs))).await;
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(config.max_connections)
+            .min_connections(config.min_connections)
+            .acquire_timeout(Duration::from_millis(config.acquire_timeout_ms))
+            .idle_timeout(Duration::from_secs(config.idle_timeout_secs))
+            .connect_with(
+                sqlx::sqlite::SqliteConnectOptions::new()
+                    .filename(file_path)
+                    .create_if_missing(true)  // This should create the database if it doesn't exist
+                    .pragma("cache_size", "-64000") // 64MB cache
+                    .pragma("temp_store", "memory")
+                    .pragma("mmap_size", "268435456") // 256MB mmap
+                    .pragma("synchronous", "NORMAL")
+                    .pragma("journal_mode", "WAL")
+                    .pragma("foreign_keys", "ON")
+                    .busy_timeout(Duration::from_millis(config.busy_timeout_ms))
+            ).await?;
         
         let storage = ParadigmStorage { 
             db_pool: pool,
@@ -388,7 +388,8 @@ impl ParadigmStorage {
                 cache.cleanup_expired();
                 
                 // Update connection stats
-                if let Ok(mut conn_stats) = stats.write().await {
+                {
+                    let mut conn_stats = stats.write().await;
                     conn_stats.cache_cleanups += 1;
                     conn_stats.last_cleanup = Utc::now();
                 }
@@ -476,7 +477,8 @@ impl ParadigmStorage {
         tx.commit().await?;
         
         // Update stats
-        if let Ok(mut stats) = self.connection_stats.write().await {
+        {
+            let mut stats = self.connection_stats.write().await;
             stats.total_queries += transactions.len() as u64;
             stats.batch_operations += 1;
         }

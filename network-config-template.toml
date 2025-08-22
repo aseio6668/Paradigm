@@ -1,0 +1,79 @@
+# Paradigm Network Configuration Template
+# =======================================
+# Copy this to network-config.toml and customize for your network
+
+[network]
+# Port your node will listen on (make sure it's open/forwarded)
+port = 8080
+
+# Maximum number of peers to connect to
+max_peers = 50
+
+# Bootstrap peers (leave empty for bootstrap node, or add other nodes)
+bootstrap_peers = [
+    # Examples:
+    # "/ip4/192.168.1.100/tcp/8080/p2p/12D3KooW...",
+    # "/ip4/203.0.113.1/tcp/8080/p2p/12D3KooW..."
+]
+
+[node]
+# Directory to store blockchain data
+data_dir = "./network-data"
+
+# Enable network analytics dashboard
+enable_analytics = true
+analytics_port = 8081
+
+# Enable ML task processing
+enable_ml_tasks = true
+
+[tokenomics]
+# Enable AI-powered governance
+enable_ai_governance = true
+
+# Enable temporal token evolution
+enable_temporal_evolution = true
+
+# Enable quantum-resistant cryptography
+quantum_resistance = true
+
+# Initial treasury balance (PAR tokens, 8 decimal places)
+initial_treasury = 1000000000000000  # 10M PAR
+
+[mining]
+# Enable PAR token rewards for contributions
+enable_rewards = true
+
+# Base reward per completed ML task (in PAR wei, 8 decimals)
+base_task_reward = 100000000  # 1 PAR
+
+# Difficulty adjustment interval (blocks)
+difficulty_adjustment = 100
+
+[governance]
+# Minimum voting threshold for proposals
+voting_threshold = 0.51
+
+# Proposal voting period (hours)
+voting_period = 168  # 1 week
+
+# Minimum reputation to create proposals
+min_proposal_reputation = 100
+
+[security]
+# Enable advanced security features
+enable_zkp = true
+enable_quantum_resistance = true
+
+# Transaction validation strictness (0.0 to 1.0)
+validation_strictness = 0.9
+
+[performance]
+# Number of worker threads for ML processing
+worker_threads = 4
+
+# Memory cache size (MB)
+cache_size = 512
+
+# Enable performance optimizations
+enable_optimizations = true

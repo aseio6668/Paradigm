@@ -19,7 +19,7 @@ pub struct TelemetrySystem {
 #[derive(Debug)]
 pub struct DistributedTracer {
     active_spans: RwLock<HashMap<String, Span>>,
-    span_context_stack: tokio::task::LocalKey<Vec<SpanContext>>,
+    span_context_stack: Arc<Mutex<Vec<SpanContext>>>,
     trace_id_generator: TraceIdGenerator,
     sampling_config: SamplingConfig,
 }
@@ -730,7 +730,7 @@ impl DistributedTracer {
     fn new(sampling_config: SamplingConfig) -> Self {
         DistributedTracer {
             active_spans: RwLock::new(HashMap::new()),
-            span_context_stack: tokio::task::LocalKey::new(|| Vec::new()),
+            span_context_stack: Arc::new(Mutex::new(Vec::new())),
             trace_id_generator: TraceIdGenerator::new(),
             sampling_config,
         }
@@ -804,11 +804,16 @@ impl SpanProcessor {
             loop {
                 interval.tick().await;
                 
-                let mut spans = completed_spans.lock().unwrap();
-                if spans.len() >= batch_config.max_batch_size {
-                    let batch: Vec<_> = spans.drain(..batch_config.max_batch_size).collect();
-                    drop(spans);
-                    
+                let batch = {
+                    let mut spans = completed_spans.lock().unwrap();
+                    if spans.len() >= batch_config.max_batch_size {
+                        Some(spans.drain(..batch_config.max_batch_size).collect::<Vec<_>>())
+                    } else {
+                        None
+                    }
+                };
+                
+                if let Some(batch) = batch {
                     // Export batch
                     Self::export_spans(batch).await;
                 }

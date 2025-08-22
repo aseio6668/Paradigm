@@ -9,6 +9,17 @@ use blake3::Hasher;
 use crate::{Address, FIRST_YEAR_DISTRIBUTION};
 use crate::transaction::Transaction;
 
+/// Task capabilities for ML workers
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskCapabilities {
+    pub has_gpu: bool,
+    pub has_high_memory: bool,
+    pub supports_distributed: bool,
+    pub supports_realtime: bool,
+    pub supports_large_dataset: bool,
+    pub max_difficulty: u8,
+}
+
 /// ML task types that contributors can work on
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MLTaskType {

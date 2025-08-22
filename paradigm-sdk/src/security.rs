@@ -230,7 +230,7 @@ impl AnomalyDetector {
     
     /// Update baseline pattern for an address
     pub fn update_pattern(&mut self, address: Address, transaction: &Transaction) {
-        let pattern = self.baseline_patterns.entry(address)
+        let pattern = self.baseline_patterns.entry(address.clone())
             .or_insert_with(|| TransactionPattern::new(address));
         
         pattern.update_with_transaction(transaction);
@@ -267,14 +267,14 @@ impl AnomalyDetector {
     }
     
     fn check_amount_anomaly(&self, transaction: &Transaction, pattern: &TransactionPattern) -> Option<SecurityAudit> {
-        let amount_ratio = transaction.amount.wei() as f64 / pattern.avg_amount.wei() as f64;
+        let amount_ratio = transaction.value.wei() as f64 / pattern.avg_amount.wei() as f64;
         
         if amount_ratio > self.anomaly_threshold || amount_ratio < (1.0 / self.anomaly_threshold) {
             let mut audit = SecurityAudit::new(
                 SecuritySeverity::Medium,
                 SecurityCategory::AbnormalBehavior,
                 format!("Unusual transaction amount detected: {}x normal pattern", amount_ratio),
-                vec![transaction.from],
+                vec![transaction.from.clone()],
             );
             audit.add_recommendation("Monitor this address for additional suspicious activity".to_string());
             Some(audit)
@@ -321,12 +321,14 @@ impl TransactionPattern {
     pub fn update_with_transaction(&mut self, transaction: &Transaction) {
         // Update average amount (simple moving average)
         let current_wei = self.avg_amount.wei();
-        let new_wei = transaction.amount.wei();
+        let new_wei = transaction.value.wei();
         let updated_wei = (current_wei + new_wei) / 2;
         self.avg_amount = Amount::from_wei(updated_wei);
         
         // Add recipient to common recipients (limit to top 10)
-        self.common_recipients.insert(transaction.to);
+        if let Some(to_addr) = &transaction.to {
+            self.common_recipients.insert(to_addr.clone());
+        }
         if self.common_recipients.len() > 10 {
             // Remove random recipient to maintain size
             let to_remove = self.common_recipients.iter().next().cloned();
@@ -387,7 +389,7 @@ impl SecurityMonitor {
         }
         
         // Update patterns
-        self.anomaly_detector.update_pattern(transaction.from, transaction);
+        self.anomaly_detector.update_pattern(transaction.from.clone(), transaction);
         
         audits
     }
@@ -443,12 +445,18 @@ impl SecurityMonitor {
         // Check for large transactions that might indicate money laundering
         if let Some(threshold_str) = rule.parameters.get("amount_threshold") {
             if let Ok(threshold_wei) = threshold_str.parse::<u64>() {
-                if transaction.amount.wei() > threshold_wei {
+                if transaction.value.wei() > threshold_wei {
                     let mut audit = SecurityAudit::new(
                         SecuritySeverity::High,
                         SecurityCategory::ComplianceViolation,
-                        format!("Large transaction exceeding AML threshold: {} wei", transaction.amount.wei()),
-                        vec![transaction.from, transaction.to],
+                        format!("Large transaction exceeding AML threshold: {} wei", transaction.value.wei()),
+                        {
+                            let mut addresses = vec![transaction.from.clone()];
+                            if let Some(to_addr) = &transaction.to {
+                                addresses.push(to_addr.clone());
+                            }
+                            addresses
+                        },
                     );
                     audit.add_recommendation("Conduct enhanced due diligence on transaction parties".to_string());
                     audit.add_recommendation("File suspicious activity report if required".to_string());
@@ -462,13 +470,22 @@ impl SecurityMonitor {
     
     fn check_ofac_rule(&self, transaction: &Transaction, _rule: &ComplianceRule) -> Option<SecurityAudit> {
         // Check against OFAC sanctions list
-        if self.threat_intelligence.blacklisted_addresses.contains(&transaction.from) ||
-           self.threat_intelligence.blacklisted_addresses.contains(&transaction.to) {
+        let from_blacklisted = self.threat_intelligence.blacklisted_addresses.contains(&transaction.from);
+        let to_blacklisted = transaction.to
+            .as_ref()
+            .map(|addr| self.threat_intelligence.blacklisted_addresses.contains(addr))
+            .unwrap_or(false);
+        
+        if from_blacklisted || to_blacklisted {
+            let mut addresses = vec![transaction.from.clone()];
+            if let Some(to_addr) = &transaction.to {
+                addresses.push(to_addr.clone());
+            }
             let mut audit = SecurityAudit::new(
                 SecuritySeverity::Critical,
                 SecurityCategory::ComplianceViolation,
                 "Transaction involving OFAC sanctioned address".to_string(),
-                vec![transaction.from, transaction.to],
+                addresses,
             );
             audit.add_recommendation("Block transaction immediately".to_string());
             audit.add_recommendation("Report to regulatory authorities".to_string());
@@ -482,13 +499,22 @@ impl SecurityMonitor {
         let mut audits = Vec::new();
         
         // Check blacklisted addresses
-        if self.threat_intelligence.blacklisted_addresses.contains(&transaction.from) ||
-           self.threat_intelligence.blacklisted_addresses.contains(&transaction.to) {
+        let from_blacklisted = self.threat_intelligence.blacklisted_addresses.contains(&transaction.from);
+        let to_blacklisted = transaction.to
+            .as_ref()
+            .map(|addr| self.threat_intelligence.blacklisted_addresses.contains(addr))
+            .unwrap_or(false);
+            
+        if from_blacklisted || to_blacklisted {
+            let mut addresses = vec![transaction.from.clone()];
+            if let Some(to_addr) = &transaction.to {
+                addresses.push(to_addr.clone());
+            }
             let mut audit = SecurityAudit::new(
                 SecuritySeverity::High,
                 SecurityCategory::PotentialAttack,
                 "Transaction involving blacklisted address".to_string(),
-                vec![transaction.from, transaction.to],
+                addresses,
             );
             audit.add_recommendation("Block transaction".to_string());
             audit.add_recommendation("Investigate address activity".to_string());
@@ -498,11 +524,15 @@ impl SecurityMonitor {
         // Check threat patterns
         for pattern in &self.threat_intelligence.suspicious_patterns {
             if self.matches_threat_pattern(transaction, pattern) {
+                let mut addresses = vec![transaction.from.clone()];
+                if let Some(to_addr) = &transaction.to {
+                    addresses.push(to_addr.clone());
+                }
                 let mut audit = SecurityAudit::new(
                     SecuritySeverity::Medium,
                     SecurityCategory::PotentialAttack,
                     format!("Transaction matches threat pattern: {}", pattern.name),
-                    vec![transaction.from, transaction.to],
+                    addresses,
                 );
                 audit.add_recommendation("Enhanced monitoring recommended".to_string());
                 audits.push(audit);
@@ -518,8 +548,13 @@ impl SecurityMonitor {
         for indicator in &pattern.indicators {
             match indicator.indicator_type {
                 IndicatorType::Address => {
-                    if transaction.from.to_string() == indicator.value ||
-                       transaction.to.to_string() == indicator.value {
+                    let from_match = transaction.from.to_string() == indicator.value;
+                    let to_match = transaction.to
+                        .as_ref()
+                        .map(|addr| addr.to_string() == indicator.value)
+                        .unwrap_or(false);
+                    
+                    if from_match || to_match {
                         score += indicator.weight;
                     }
                 }
@@ -529,7 +564,7 @@ impl SecurityMonitor {
                         let parts: Vec<&str> = indicator.value.split('-').collect();
                         if parts.len() == 2 {
                             if let (Ok(min), Ok(max)) = (parts[0].parse::<u64>(), parts[1].parse::<u64>()) {
-                                let amount = transaction.amount.wei();
+                                let amount = transaction.value.wei();
                                 if amount >= min && amount <= max {
                                     score += indicator.weight;
                                 }

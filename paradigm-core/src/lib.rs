@@ -144,6 +144,9 @@ impl ParadigmNode {
         } else {
             std::env::current_dir()?.join(data_path)
         };
+        // Ensure the data directory exists before creating database
+        std::fs::create_dir_all(&absolute_data_path)?;
+        
         let db_path = absolute_data_path.join("paradigm.db");
         let db_url = format!("sqlite://{}", db_path.to_string_lossy().replace('\\', "/"));
         

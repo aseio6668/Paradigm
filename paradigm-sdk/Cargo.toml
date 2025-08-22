@@ -105,15 +105,16 @@ compliance = ["enterprise"]
 
 all = ["client", "server", "cli", "testing", "dev-tools", "security", "enterprise"]
 
-[[bin]]
-name = "paradigm-cli"
-path = "src/bin/cli.rs"
-required-features = ["cli"]
+# Binary targets temporarily disabled due to missing source files
+# [[bin]]
+# name = "paradigm-cli"
+# path = "src/bin/cli.rs"
+# required-features = ["cli"]
 
-[[bin]]
-name = "paradigm-server"
-path = "src/bin/server.rs"
-required-features = ["server"]
+# [[bin]]
+# name = "paradigm-server"
+# path = "src/bin/server.rs"
+# required-features = ["server"]
 
 [[example]]
 name = "basic_client"

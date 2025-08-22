@@ -714,16 +714,25 @@ impl HealthMonitor {
     }
     
     pub async fn perform_health_checks(&self) {
+        // Get component names to check
+        let component_names: Vec<String> = {
+            let components = self.component_health.read().unwrap();
+            components.keys().cloned().collect()
+        };
+        
         // Check component health
-        let mut components = self.component_health.write().unwrap();
-        for (_, component) in components.iter_mut() {
+        for name in component_names {
             let start = Instant::now();
-            let status = self.check_component_health(&component.name).await;
+            let status = self.check_component_health(&name).await;
             let response_time = start.elapsed();
             
-            component.status = status;
-            component.last_check = SystemTime::now();
-            component.response_time = Some(response_time);
+            // Update component status
+            let mut components = self.component_health.write().unwrap();
+            if let Some(component) = components.get_mut(&name) {
+                component.status = status;
+                component.last_check = SystemTime::now();
+                component.response_time = Some(response_time);
+            }
         }
         
         // Update health history
@@ -834,7 +843,8 @@ impl PerformanceTracker {
     
     pub async fn analyze_performance(&self) {
         // Detect performance anomalies
-        self.bottleneck_detector.detect_anomalies(&self.operation_metrics.read().unwrap()).await;
+        let metrics = self.operation_metrics.read().unwrap().clone();
+        self.bottleneck_detector.detect_anomalies(&metrics).await;
         
         // Update performance baselines
         self.update_baselines().await;
@@ -1001,7 +1011,7 @@ impl AlertingSystem {
     }
     
     pub async fn evaluate_alert_rules(&self, metrics: &MetricsCollector) {
-        let rules = self.alert_rules.read().unwrap();
+        let rules = self.alert_rules.read().unwrap().clone();
         let all_metrics = metrics.get_all_metrics().await;
         
         for rule in rules.iter() {

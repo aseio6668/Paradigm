@@ -16,7 +16,7 @@ use crate::crypto_optimization::OptimizedSignatureEngine;
 use crate::storage::ParadigmStorage;
 
 /// Transaction processing pipeline stages
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProcessingStage {
     Received,
     Validated,
@@ -661,7 +661,7 @@ fn get_public_key_for_address(_address: &Address) -> ed25519_dalek::VerifyingKey
     // In a real implementation, this would look up the public key
     // For now, return a dummy key
     use rand::rngs::OsRng;
-    ed25519_dalek::SigningKey::generate(&mut OsRng).verifying_key()
+    ed25519_dalek::SigningKey::from_bytes(&[0u8; 32]).verifying_key()
 }
 
 #[cfg(test)]

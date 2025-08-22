@@ -74,7 +74,7 @@ pub struct AnomalyDetector {
 }
 
 /// Types of anomaly detection algorithms
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AnomalyAlgorithm {
     StatisticalOutlier { threshold: f64 },
     IsolationForest { contamination: f64 },

@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
 use sha2::{Sha256, Digest};
 use sha3::Keccak256;
@@ -215,13 +216,15 @@ impl OptimizedSignatureEngine {
                 }
 
                 // Perform verification
-                if let Ok(sig) = Signature::from_bytes(signature.as_slice().try_into().unwrap_or(&[0u8; 64])) {
-                    let valid = public_key.verify(message, &sig).is_ok();
-                    self.cache.cache_result(message, signature, public_key.as_bytes(), valid);
-                    valid
-                } else {
-                    false
+                if signature.len() == 64 {
+                    if let Ok(sig_bytes) = signature.as_slice().try_into() {
+                        let sig = Signature::from_bytes(&sig_bytes);
+                        let valid = public_key.verify(message, &sig).is_ok();
+                        self.cache.cache_result(message, signature, public_key.as_bytes(), valid);
+                        return valid;
+                    }
                 }
+                false
             })
             .collect();
 
@@ -407,7 +410,7 @@ impl CryptoEngine {
 
         // Signature benchmarks
         let mut csprng = OsRng;
-        let signing_key = SigningKey::generate(&mut csprng);
+        let signing_key = SigningKey::from_bytes(&[0u8; 32]);
         let verifying_key = signing_key.verifying_key();
         
         self.signatures.add_signing_key("test".to_string(), signing_key).await;
@@ -483,7 +486,7 @@ pub struct CryptoPerformanceStats {
 }
 
 /// Benchmark results
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BenchmarkResults {
     pub hash_ops_per_sec: f64,
     pub sign_ops_per_sec: f64,
