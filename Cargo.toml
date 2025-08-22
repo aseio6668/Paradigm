@@ -2,7 +2,8 @@
 members = [
     "paradigm-core",
     "paradigm-wallet", 
-    "paradigm-contributor"
+    "paradigm-contributor",
+    "paradigm-sdk"
 ]
 resolver = "2"
 
@@ -30,6 +31,8 @@ async-trait = "0.1"
 hex = "0.4"
 dirs = "5.0"
 num_cpus = "1.16"
+rayon = "1.8"
+lru = "0.12"
 
 # GUI dependencies - temporarily commented out for build compatibility
 # egui = "0.24"

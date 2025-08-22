@@ -16,6 +16,8 @@ pub mod ml_tasks;
 pub mod storage;
 pub mod governance;
 pub mod tokenomics;
+pub mod performance;
+pub mod ai;
 
 // Type aliases for easier use
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -28,6 +30,12 @@ impl Address {
     
     pub fn to_string(&self) -> String {
         format!("PAR{}", hex::encode(&self.0[..20]))
+    }
+}
+
+impl std::fmt::Display for Address {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
     }
 }
 pub type Hash = [u8; 32];

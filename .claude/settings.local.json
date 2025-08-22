@@ -15,7 +15,11 @@
       "Bash(mkdir \"%BUILD_DIR%\")",
       "Bash(mkdir \"%BUILD_DIR%\\config\")",
       "Bash(mkdir \"%BUILD_DIR%\\docs\")",
-      "Bash(dir \"%BUILD_DIR%\")"
+      "Bash(dir \"%BUILD_DIR%\")",
+      "Bash(.build.bat)",
+      "Bash(./build.bat)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

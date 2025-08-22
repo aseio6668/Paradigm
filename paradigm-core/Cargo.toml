@@ -25,6 +25,9 @@ tonic = { workspace = true }
 prost = { workspace = true }
 hex = { workspace = true }
 async-trait = { workspace = true }
+rayon = { workspace = true }
+lru = { workspace = true }
+num_cpus = { workspace = true }
 
 [build-dependencies]
 tonic-build = "0.10"
