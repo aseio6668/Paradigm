@@ -12,7 +12,8 @@ Cargo.lock
 *.swp
 *.swo
 *~
-
+.claude/
+.media/
 /.claude/
 
 # OS generated files

@@ -35,6 +35,9 @@ dirs = "5.0"
 num_cpus = "1.16"
 rayon = "1.8"
 lru = "0.12"
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
 
 # GUI dependencies - temporarily commented out for build compatibility
 # egui = "0.24"

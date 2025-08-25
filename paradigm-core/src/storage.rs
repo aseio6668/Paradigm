@@ -619,6 +619,7 @@ impl ParadigmStorage {
             timestamp,
             signature,
             nonce,
+            message: None, // TODO: Add message column to database schema
         })
     }
 
@@ -890,6 +891,14 @@ impl ParadigmStorage {
         })
     }
 
+    /// Get total transaction count for network sync
+    pub async fn get_transaction_count(&self) -> Result<u64> {
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM transactions")
+            .fetch_one(&self.db_pool)
+            .await?;
+        Ok(count as u64)
+    }
+
     /// Cleanup old data (for maintenance)
     pub async fn cleanup_old_data(&self, days_to_keep: i64) -> Result<u64> {
         let cutoff_date = Utc::now() - chrono::Duration::days(days_to_keep);
@@ -900,6 +909,147 @@ impl ParadigmStorage {
             .await?;
 
         Ok(result.rows_affected())
+    }
+
+    // Genesis-related storage methods
+
+    /// Store genesis block
+    pub async fn store_genesis_block(&self, genesis_block: &crate::genesis::GenesisBlock) -> Result<()> {
+        let genesis_data = serde_json::to_string(genesis_block)?;
+        
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS genesis_blocks (
+                block_number INTEGER PRIMARY KEY,
+                hash BLOB NOT NULL,
+                timestamp TEXT NOT NULL,
+                config_data TEXT NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            "#
+        )
+        .execute(&self.db_pool)
+        .await?;
+
+        sqlx::query(
+            "INSERT OR REPLACE INTO genesis_blocks (block_number, hash, timestamp, config_data) VALUES (?, ?, ?, ?)"
+        )
+        .bind(genesis_block.block_number as i64)
+        .bind(&genesis_block.hash[..])
+        .bind(genesis_block.timestamp.to_rfc3339())
+        .bind(genesis_data)
+        .execute(&self.db_pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Store AI governance parameters
+    pub async fn store_ai_governance_params(&self, params: &crate::genesis::AIGovernanceParams) -> Result<()> {
+        let params_data = serde_json::to_string(params)?;
+        
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS ai_governance_params (
+                id INTEGER PRIMARY KEY DEFAULT 1,
+                params_data TEXT NOT NULL,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            "#
+        )
+        .execute(&self.db_pool)
+        .await?;
+
+        sqlx::query(
+            "INSERT OR REPLACE INTO ai_governance_params (id, params_data) VALUES (1, ?)"
+        )
+        .bind(params_data)
+        .execute(&self.db_pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Get AI governance parameters
+    pub async fn get_ai_governance_params(&self) -> Result<crate::genesis::AIGovernanceParams> {
+        let row = sqlx::query("SELECT params_data FROM ai_governance_params WHERE id = 1")
+            .fetch_optional(&self.db_pool)
+            .await?;
+
+        if let Some(row) = row {
+            let params_data: String = row.get("params_data");
+            Ok(serde_json::from_str(&params_data)?)
+        } else {
+            Ok(crate::genesis::AIGovernanceParams::default())
+        }
+    }
+
+    /// Store network genesis configuration
+    pub async fn store_network_genesis_config(&self, config: &crate::genesis::NetworkGenesisConfig) -> Result<()> {
+        let config_data = serde_json::to_string(config)?;
+        
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS network_genesis_config (
+                id INTEGER PRIMARY KEY DEFAULT 1,
+                config_data TEXT NOT NULL,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            "#
+        )
+        .execute(&self.db_pool)
+        .await?;
+
+        sqlx::query(
+            "INSERT OR REPLACE INTO network_genesis_config (id, config_data) VALUES (1, ?)"
+        )
+        .bind(config_data)
+        .execute(&self.db_pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Store genesis features
+    pub async fn store_genesis_features(&self, features: &crate::genesis::GenesisFeatures) -> Result<()> {
+        let features_data = serde_json::to_string(features)?;
+        
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS genesis_features (
+                id INTEGER PRIMARY KEY DEFAULT 1,
+                features_data TEXT NOT NULL,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            "#
+        )
+        .execute(&self.db_pool)
+        .await?;
+
+        sqlx::query(
+            "INSERT OR REPLACE INTO genesis_features (id, features_data) VALUES (1, ?)"
+        )
+        .bind(features_data)
+        .execute(&self.db_pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Set balance for an address (used for genesis initialization)
+    pub async fn set_balance(&self, address: &Address, balance: u64) -> Result<()> {
+        sqlx::query(
+            "INSERT OR REPLACE INTO balances (address, balance, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)"
+        )
+        .bind(address.to_string())
+        .bind(balance as i64)
+        .execute(&self.db_pool)
+        .await?;
+
+        // Update cache
+        self.cache.set_balance(address.to_string(), balance);
+
+        Ok(())
     }
 }
 

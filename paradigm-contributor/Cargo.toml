@@ -18,6 +18,9 @@ chrono = { workspace = true }
 async-trait = { workspace = true }
 num_cpus = { workspace = true }
 rand = { workspace = true }
+reqwest = { workspace = true }
+ed25519-dalek = { workspace = true }
+dirs = { workspace = true }
 
 # ML dependencies temporarily disabled for basic build
 # wgpu = { workspace = true, optional = true }

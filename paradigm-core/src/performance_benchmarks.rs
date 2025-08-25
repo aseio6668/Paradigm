@@ -821,6 +821,7 @@ Generated: {}
             timestamp: chrono::Utc::now(),
             signature: vec![index as u8; 64],
             nonce: index as u64,
+            message: None,
         }
     }
 

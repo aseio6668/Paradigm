@@ -4,9 +4,11 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 pub mod ai;
+pub mod api;
 pub mod consensus;
 /// The core Paradigm network node implementation
 pub mod error;
+pub mod genesis;
 pub mod governance;
 pub mod ml_tasks;
 pub mod network;
@@ -15,6 +17,14 @@ pub mod storage;
 pub mod tokenomics;
 pub mod transaction;
 pub mod wallet;
+pub mod wallet_manager;
+pub mod transaction_tester;
+pub mod autopool;
+pub mod network_sync;
+pub mod privacy_blockchain;
+pub mod ephemeral_storage;
+pub mod peer_manager;
+pub mod autonomous_tasks;
 
 // Performance optimization modules
 pub mod crypto_optimization;
@@ -34,6 +44,22 @@ impl Address {
 
     pub fn to_string(&self) -> String {
         format!("PAR{}", hex::encode(&self.0[..20]))
+    }
+
+    pub fn from_string(addr_str: &str) -> anyhow::Result<Self> {
+        if !addr_str.starts_with("PAR") {
+            return Err(anyhow::anyhow!("Invalid address format: must start with PAR"));
+        }
+        
+        let hex_part = &addr_str[3..]; // Remove "PAR" prefix
+        if hex_part.len() != 40 { // 20 bytes * 2 hex chars
+            return Err(anyhow::anyhow!("Invalid address length"));
+        }
+        
+        let hex_bytes = hex::decode(hex_part)?;
+        let mut addr = [0u8; 32];
+        addr[..20].copy_from_slice(&hex_bytes);
+        Ok(Address(addr))
     }
 }
 
@@ -99,6 +125,11 @@ pub struct ParadigmNode {
     pub storage: Arc<RwLock<storage::ParadigmStorage>>,
     pub governance: Arc<RwLock<governance::AIGovernance>>,
     pub tokenomics: Arc<RwLock<tokenomics::TokenomicsSystem>>,
+    pub network_sync: Arc<RwLock<network_sync::NetworkSynchronizer>>,
+    pub privacy_blockchain: Arc<RwLock<privacy_blockchain::PrivacyBlockchain>>,
+    pub ephemeral_storage: Arc<RwLock<ephemeral_storage::EphemeralStorage>>,
+    pub peer_manager: Arc<RwLock<peer_manager::PeerManager>>,
+    pub autonomous_tasks: Arc<RwLock<autonomous_tasks::AutonomousTaskGenerator>>,
     pub keypair: Keypair,
 }
 
@@ -157,6 +188,30 @@ impl ParadigmNode {
 
         let tokenomics = Arc::new(RwLock::new(tokenomics::TokenomicsSystem::new()));
 
+        let network_sync = Arc::new(RwLock::new(
+            network_sync::NetworkSynchronizer::new(storage.clone())
+        ));
+
+        let privacy_blockchain = Arc::new(RwLock::new(
+            privacy_blockchain::PrivacyBlockchain::new(storage.clone())
+        ));
+
+        let ephemeral_storage = Arc::new(RwLock::new(
+            ephemeral_storage::EphemeralStorage::new()
+        ));
+
+        let peer_manager = Arc::new(RwLock::new(
+            peer_manager::PeerManager::new(&config.data_dir).await?
+        ));
+
+        let autonomous_tasks = Arc::new(RwLock::new(
+            autonomous_tasks::AutonomousTaskGenerator::new(
+                storage.clone(),
+                peer_manager.clone(),
+                network_sync.clone()
+            )
+        ));
+
         Ok(ParadigmNode {
             config,
             network,
@@ -164,6 +219,11 @@ impl ParadigmNode {
             storage,
             governance,
             tokenomics,
+            network_sync,
+            privacy_blockchain,
+            ephemeral_storage,
+            peer_manager,
+            autonomous_tasks,
             keypair,
         })
     }
@@ -183,7 +243,37 @@ impl ParadigmNode {
             network.start_listening().await?;
         }
 
-        tracing::info!("Paradigm node started successfully");
+        // Start network synchronization
+        {
+            let mut network_sync = self.network_sync.write().await;
+            network_sync.start_sync().await?;
+        }
+
+        // Start privacy blockchain auto-cleanup
+        {
+            let privacy_blockchain = self.privacy_blockchain.read().await;
+            privacy_blockchain.start_auto_cleanup().await?;
+        }
+
+        // Start ephemeral storage auto-cleanup
+        {
+            let ephemeral_storage = self.ephemeral_storage.read().await;
+            ephemeral_storage.start_auto_cleanup().await?;
+        }
+
+        // Start peer manager background tasks
+        {
+            let peer_manager = self.peer_manager.read().await;
+            peer_manager.start_background_tasks().await?;
+        }
+
+        // Start autonomous task generation
+        {
+            let autonomous_tasks = self.autonomous_tasks.read().await;
+            autonomous_tasks.start().await?;
+        }
+
+        tracing::info!("Paradigm node started successfully with autonomous features");
         Ok(())
     }
 
@@ -231,6 +321,46 @@ impl ParadigmNode {
         let storage = self.storage.read().await;
         storage.get_transactions_for_address(address).await
     }
+
+    pub async fn get_sync_info(&self) -> network_sync::SyncInfo {
+        let network_sync = self.network_sync.read().await;
+        network_sync.get_sync_info()
+    }
+
+    pub async fn get_sync_percentage(&self) -> u8 {
+        let network_sync = self.network_sync.read().await;
+        network_sync.get_sync_percentage()
+    }
+
+    pub async fn get_privacy_stats(&self) -> anyhow::Result<privacy_blockchain::PrivacyStats> {
+        let privacy_blockchain = self.privacy_blockchain.read().await;
+        privacy_blockchain.get_privacy_stats().await
+    }
+
+    pub async fn store_private_transaction(&self, transaction: &transaction::Transaction) -> anyhow::Result<()> {
+        let privacy_blockchain = self.privacy_blockchain.read().await;
+        privacy_blockchain.store_private_transaction(transaction).await
+    }
+
+    pub async fn get_private_balance(&self, address: &Address) -> anyhow::Result<u64> {
+        let privacy_blockchain = self.privacy_blockchain.read().await;
+        privacy_blockchain.get_private_balance(address).await
+    }
+
+    pub async fn get_ephemeral_balance(&self, address: &Address) -> anyhow::Result<u64> {
+        let ephemeral_storage = self.ephemeral_storage.read().await;
+        ephemeral_storage.get_balance(address).await
+    }
+
+    pub async fn get_ephemeral_transactions(&self, address: &Address, limit: Option<usize>) -> anyhow::Result<Vec<ephemeral_storage::EphemeralTransaction>> {
+        let ephemeral_storage = self.ephemeral_storage.read().await;
+        ephemeral_storage.get_address_transactions(address, limit).await
+    }
+
+    pub async fn store_ephemeral_transaction(&self, transaction: &transaction::Transaction) -> anyhow::Result<()> {
+        let ephemeral_storage = self.ephemeral_storage.read().await;
+        ephemeral_storage.store_transaction(transaction).await
+    }
 }
 
 #[cfg(test)]
@@ -248,8 +378,9 @@ mod tests {
     fn test_address_generation() {
         let keypair = ed25519_dalek::SigningKey::generate(&mut rand::rngs::OsRng);
         let address = Address::from_public_key(&keypair.verifying_key());
-        assert!(address.starts_with("PAR"));
-        assert_eq!(address.len(), 43); // "PAR" + 40 hex chars
+        let address_str = address.to_string();
+        assert!(address_str.starts_with("PAR"));
+        assert_eq!(address_str.len(), 43); // "PAR" + 40 hex chars
     }
 
     #[test]

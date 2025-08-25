@@ -296,6 +296,11 @@ impl TreasuryManager {
     pub fn get_active_proposals(&self) -> Vec<&FundingProposal> {
         self.active_proposals.values().collect()
     }
+
+    /// Set treasury balance (used for genesis initialization)
+    pub fn set_balance(&mut self, balance: u64) {
+        self.balance = balance;
+    }
 }
 
 /// AI curator for evaluating funding proposals

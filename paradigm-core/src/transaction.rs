@@ -17,6 +17,7 @@ pub struct Transaction {
     pub timestamp: DateTime<Utc>,
     pub signature: Vec<u8>,
     pub nonce: u64,
+    pub message: Option<String>, // Optional 10-character message
 }
 
 impl Transaction {
@@ -29,8 +30,32 @@ impl Transaction {
         timestamp: DateTime<Utc>,
         keypair: &Keypair,
     ) -> anyhow::Result<Self> {
+        Self::new_with_message(from, to, amount, fee, timestamp, keypair, None)
+    }
+
+    /// Create a new transaction with optional message
+    pub fn new_with_message(
+        from: Address,
+        to: Address,
+        amount: u64,
+        fee: u64,
+        timestamp: DateTime<Utc>,
+        keypair: &Keypair,
+        message: Option<String>,
+    ) -> anyhow::Result<Self> {
         let id = Uuid::new_v4();
         let nonce = timestamp.timestamp_nanos_opt().unwrap_or(0) as u64;
+
+        // Validate message length (10 characters max)
+        if let Some(ref msg) = message {
+            if msg.len() > 10 {
+                return Err(anyhow::anyhow!("Transaction message cannot exceed 10 characters"));
+            }
+            // Ensure message contains only printable ASCII characters
+            if !msg.chars().all(|c| c.is_ascii() && !c.is_control()) {
+                return Err(anyhow::anyhow!("Transaction message must contain only printable ASCII characters"));
+            }
+        }
 
         // Create transaction without signature first
         let mut transaction = Transaction {
@@ -42,6 +67,7 @@ impl Transaction {
             timestamp,
             signature: Vec::new(),
             nonce,
+            message,
         };
 
         // Sign the transaction
@@ -90,6 +116,12 @@ impl Transaction {
                 .to_le_bytes(),
         );
         hasher.update(&self.nonce.to_le_bytes());
+        
+        // Include message in signing data
+        if let Some(ref message) = self.message {
+            hasher.update(message.as_bytes());
+        }
+        
         hasher.finalize().as_bytes().to_vec()
     }
 

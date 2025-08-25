@@ -1,124 +1,112 @@
 // Paradigm Wallet - CLI interface with full wallet management
 use anyhow::Result;
-use paradigm_core::Wallet;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use paradigm_core::wallet_manager::WalletManager;
+use paradigm_core::transaction_tester::TransactionTester;
 use std::env;
-use std::fs;
-use std::path::Path;
+use std::path::PathBuf;
 use tracing_subscriber;
 
-#[derive(Serialize, Deserialize, Debug)]
-struct WalletInfo {
-    name: String,
-    address: String,
-    private_key: String,
-    created_at: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Default)]
-struct WalletStore {
-    wallets: HashMap<String, WalletInfo>,
-    default_wallet: Option<String>,
-}
-
-const WALLET_DIR: &str = "./wallets";
-const WALLET_STORE_FILE: &str = "./wallets/wallet_store.json";
 
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
-    println!("🪙 Paradigm Wallet v0.1.0");
+    println!("🪙 Paradigm Wallet v2.0.0");
     println!("Advanced Cryptocurrency Wallet CLI");
     println!("===================================");
 
-    // Ensure wallet directory exists
-    ensure_wallet_directory()?;
-
-    // Parse command line arguments
     let args: Vec<String> = env::args().collect();
+    
+    // Get wallet file path
+    let wallet_path = if args.len() > 2 && args[1] == "--wallet-file" {
+        PathBuf::from(&args[2])
+    } else {
+        WalletManager::get_default_wallet_path()
+    };
+
+    let mut wallet_manager = WalletManager::new(wallet_path.clone())?;
+    println!("💼 Using wallet file: {}", wallet_path.display());
 
     if args.len() > 1 {
-        match args[1].as_str() {
-            "create" => {
-                let name = if args.len() > 2 {
-                    args[2].clone()
-                } else {
-                    format!("wallet_{}", chrono::Utc::now().timestamp())
-                };
-                create_wallet(&name).await?;
-                return Ok(());
-            }
-            "list" => {
-                list_wallets().await?;
-                return Ok(());
-            }
-            "import" => {
-                if args.len() < 4 {
-                    println!("Usage: paradigm-wallet import <name> <private_key>");
-                    return Ok(());
+        let command_start = if args.len() > 2 && args[1] == "--wallet-file" { 3 } else { 1 };
+        
+        if command_start < args.len() {
+            match args[command_start].as_str() {
+                "create" => {
+                    let label = if args.len() > command_start + 1 {
+                        args[command_start + 1].clone()
+                    } else {
+                        format!("Address {}", chrono::Utc::now().timestamp())
+                    };
+                    create_address(&mut wallet_manager, &label)?;
                 }
-                let name = &args[2];
-                let private_key = &args[3];
-                import_wallet(name, private_key).await?;
-                return Ok(());
-            }
-            "export" => {
-                if args.len() < 3 {
-                    println!("Usage: paradigm-wallet export <wallet_name>");
-                    return Ok(());
+                "list" => {
+                    list_addresses(&wallet_manager)?;
                 }
-                let name = &args[2];
-                export_wallet(name).await?;
-                return Ok(());
-            }
-            "balance" => {
-                if args.len() < 3 {
-                    println!("Usage: paradigm-wallet balance <address_or_wallet_name>");
-                    return Ok(());
+                "import" => {
+                    if args.len() < command_start + 3 {
+                        println!("Usage: paradigm-wallet import <private_key_hex> <label>");
+                        return Ok(());
+                    }
+                    let private_key = &args[command_start + 1];
+                    let label = &args[command_start + 2];
+                    import_private_key(&mut wallet_manager, private_key, label)?;
                 }
-                let address = &args[2];
-                check_balance(address).await?;
-                return Ok(());
-            }
-            "send" => {
-                if args.len() < 5 {
-                    println!("Usage: paradigm-wallet send <from_wallet> <to_address> <amount>");
-                    return Ok(());
+                "export" => {
+                    if args.len() < command_start + 2 {
+                        println!("Usage: paradigm-wallet export <address>");
+                        return Ok(());
+                    }
+                    let address = &args[command_start + 1];
+                    export_private_key(&wallet_manager, address)?;
                 }
-                let from_wallet = &args[2];
-                let to_address = &args[3];
-                let amount = args[4].parse::<u64>().unwrap_or(0);
-                send_transaction(from_wallet, to_address, amount).await?;
-                return Ok(());
-            }
-            "info" => {
-                if args.len() < 3 {
-                    println!("Usage: paradigm-wallet info <wallet_name>");
-                    return Ok(());
+                "export-all" => {
+                    export_all_keys(&wallet_manager)?;
                 }
-                let name = &args[2];
-                show_wallet_info(name).await?;
-                return Ok(());
-            }
-            "set-default" => {
-                if args.len() < 3 {
-                    println!("Usage: paradigm-wallet set-default <wallet_name>");
-                    return Ok(());
+                "balance" => {
+                    if args.len() < command_start + 2 {
+                        println!("Usage: paradigm-wallet balance <address>");
+                        return Ok(());
+                    }
+                    let address = &args[command_start + 1];
+                    show_balance(&wallet_manager, address)?;
                 }
-                let name = &args[2];
-                set_default_wallet(name).await?;
-                return Ok(());
-            }
-            "help" | "--help" | "-h" => {
-                print_help();
-                return Ok(());
-            }
-            _ => {
-                println!("❌ Unknown command: {}", args[1]);
-                print_help();
-                return Ok(());
+                "info" => {
+                    if args.len() < command_start + 2 {
+                        show_wallet_summary(&wallet_manager)?;
+                    } else {
+                        let address = &args[command_start + 1];
+                        show_address_info(&wallet_manager, address)?;
+                    }
+                }
+                "test" => {
+                    let amount = if args.len() > command_start + 1 {
+                        args[command_start + 1].parse().ok()
+                    } else {
+                        None
+                    };
+                    let message = if args.len() > command_start + 2 {
+                        Some(args[command_start + 2].as_str())
+                    } else {
+                        None
+                    };
+                    run_transaction_test(&mut wallet_manager, amount, message).await?;
+                }
+                "stress-test" => {
+                    let count = if args.len() > command_start + 1 {
+                        args[command_start + 1].parse().unwrap_or(10)
+                    } else {
+                        10
+                    };
+                    run_stress_test(&mut wallet_manager, count).await?;
+                }
+                "help" | "--help" | "-h" => {
+                    print_help();
+                }
+                _ => {
+                    println!("❌ Unknown command: {}", args[command_start]);
+                    print_help();
+                }
             }
         }
     }
@@ -142,6 +130,10 @@ fn print_help() {
     println!("  balance <address_or_wallet>   Check balance");
     println!("  send <from> <to> <amount>     Send PAR tokens");
     println!();
+    println!("🧪 Transaction Testing:");
+    println!("  test [amount] [message]       Test transaction between addresses");
+    println!("  stress-test [count]           Run stress test with multiple transactions");
+    println!();
     println!("❓ Help:");
     println!("  help                          Show this help message");
     println!();
@@ -149,305 +141,219 @@ fn print_help() {
     println!("  paradigm-wallet create my_wallet");
     println!("  paradigm-wallet list");
     println!("  paradigm-wallet balance my_wallet");
-    println!("  paradigm-wallet send my_wallet PAR1abc...xyz 1000000000");
+    println!("  paradigm-wallet test 0.001 hello");
+    println!("  paradigm-wallet stress-test 50");
 }
 
-// Utility function to ensure wallet directory exists
-fn ensure_wallet_directory() -> Result<()> {
-    if !Path::new(WALLET_DIR).exists() {
-        fs::create_dir_all(WALLET_DIR)?;
-        println!("📁 Created wallet directory: {}", WALLET_DIR);
-    }
-    Ok(())
-}
 
-// Load wallet store from file
-async fn load_wallet_store() -> Result<WalletStore> {
-    if Path::new(WALLET_STORE_FILE).exists() {
-        let content = fs::read_to_string(WALLET_STORE_FILE)?;
-        let store: WalletStore = serde_json::from_str(&content)?;
-        Ok(store)
-    } else {
-        Ok(WalletStore::default())
-    }
-}
-
-// Save wallet store to file
-async fn save_wallet_store(store: &WalletStore) -> Result<()> {
-    let content = serde_json::to_string_pretty(store)?;
-    fs::write(WALLET_STORE_FILE, content)?;
-    Ok(())
-}
-
-// Create a new wallet
-async fn create_wallet(name: &str) -> Result<()> {
-    println!("🔐 Creating new wallet: {}", name);
-
-    let mut store = load_wallet_store().await?;
-
-    // Check if wallet already exists
-    if store.wallets.contains_key(name) {
-        println!("❌ Wallet '{}' already exists!", name);
-        return Ok(());
-    }
-
-    // Create new wallet using paradigm-core
-    let wallet = Wallet::new();
-    let address = wallet.get_address().to_string();
-    let private_key_bytes = wallet.export_private_key();
-    let private_key = hex::encode(private_key_bytes);
-
-    let wallet_info = WalletInfo {
-        name: name.to_string(),
-        address: address.clone(),
-        private_key,
-        created_at: chrono::Utc::now().to_rfc3339(),
-    };
-
-    store.wallets.insert(name.to_string(), wallet_info);
-
-    // Set as default if it's the first wallet
-    if store.default_wallet.is_none() {
-        store.default_wallet = Some(name.to_string());
-        println!("🌟 Set as default wallet");
-    }
-
-    save_wallet_store(&store).await?;
-
-    println!("✅ Wallet created successfully!");
-    println!("📋 Name: {}", name);
+fn create_address(wallet_manager: &mut WalletManager, label: &str) -> Result<()> {
+    let address = wallet_manager.add_address(label)?;
+    
+    println!("✅ Address created successfully!");
+    println!("📋 Label: {}", label);
     println!("🏠 Address: {}", address);
     println!("⚠️  Keep your private key secure!");
-
+    
     Ok(())
 }
 
-// List all wallets
-async fn list_wallets() -> Result<()> {
-    println!("📋 Wallet List");
+fn list_addresses(wallet_manager: &WalletManager) -> Result<()> {
+    println!("📋 Address List");
     println!("===============");
 
-    let store = load_wallet_store().await?;
-
-    if store.wallets.is_empty() {
-        println!("💤 No wallets found. Create one with: paradigm-wallet create <name>");
+    let addresses = wallet_manager.list_addresses();
+    if addresses.is_empty() {
+        println!("💤 No addresses found. Create one with: paradigm-wallet create <label>");
         return Ok(());
     }
 
-    for (name, wallet) in &store.wallets {
-        let is_default = store.default_wallet.as_ref() == Some(name);
+    for (address, entry) in addresses {
+        let is_default = wallet_manager.get_default_address().as_deref() == Some(address);
         let marker = if is_default { "⭐" } else { "  " };
 
-        println!("{} 🪙 {}", marker, name);
-        println!("     📍 {}", wallet.address);
-        println!("     📅 Created: {}", wallet.created_at);
+        println!("{} 🪙 {}", marker, entry.label);
+        println!("     📍 {}", entry.address);
+        println!("     💰 Balance: {:.8} PAR", entry.balance as f64 / 100_000_000.0);
+        println!("     📅 Created: {}", 
+            chrono::DateTime::from_timestamp(entry.created_at as i64, 0)
+                .unwrap_or_default()
+                .format("%Y-%m-%d %H:%M:%S")
+        );
         println!();
     }
 
-    if let Some(default) = &store.default_wallet {
-        println!("⭐ Default wallet: {}", default);
+    if let Some(default) = &wallet_manager.get_default_address() {
+        if let Some(entry) = wallet_manager.get_address_info(default) {
+            println!("⭐ Default address: {} ({})", entry.label, default);
+        }
     }
 
     Ok(())
 }
 
-// Import wallet from private key
-async fn import_wallet(name: &str, private_key: &str) -> Result<()> {
-    println!("📥 Importing wallet: {}", name);
+fn import_private_key(wallet_manager: &mut WalletManager, private_key: &str, label: &str) -> Result<()> {
+    println!("📥 Importing private key: {}", label);
+    
+    let address = wallet_manager.import_private_key(private_key, label)?;
+    
+    println!("✅ Private key imported successfully!");
+    println!("📋 Label: {}", label);
+    println!("🏠 Address: {}", address);
+    
+    Ok(())
+}
 
-    let mut store = load_wallet_store().await?;
+fn export_private_key(wallet_manager: &WalletManager, address: &str) -> Result<()> {
+    if let Some(entry) = wallet_manager.get_address_info(address) {
+        println!("🔐 Exporting private key for: {}", entry.label);
+        println!("⚠️  WARNING: Keep this private key secure!");
+        println!("🔑 Private Key: {}", entry.private_key_hex);
+        println!("🏠 Address: {}", entry.address);
+    } else {
+        println!("❌ Address '{}' not found!", address);
+        println!("💡 Use 'paradigm-wallet list' to see available addresses");
+    }
+    
+    Ok(())
+}
 
-    // Check if wallet already exists
-    if store.wallets.contains_key(name) {
-        println!("❌ Wallet '{}' already exists!", name);
+fn export_all_keys(wallet_manager: &WalletManager) -> Result<()> {
+    println!("🔐 Exporting all private keys");
+    println!("⚠️  WARNING: Keep these private keys secure!");
+    println!("=======================================");
+    
+    let keys = wallet_manager.export_keys();
+    if keys.is_empty() {
+        println!("💤 No addresses found.");
         return Ok(());
     }
-
-    // Try to decode hex private key
-    let private_key_bytes = match hex::decode(private_key) {
-        Ok(bytes) => {
-            if bytes.len() != 32 {
-                println!("❌ Invalid private key length. Expected 32 bytes (64 hex characters)");
-                return Ok(());
-            }
-            let mut key_array = [0u8; 32];
-            key_array.copy_from_slice(&bytes);
-            key_array
-        }
-        Err(_) => {
-            println!("❌ Invalid private key format. Expected hexadecimal string");
-            return Ok(());
-        }
-    };
-
-    // Try to create wallet from private key
-    let wallet = match Wallet::from_private_key(&private_key_bytes) {
-        Ok(w) => w,
-        Err(e) => {
-            println!("❌ Invalid private key: {}", e);
-            return Ok(());
-        }
-    };
-
-    let address = wallet.get_address().to_string();
-
-    let wallet_info = WalletInfo {
-        name: name.to_string(),
-        address: address.clone(),
-        private_key: private_key.to_string(),
-        created_at: chrono::Utc::now().to_rfc3339(),
-    };
-
-    store.wallets.insert(name.to_string(), wallet_info);
-
-    // Set as default if it's the first wallet
-    if store.default_wallet.is_none() {
-        store.default_wallet = Some(name.to_string());
-        println!("🌟 Set as default wallet");
+    
+    for (address, private_key, label) in keys {
+        println!("📋 Label: {}", label);
+        println!("🏠 Address: {}", address);
+        println!("🔑 Private Key: {}", private_key);
+        println!();
     }
-
-    save_wallet_store(&store).await?;
-
-    println!("✅ Wallet imported successfully!");
-    println!("📋 Name: {}", name);
-    println!("🏠 Address: {}", address);
-
+    
     Ok(())
 }
 
-// Export wallet private key
-async fn export_wallet(name: &str) -> Result<()> {
-    let store = load_wallet_store().await?;
-
-    match store.wallets.get(name) {
-        Some(wallet) => {
-            println!("🔐 Exporting wallet: {}", name);
-            println!("⚠️  WARNING: Keep this private key secure!");
-            println!("🔑 Private Key: {}", wallet.private_key);
-            println!("🏠 Address: {}", wallet.address);
-        }
-        None => {
-            println!("❌ Wallet '{}' not found!", name);
-            println!("💡 Use 'paradigm-wallet list' to see available wallets");
-        }
-    }
-
-    Ok(())
-}
-
-// Check balance for address or wallet
-async fn check_balance(address_or_wallet: &str) -> Result<()> {
-    let store = load_wallet_store().await?;
-
-    // Try to resolve wallet name to address
-    let address = if let Some(wallet) = store.wallets.get(address_or_wallet) {
-        wallet.address.clone()
+fn show_balance(wallet_manager: &WalletManager, address: &str) -> Result<()> {
+    if let Some(entry) = wallet_manager.get_address_info(address) {
+        println!("💰 Balance for: {} ({})", entry.label, entry.address);
+        println!("💸 Balance: {:.8} PAR", entry.balance as f64 / 100_000_000.0);
+        println!("🏆 Total Earned: {:.8} PAR", entry.total_earned as f64 / 100_000_000.0);
+        println!("📋 Tasks Completed: {}", entry.tasks_completed);
     } else {
-        address_or_wallet.to_string()
-    };
-
-    println!("💰 Checking balance for: {}", address);
-
-    // TODO: Implement actual balance check with paradigm-core
-    // For now, simulate balance check
-    println!("🔍 Querying Paradigm network...");
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-
-    // Simulate different balances based on address
-    let balance = if address.starts_with("PAR1") {
-        15.75842156
-    } else {
-        0.0
-    };
-
-    println!("💸 Balance: {:.8} PAR", balance);
-    println!("💵 USD Value: ${:.2} (approx)", balance * 1.42); // Mock exchange rate
-
+        println!("❌ Address '{}' not found!", address);
+        println!("💡 Use 'paradigm-wallet list' to see available addresses");
+    }
+    
     Ok(())
 }
 
-// Send transaction
-async fn send_transaction(from_wallet: &str, to_address: &str, amount: u64) -> Result<()> {
-    let store = load_wallet_store().await?;
-
-    let wallet_info = match store.wallets.get(from_wallet) {
-        Some(w) => w,
-        None => {
-            println!("❌ Wallet '{}' not found!", from_wallet);
-            return Ok(());
-        }
-    };
-
-    let amount_par = amount as f64 / 100_000_000.0;
-
-    println!("📤 Preparing transaction...");
-    println!("👤 From: {} ({})", from_wallet, wallet_info.address);
-    println!("🎯 To: {}", to_address);
-    println!("💰 Amount: {:.8} PAR", amount_par);
-
-    // TODO: Implement actual transaction with paradigm-core
-    // For now, simulate transaction
-    println!("🔐 Signing transaction...");
-    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
-
-    println!("📡 Broadcasting to network...");
-    tokio::time::sleep(tokio::time::Duration::from_millis(700)).await;
-
-    let tx_hash = format!("TX{:x}", rand::random::<u64>());
-    println!("✅ Transaction sent successfully!");
-    println!("🆔 Transaction ID: {}", tx_hash);
-    println!("⏱️  Processing time: ~30 seconds");
-
-    Ok(())
-}
-
-// Show wallet info
-async fn show_wallet_info(name: &str) -> Result<()> {
-    let store = load_wallet_store().await?;
-
-    match store.wallets.get(name) {
-        Some(wallet) => {
-            let is_default = store.default_wallet.as_ref().map(|s| s.as_str()) == Some(name);
-
-            println!("🪙 Wallet Information");
-            println!("====================");
-            println!("📋 Name: {}", wallet.name);
-            println!("🏠 Address: {}", wallet.address);
-            println!("📅 Created: {}", wallet.created_at);
-            println!("⭐ Default: {}", if is_default { "Yes" } else { "No" });
-
-            // Show abbreviated private key for security
-            let abbreviated_key = format!(
-                "{}...{}",
-                &wallet.private_key[..8],
-                &wallet.private_key[wallet.private_key.len() - 8..]
-            );
-            println!(
-                "🔑 Private Key: {} (use 'export' to see full key)",
-                abbreviated_key
-            );
-        }
-        None => {
-            println!("❌ Wallet '{}' not found!", name);
-            println!("💡 Use 'paradigm-wallet list' to see available wallets");
+fn show_wallet_summary(wallet_manager: &WalletManager) -> Result<()> {
+    println!("🪙 Wallet Summary");
+    println!("==================");
+    
+    let addresses = wallet_manager.list_addresses();
+    if addresses.is_empty() {
+        println!("💤 No addresses found. Create one with: paradigm-wallet create <label>");
+        return Ok(());
+    }
+    
+    let mut total_balance = 0u64;
+    let mut total_earned = 0u64;
+    let mut total_tasks = 0u64;
+    
+    for (_, entry) in &addresses {
+        total_balance += entry.balance;
+        total_earned += entry.total_earned;
+        total_tasks += entry.tasks_completed;
+    }
+    
+    println!("📊 Total Addresses: {}", addresses.len());
+    println!("💰 Total Balance: {:.8} PAR", total_balance as f64 / 100_000_000.0);
+    println!("🏆 Total Earned: {:.8} PAR", total_earned as f64 / 100_000_000.0);
+    println!("📋 Tasks Completed: {}", total_tasks);
+    
+    if let Some(default) = &wallet_manager.get_default_address() {
+        if let Some(entry) = wallet_manager.get_address_info(default) {
+            println!("⭐ Default Address: {} ({})", entry.label, default);
         }
     }
-
+    
     Ok(())
 }
 
-// Set default wallet
-async fn set_default_wallet(name: &str) -> Result<()> {
-    let mut store = load_wallet_store().await?;
-
-    if store.wallets.contains_key(name) {
-        store.default_wallet = Some(name.to_string());
-        save_wallet_store(&store).await?;
-        println!("⭐ Set '{}' as default wallet", name);
+fn show_address_info(wallet_manager: &WalletManager, address: &str) -> Result<()> {
+    if let Some(entry) = wallet_manager.get_address_info(address) {
+        let is_default = wallet_manager.get_default_address().as_deref() == Some(address);
+        
+        println!("🪙 Address Information");
+        println!("======================");
+        println!("📋 Label: {}", entry.label);
+        println!("🏠 Address: {}", entry.address);
+        println!("💰 Balance: {:.8} PAR", entry.balance as f64 / 100_000_000.0);
+        println!("🏆 Total Earned: {:.8} PAR", entry.total_earned as f64 / 100_000_000.0);
+        println!("📋 Tasks Completed: {}", entry.tasks_completed);
+        println!("📅 Created: {}", 
+            chrono::DateTime::from_timestamp(entry.created_at as i64, 0)
+                .unwrap_or_default()
+                .format("%Y-%m-%d %H:%M:%S")
+        );
+        println!("⭐ Default: {}", if is_default { "Yes" } else { "No" });
+        
+        // Show abbreviated private key for security
+        let abbreviated_key = format!(
+            "{}...{}",
+            &entry.private_key_hex[..8],
+            &entry.private_key_hex[entry.private_key_hex.len() - 8..]
+        );
+        println!(
+            "🔑 Private Key: {} (use 'export {}' to see full key)",
+            abbreviated_key,
+            address
+        );
     } else {
-        println!("❌ Wallet '{}' not found!", name);
-        println!("💡 Use 'paradigm-wallet list' to see available wallets");
+        println!("❌ Address '{}' not found!", address);
+        println!("💡 Use 'paradigm-wallet list' to see available addresses");
     }
+    
+    Ok(())
+}
 
+async fn run_transaction_test(
+    wallet_manager: &mut WalletManager,
+    amount: Option<f64>,
+    message: Option<&str>,
+) -> Result<()> {
+    println!("🧪 Starting Transaction Test...");
+    println!("================================");
+    
+    let mut tester = TransactionTester::new();
+    let result = tester.run_wallet_transaction_test(wallet_manager, amount, message).await?;
+    
+    println!("📊 Test Summary:");
+    println!("Success Rate: {:.1}%", tester.get_success_rate());
+    
+    Ok(())
+}
+
+async fn run_stress_test(
+    wallet_manager: &mut WalletManager,
+    count: usize,
+) -> Result<()> {
+    println!("🏋️ Starting Stress Test...");
+    println!("===========================");
+    println!("Running {} transactions...", count);
+    
+    let mut tester = TransactionTester::new();
+    let results = tester.run_stress_test(wallet_manager, count, false).await?;
+    
+    println!("🎯 Final Results:");
+    println!("Success Rate: {:.1}%", tester.get_success_rate());
+    println!("Total Tests: {}", results.len());
+    
     Ok(())
 }

@@ -24,11 +24,15 @@ libp2p = { workspace = true }
 sqlx = { workspace = true }
 tonic = { workspace = true }
 prost = { workspace = true }
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
 hex = { workspace = true }
 async-trait = { workspace = true }
 rayon = { workspace = true }
 lru = { workspace = true }
 num_cpus = { workspace = true }
+dirs = { workspace = true }
 
 # Performance optimization dependencies
 dashmap = "5.5"

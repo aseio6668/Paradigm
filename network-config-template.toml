@@ -1,20 +1,28 @@
 # Paradigm Network Configuration Template
 # =======================================
 # Copy this to network-config.toml and customize for your network
+# For genesis nodes: leave bootstrap_peers empty
+# For joining nodes: add genesis node to bootstrap_peers
 
 [network]
-# Port your node will listen on (make sure it's open/forwarded)
-port = 8080
+# Bind address (0.0.0.0 for production, 127.0.0.1 for local testing)
+bind_address = "127.0.0.1:8080"
 
 # Maximum number of peers to connect to
-max_peers = 50
+max_peers = 10
 
-# Bootstrap peers (leave empty for bootstrap node, or add other nodes)
+# Bootstrap peers (leave empty for genesis/bootstrap node, or add other nodes)
 bootstrap_peers = [
-    # Examples:
+    # Examples for joining existing network:
     # "/ip4/192.168.1.100/tcp/8080/p2p/12D3KooW...",
     # "/ip4/203.0.113.1/tcp/8080/p2p/12D3KooW..."
+    # For genesis chain, use the IP from genesis-chain.bat output
 ]
+
+# Connection privacy settings
+enable_connection_privacy = true
+hide_peer_addresses = true
+connection_visibility_level = "minimal"  # minimal, peers-only, full
 
 [node]
 # Directory to store blockchain data
@@ -25,6 +33,20 @@ enable_analytics = true
 analytics_port = 8081
 
 # Enable ML task processing
+enable_ml_tasks = true
+
+# Debug mode (disable for production)
+enable_debug_mode = true
+
+# Production hardening
+enable_ddos_protection = true
+max_connections_per_ip = 5
+rate_limit_requests = 100  # per minute
+
+# Network synchronization settings
+sync_timeout_seconds = 30
+max_sync_retries = 3
+enable_fast_sync = true
 enable_ml_tasks = true
 
 [tokenomics]
