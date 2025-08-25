@@ -1,6 +1,7 @@
 # Build artifacts
 /target/
 /*/target/
+/.old/
 
 # Rust specific
 Cargo.lock
