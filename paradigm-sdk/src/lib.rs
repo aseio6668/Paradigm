@@ -77,7 +77,7 @@ pub use enterprise::{
 };
 pub use error::{ParadigmError, Result};
 pub use network::{NetworkConfig, NetworkStatus, PeerInfo};
-pub use types::{Address, Amount, Balance, Block, Fee, Hash, Signature, TokenInfo, Transaction};
+pub use types::{Address, Amount, Balance, Block, Fee, Hash, Signature, SignatureType, TokenInfo, Transaction};
 pub use wallet::{Wallet, WalletManager};
 
 // Advanced security features

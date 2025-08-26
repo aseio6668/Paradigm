@@ -92,7 +92,7 @@ impl WalletAccount {
         let signing_key = SigningKey::generate(&mut csprng);
         let verifying_key = signing_key.verifying_key();
 
-        let address = Address::from_public_key(&verifying_key)?;
+        let address = Address::from_public_key(verifying_key.as_bytes())?;
 
         Ok(Self {
             id: Uuid::new_v4(),
@@ -111,7 +111,7 @@ impl WalletAccount {
     /// Create wallet account from existing secret key
     pub fn from_secret_key(name: String, secret_key: SecretKey) -> Result<Self> {
         let public_key = PublicKey::from(&secret_key);
-        let address = Address::from_public_key(&public_key)?;
+        let address = Address::from_public_key(public_key.as_bytes())?;
 
         Ok(Self {
             id: Uuid::new_v4(),
@@ -153,10 +153,14 @@ impl WalletAccount {
         let tx_hash = transaction.hash();
 
         // Sign the hash
-        let signature = self.sign(&tx_hash.bytes)?;
+        let signature = self.sign(tx_hash.as_bytes())?;
 
         // Update transaction with signature
-        transaction.signature = Some(signature.to_bytes().to_vec());
+        let paradigm_sig = crate::types::Signature::new(
+            signature.to_bytes().to_vec(), 
+            crate::types::SignatureType::Ed25519
+        );
+        transaction.signature = Some(paradigm_sig);
         transaction.from = self.address.clone();
 
         // Update account stats
@@ -174,9 +178,12 @@ impl WalletAccount {
             ));
         }
 
-        let sig = Signature::from_bytes(signature).map_err(|e| {
-            ParadigmError::InvalidSignature(format!("Invalid signature format: {}", e))
-        })?;
+        if signature.len() != 64 {
+            return Err(ParadigmError::InvalidSignature("Signature must be 64 bytes".to_string()));
+        }
+        let sig_array: [u8; 64] = signature.try_into()
+            .map_err(|_| ParadigmError::InvalidSignature("Invalid signature length".to_string()))?;
+        let sig = Signature::from_bytes(&sig_array);
 
         Ok(self.public_key.verify(message, &sig).is_ok())
     }
@@ -812,8 +819,9 @@ pub mod utils {
         hasher.update(derivation_path.to_string().as_bytes());
         let hash = hasher.finalize();
 
-        SecretKey::from_bytes(&hash[..32])
-            .map_err(|e| ParadigmError::InvalidKey(format!("Failed to create secret key: {}", e)))
+        let key_array: [u8; 32] = hash[..32].try_into()
+            .map_err(|_| ParadigmError::InvalidKey("Invalid key length".to_string()))?;
+        Ok(SigningKey::from_bytes(&key_array))
     }
 
     /// Convert secret key to hex string
@@ -835,8 +843,7 @@ pub mod utils {
         let mut array = [0u8; 32];
         array.copy_from_slice(&bytes);
 
-        SecretKey::from_bytes(&array)
-            .map_err(|e| ParadigmError::InvalidKey(format!("Invalid secret key: {}", e)))
+        Ok(SigningKey::from_bytes(&array))
     }
 }
 

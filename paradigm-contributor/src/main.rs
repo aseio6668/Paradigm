@@ -451,7 +451,13 @@ async fn main() -> Result<()> {
                 // Check network connection status
                 let needs_connection_attempt = match network_connection.get_status() {
                     NetworkStatus::Disconnected | NetworkStatus::NetworkError(_) => {
-                        last_connection_attempt.elapsed() > Duration::from_secs(args.retry_interval)
+                        // In mock mode, check more frequently for network recovery
+                        let check_interval = if in_mock_mode { 
+                            Duration::from_secs(5)  // Check every 5 seconds when in mock mode
+                        } else { 
+                            Duration::from_secs(args.retry_interval) 
+                        };
+                        last_connection_attempt.elapsed() > check_interval
                     }
                     NetworkStatus::Connecting => false,
                     NetworkStatus::Connected => {
@@ -618,6 +624,14 @@ async fn main() -> Result<()> {
                     
                     let completion_time = start_time.elapsed();
                     let reward_par = mock_task.reward as f64 / 100_000_000.0;
+                    
+                    // Periodically check if the network has come back online during mock mode
+                    if mock_task_count % 10 == 0 {
+                        info!("🔍 [MOCK] Checking if Paradigm network is back online...");
+                        if network_connection.test_connection(2).await {
+                            info!("🎉 Network detected! Will switch to real tasks on next cycle.");
+                        }
+                    }
                     
                     if mock_task_count % 5 == 0 {
                         warn!("🎭 [MOCK] Simulated task #{} in {:?} - NO real PAR earned",

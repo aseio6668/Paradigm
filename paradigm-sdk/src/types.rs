@@ -6,7 +6,7 @@ use std::fmt;
 use std::str::FromStr;
 
 /// Paradigm address type (20 bytes)
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Address {
     bytes: [u8; 20],
 }
@@ -49,6 +49,15 @@ impl Address {
     /// Create zero address
     pub fn zero() -> Self {
         Self::from_bytes([0u8; 20])
+    }
+
+    /// Create address from public key
+    pub fn from_public_key(public_key: &[u8]) -> Result<Self> {
+        use sha2::{Digest, Sha256};
+        let hash = Sha256::digest(public_key);
+        let mut addr_bytes = [0u8; 20];
+        addr_bytes.copy_from_slice(&hash[12..32]);
+        Ok(Address::from_bytes(addr_bytes))
     }
 }
 
@@ -144,6 +153,9 @@ impl Default for Hash {
 pub struct Signature {
     bytes: Vec<u8>,
     signature_type: SignatureType,
+    pub r: Vec<u8>,
+    pub s: Vec<u8>,
+    pub recovery_id: u8,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -156,9 +168,17 @@ pub enum SignatureType {
 impl Signature {
     /// Create signature from bytes
     pub fn new(bytes: Vec<u8>, signature_type: SignatureType) -> Self {
+        let (r, s) = if bytes.len() >= 64 {
+            (bytes[..32].to_vec(), bytes[32..64].to_vec())
+        } else {
+            (vec![0; 32], vec![0; 32])
+        };
         Self {
             bytes,
             signature_type,
+            r,
+            s,
+            recovery_id: 0,
         }
     }
 
@@ -179,7 +199,7 @@ impl Signature {
 }
 
 /// Amount type for representing token amounts
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Amount {
     wei: u64,
 }

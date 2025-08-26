@@ -160,7 +160,7 @@ impl MerkleTree {
                 } else {
                     hasher.update(chunk[0].as_bytes()); // Duplicate last element
                 }
-                next_level.push(Hash::from_bytes(hasher.finalize().as_slice()));
+                next_level.push(Hash::from_bytes(hasher.finalize().as_slice().try_into().map_err(|_| Error::InvalidHashLength)?));
             }
 
             current_level = next_level;
@@ -203,7 +203,7 @@ impl MerkleTree {
                 } else {
                     hasher.update(chunk[0].as_bytes());
                 }
-                next_level.push(Hash::from_bytes(hasher.finalize().as_slice()));
+                next_level.push(Hash::from_bytes(hasher.finalize().as_slice().try_into().map_err(|_| Error::InvalidHashLength)?));
             }
 
             current_level = next_level;
@@ -227,7 +227,7 @@ impl MerkleTree {
                 hasher.update(sibling.as_bytes());
                 hasher.update(current_hash.as_bytes());
             }
-            current_hash = Hash::from_bytes(hasher.finalize().as_slice());
+            current_hash = Hash::from_bytes(hasher.finalize().as_slice().try_into().map_err(|_| Error::InvalidHashLength)?);
             index /= 2;
         }
 
@@ -248,7 +248,7 @@ impl PrivateTransaction {
         nullifier_hasher.update(sender_secret);
         nullifier_hasher.update(recipient.as_bytes());
         nullifier_hasher.update(&amount.wei().to_be_bytes());
-        let nullifier_hash = Hash::from_bytes(nullifier_hasher.finalize().as_slice());
+        let nullifier_hash = Hash::from_bytes(nullifier_hasher.finalize().as_slice().try_into().map_err(|_| Error::InvalidHashLength)?);
 
         // Create commitment to hide transaction details
         let mut commitment_hasher = Sha3_256::new();
@@ -264,7 +264,7 @@ impl PrivateTransaction {
 
         // Create ZK proof
         let private_inputs = [sender_secret, &amount.wei().to_be_bytes()].concat();
-        let public_inputs = [recipient.as_bytes(), &commitment].concat();
+        let public_inputs = [recipient.as_bytes(), commitment.as_slice()].concat();
         let zk_proof = ZKProof::new(circuit_hash, &private_inputs, public_inputs)?;
 
         // Create range proof for amount (0 to 1 million tokens)

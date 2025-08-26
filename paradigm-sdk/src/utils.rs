@@ -380,7 +380,7 @@ pub mod crypto {
 
     /// Generate random address
     pub fn random_address() -> Address {
-        Address::from_bytes(&random_bytes(20)).unwrap()
+        Address::from_bytes(random_bytes(20).try_into().unwrap())
     }
 
     /// Verify ECDSA signature (simplified)
@@ -400,7 +400,7 @@ pub mod crypto {
         // Simplified recovery - real implementation would use secp256k1
         let mut addr_bytes = [0u8; 20];
         addr_bytes[..20].copy_from_slice(&message_hash.bytes[..20]);
-        Ok(Address::from_bytes(&addr_bytes).unwrap())
+        Ok(Address::from_bytes(addr_bytes.try_into().map_err(|_| Error::InvalidAddress("Invalid address length".to_string()))?)?)
     }
 }
 

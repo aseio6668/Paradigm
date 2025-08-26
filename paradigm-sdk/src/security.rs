@@ -183,7 +183,7 @@ impl SecurityAudit {
         for addr in &affected_addresses {
             hasher.update(addr.as_bytes());
         }
-        let audit_id = Hash::from_bytes(hasher.finalize().as_slice());
+        let audit_id = Hash::from_bytes(hasher.finalize().as_slice().try_into().map_err(|_| Error::InvalidHashLength)?);
 
         SecurityAudit {
             audit_id,
@@ -308,17 +308,21 @@ impl AnomalyDetector {
         transaction: &Transaction,
         pattern: &TransactionPattern,
     ) -> Option<SecurityAudit> {
-        if !pattern.common_recipients.contains(&transaction.to)
-            && pattern.common_recipients.len() > 0
-        {
-            let mut audit = SecurityAudit::new(
-                SecuritySeverity::Low,
-                SecurityCategory::AbnormalBehavior,
-                "Transaction to unusual recipient address".to_string(),
-                vec![transaction.from, transaction.to],
-            );
-            audit.add_recommendation("Verify recipient address legitimacy".to_string());
-            Some(audit)
+        if let Some(to_address) = &transaction.to {
+            if !pattern.common_recipients.contains(to_address)
+                && pattern.common_recipients.len() > 0
+            {
+                let mut audit = SecurityAudit::new(
+                    SecuritySeverity::Low,
+                    SecurityCategory::AbnormalBehavior,
+                    "Transaction to unusual recipient address".to_string(),
+                    vec![transaction.from, *to_address],
+                );
+                audit.add_recommendation("Verify recipient address legitimacy".to_string());
+                Some(audit)
+            } else {
+                None
+            }
         } else {
             None
         }

@@ -1,4 +1,4 @@
-use crate::{Address, Error, Hash, Result, Signature};
+use crate::{Address, Error, Hash, Result, Signature, SignatureType};
 use ed25519_dalek::{Signer, SigningKey, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
@@ -125,11 +125,11 @@ impl ThresholdSignature {
         hasher.update(self.message_hash.as_bytes());
         let sig_hash = hasher.finalize();
 
-        Ok(Signature {
-            r: sig_hash[..32].to_vec(),
-            s: sig_hash[32..].to_vec(),
-            recovery_id: 0,
-        })
+        let mut sig = Signature::new(sig_hash.to_vec(), SignatureType::Secp256k1);
+        sig.r = sig_hash[..32].to_vec();
+        sig.s = sig_hash[32..].to_vec();
+        sig.recovery_id = 0;
+        Ok(sig)
     }
 
     /// Verify a partial signature
@@ -301,7 +301,7 @@ impl MultiSigWallet {
         }
         hasher.update(&threshold.to_be_bytes());
         let address_bytes = hasher.finalize();
-        let address = Address::from_bytes(&address_bytes[..20]);
+        let address = Address::from_bytes(address_bytes[..20].try_into().map_err(|_| Error::InvalidAddress("Invalid address length".to_string()))?);
 
         Ok(MultiSigWallet {
             address,
@@ -321,7 +321,7 @@ impl MultiSigWallet {
             return Err(Error::InvalidInput("Not enough signers".to_string()));
         }
 
-        let message_hash = Hash::from_bytes(&Sha3_256::digest(message));
+        let message_hash = Hash::from_bytes(Sha3_256::digest(message).as_slice().try_into().map_err(|_| Error::InvalidHashLength)?);
         let participants: Vec<u32> = signers.iter().map(|(id, _)| *id).collect();
         let mut threshold_sig = ThresholdSignature::new(self.threshold, participants, message_hash);
 
@@ -486,20 +486,20 @@ impl ThresholdCrypto {
 
         // Generate verification keys for each party
         let mut verification_keys = Vec::new();
-        for i in 0..params.total_parties {
+        for i in 0u32..params.total_parties {
             let mut hasher = Sha3_256::new();
             hasher.update(&secret);
             hasher.update(&i.to_be_bytes());
             let key_bytes = hasher.finalize();
 
             // Create verification key from hash (mock)
-            let vk_signing_key = SigningKey::from_bytes(&key_bytes);
+            let vk_signing_key = SigningKey::from_bytes(key_bytes.as_slice().try_into().map_err(|_| Error::InvalidKey("Invalid key length".to_string()))?);
             verification_keys.push(vk_signing_key.verifying_key());
         }
 
         // Generate polynomial commitments
         let mut commitments = Vec::new();
-        for i in 0..=params.polynomial_degree {
+        for i in 0u32..=params.polynomial_degree {
             let mut hasher = Sha3_256::new();
             hasher.update(&secret);
             hasher.update(&i.to_be_bytes());

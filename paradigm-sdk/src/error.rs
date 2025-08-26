@@ -24,6 +24,10 @@ pub enum ParadigmError {
     #[error("Invalid hash: {0}")]
     InvalidHash(String),
 
+    /// Invalid hash length
+    #[error("Invalid hash length - expected 32 bytes")]
+    InvalidHashLength,
+
     /// Invalid hex string
     #[error("Invalid hex: {0}")]
     InvalidHex(String),
