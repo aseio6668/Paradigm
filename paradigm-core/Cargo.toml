@@ -42,5 +42,11 @@ zeroize = "1.7"
 sysinfo = "0.30"
 tempfile = { version = "3.8", optional = true }
 
+# Security and encryption dependencies
+rustls = "0.21"
+tokio-rustls = "0.24"
+rustls-pemfile = "1.0"
+rcgen = "0.11"
+
 [build-dependencies]
 tonic-build = "0.10"

@@ -99,6 +99,23 @@ impl EphemeralStorage {
 
     /// Store a transaction with automatic expiry
     pub async fn store_transaction(&self, transaction: &Transaction) -> Result<()> {
+        // Validate transaction signature before storing
+        if !transaction.signature.is_empty() {
+            let from_address_bytes = transaction.from.as_bytes();
+            if from_address_bytes.len() >= 32 {
+                let mut key_bytes = [0u8; 32];
+                key_bytes.copy_from_slice(&from_address_bytes[..32]);
+                
+                if let Ok(public_key) = ed25519_dalek::VerifyingKey::from_bytes(&key_bytes) {
+                    if let Err(e) = transaction.validate(&public_key) {
+                        tracing::warn!("Ephemeral storage: Transaction validation failed: {}", e);
+                        return Err(anyhow::anyhow!("Transaction signature validation failed: {}", e));
+                    }
+                    tracing::debug!("✅ Ephemeral transaction {} signature validated", transaction.id);
+                }
+            }
+        }
+        
         let expires_at = Utc::now() + ChronoDuration::minutes(self.config.transaction_memory_minutes);
         
         let ephemeral_tx = EphemeralTransaction {

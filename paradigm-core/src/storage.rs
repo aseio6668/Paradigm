@@ -1051,6 +1051,11 @@ impl ParadigmStorage {
 
         Ok(())
     }
+
+    /// Get a reference to the database pool for advanced operations
+    pub fn get_db_pool(&self) -> &SqlitePool {
+        &self.db_pool
+    }
 }
 
 /// Data chunk for storage

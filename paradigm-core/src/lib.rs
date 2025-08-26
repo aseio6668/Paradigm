@@ -25,6 +25,14 @@ pub mod privacy_blockchain;
 pub mod ephemeral_storage;
 pub mod peer_manager;
 pub mod autonomous_tasks;
+pub mod proof_of_work;
+pub mod secure_networking;
+pub mod ddos_protection;
+pub mod certificate_manager;
+pub mod hsm_manager;
+pub mod transaction_validation;
+pub mod multisig_treasury;
+pub mod fee_calculation;
 
 // Performance optimization modules
 pub mod crypto_optimization;
@@ -130,6 +138,12 @@ pub struct ParadigmNode {
     pub ephemeral_storage: Arc<RwLock<ephemeral_storage::EphemeralStorage>>,
     pub peer_manager: Arc<RwLock<peer_manager::PeerManager>>,
     pub autonomous_tasks: Arc<RwLock<autonomous_tasks::AutonomousTaskGenerator>>,
+    pub pow_miner: Arc<RwLock<proof_of_work::ProofOfWorkMiner>>,
+    pub ddos_protection: Arc<RwLock<ddos_protection::DDoSProtection>>,
+    pub hsm_manager: Option<Arc<hsm_manager::HSMManager>>,
+    pub transaction_validator: Arc<transaction_validation::TransactionValidator>,
+    pub multisig_treasury: Arc<RwLock<multisig_treasury::MultiSigTreasuryManager>>,
+    pub fee_calculator: Arc<fee_calculation::DynamicFeeCalculator>,
     pub keypair: Keypair,
 }
 
@@ -140,6 +154,8 @@ pub struct NodeConfig {
     pub data_dir: String,
     pub enable_ml_tasks: bool,
     pub max_peers: usize,
+    pub enable_hsm: bool,
+    pub hsm_config: Option<hsm_manager::HSMConfig>,
 }
 
 impl Default for NodeConfig {
@@ -150,6 +166,8 @@ impl Default for NodeConfig {
             data_dir: "./paradigm_data".to_string(),
             enable_ml_tasks: true,
             max_peers: MAX_PEERS,
+            enable_hsm: false,
+            hsm_config: None,
         }
     }
 }
@@ -212,6 +230,63 @@ impl ParadigmNode {
             )
         ));
 
+        // Initialize Proof-of-Work miner with moderate difficulty and 60-second target block time
+        let pow_miner = Arc::new(RwLock::new(
+            proof_of_work::ProofOfWorkMiner::new(2, 60)
+        ));
+
+        // Initialize DDoS protection
+        let ddos_protection = Arc::new(RwLock::new(
+            ddos_protection::DDoSProtection::new()
+        ));
+
+        // Initialize HSM manager if enabled
+        let hsm_manager = if config.enable_hsm {
+            if let Some(hsm_config) = config.hsm_config.clone() {
+                match hsm_manager::HSMManager::new(hsm_config).await {
+                    Ok(hsm) => {
+                        tracing::info!("🔐 HSM manager initialized successfully");
+                        Some(Arc::new(hsm))
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to initialize HSM: {}", e);
+                        return Err(anyhow::anyhow!("HSM initialization failed: {}", e));
+                    }
+                }
+            } else {
+                tracing::warn!("HSM enabled but no configuration provided");
+                None
+            }
+        } else {
+            None
+        };
+
+        // Initialize transaction validator
+        let validation_config = transaction_validation::NetworkValidationConfig {
+            network_id: "paradigm-mainnet".to_string(),
+            chain_id: 1,
+            min_fee: 1_000_000, // 0.01 PAR
+            ..Default::default()
+        };
+        let transaction_validator = Arc::new(
+            transaction_validation::TransactionValidator::new(validation_config).await?
+        );
+        tracing::info!("🔍 Transaction validator initialized with formal rules");
+
+        // Initialize multi-signature treasury manager
+        let mut multisig_treasury = multisig_treasury::MultiSigTreasuryManager::new(
+            storage.read().await.get_db_pool().clone()
+        );
+        multisig_treasury.initialize().await?;
+        let multisig_treasury = Arc::new(RwLock::new(multisig_treasury));
+        tracing::info!("🏦 Multi-signature treasury manager initialized");
+
+        // Initialize dynamic fee calculator
+        let fee_calculator = Arc::new(
+            fee_calculation::DynamicFeeCalculator::new(storage.clone())
+        );
+        tracing::info!("📊 Dynamic AI-driven fee calculator initialized");
+
         Ok(ParadigmNode {
             config,
             network,
@@ -224,6 +299,12 @@ impl ParadigmNode {
             ephemeral_storage,
             peer_manager,
             autonomous_tasks,
+            pow_miner,
+            ddos_protection,
+            hsm_manager,
+            transaction_validator,
+            multisig_treasury,
+            fee_calculator,
             keypair,
         })
     }
@@ -298,7 +379,59 @@ impl ParadigmNode {
         &self,
         transaction: transaction::Transaction,
     ) -> anyhow::Result<()> {
-        // Store the transaction in storage (simplified approach)
+        tracing::info!("📤 Submitting transaction: {} from {} to {} (amount: {}, fee: {})", 
+                      transaction.id, 
+                      transaction.from.to_string(), 
+                      transaction.to.to_string(),
+                      transaction.amount,
+                      transaction.fee);
+
+        // Get sender balance for validation
+        let sender_balance = self.get_balance(&transaction.from).await?;
+        
+        // Create public key from address (simplified - in production would use proper key derivation)
+        let from_address_bytes = transaction.from.as_bytes();
+        if from_address_bytes.len() != 32 {
+            return Err(anyhow::anyhow!("Invalid sender address length"));
+        }
+        
+        let mut key_bytes = [0u8; 32];
+        key_bytes.copy_from_slice(&from_address_bytes[..32]);
+        
+        let public_key = match ed25519_dalek::VerifyingKey::from_bytes(&key_bytes) {
+            Ok(key) => key,
+            Err(_) => {
+                // For development, create a dummy key to allow validation testing
+                tracing::warn!("Transaction from {}: unable to derive public key, using development mode", transaction.from.to_string());
+                
+                // Still run formal validation with dummy key to test other rules
+                use rand::rngs::OsRng;
+                use rand::RngCore;
+                let mut secret = [0u8; 32];
+                OsRng.fill_bytes(&mut secret);
+                ed25519_dalek::SigningKey::from_bytes(&secret).verifying_key()
+            }
+        };
+        
+        // Run comprehensive formal validation
+        let validation_result = self.transaction_validator
+            .validate_transaction(&transaction, sender_balance, &public_key).await?;
+        
+        if !validation_result.is_valid {
+            tracing::error!("❌ Transaction validation failed: {:?}", validation_result.errors);
+            return Err(anyhow::anyhow!("Transaction validation failed: {:?}", validation_result.errors));
+        }
+        
+        if !validation_result.warnings.is_empty() {
+            tracing::warn!("⚠️ Transaction validation warnings: {:?}", validation_result.warnings);
+        }
+        
+        tracing::info!("✅ Transaction {} validated successfully ({}ms, risk: {})", 
+                      transaction.id, 
+                      validation_result.validation_time_ms,
+                      validation_result.risk_score);
+
+        // Store the validated transaction in storage
         let mut storage = self.storage.write().await;
         storage.store_transaction(&transaction).await?;
 
@@ -306,6 +439,7 @@ impl ParadigmNode {
         let mut network = self.network.write().await;
         network.broadcast_transaction(&transaction).await?;
 
+        tracing::info!("📡 Transaction {} processed and broadcasted", transaction.id);
         Ok(())
     }
 
@@ -360,6 +494,119 @@ impl ParadigmNode {
     pub async fn store_ephemeral_transaction(&self, transaction: &transaction::Transaction) -> anyhow::Result<()> {
         let ephemeral_storage = self.ephemeral_storage.read().await;
         ephemeral_storage.store_transaction(transaction).await
+    }
+
+    // Multi-signature treasury methods
+    pub async fn create_treasury_wallet(
+        &self,
+        name: String,
+        wallet_type: multisig_treasury::TreasuryWalletType,
+        threshold: u32,
+        signers: Vec<multisig_treasury::WalletSigner>,
+    ) -> anyhow::Result<uuid::Uuid> {
+        let mut treasury = self.multisig_treasury.write().await;
+        treasury.create_treasury_wallet(name, wallet_type, threshold, signers).await
+    }
+
+    pub async fn propose_treasury_transaction(
+        &self,
+        wallet_id: uuid::Uuid,
+        transaction: transaction::Transaction,
+        proposer_id: uuid::Uuid,
+    ) -> anyhow::Result<uuid::Uuid> {
+        let mut treasury = self.multisig_treasury.write().await;
+        treasury.propose_transaction(wallet_id, transaction, proposer_id).await
+    }
+
+    pub async fn sign_treasury_transaction(
+        &self,
+        transaction_id: uuid::Uuid,
+        signer_id: uuid::Uuid,
+        signing_key: &ed25519_dalek::SigningKey,
+    ) -> anyhow::Result<bool> {
+        let mut treasury = self.multisig_treasury.write().await;
+        treasury.sign_transaction(transaction_id, signer_id, signing_key).await
+    }
+
+    pub async fn execute_treasury_transaction(
+        &self,
+        transaction_id: uuid::Uuid,
+    ) -> anyhow::Result<transaction::Transaction> {
+        let mut treasury = self.multisig_treasury.write().await;
+        let executed_tx = treasury.execute_transaction(transaction_id).await?;
+        
+        // Submit the executed transaction to the network
+        self.submit_transaction(executed_tx.clone()).await?;
+        
+        Ok(executed_tx)
+    }
+
+    pub async fn get_treasury_wallet_info(
+        &self,
+        wallet_id: uuid::Uuid,
+    ) -> anyhow::Result<multisig_treasury::MultiSigWallet> {
+        let treasury = self.multisig_treasury.read().await;
+        treasury.get_wallet_info(wallet_id).await.map(|w| w.clone())
+    }
+
+    pub async fn get_pending_treasury_transactions(
+        &self,
+        wallet_id: Option<uuid::Uuid>,
+    ) -> anyhow::Result<Vec<multisig_treasury::PendingTransaction>> {
+        let treasury = self.multisig_treasury.read().await;
+        let transactions = treasury.get_pending_transactions(wallet_id).await;
+        Ok(transactions.into_iter().cloned().collect())
+    }
+
+    pub async fn cleanup_expired_treasury_transactions(&self) -> anyhow::Result<u32> {
+        let mut treasury = self.multisig_treasury.write().await;
+        treasury.cleanup_expired_transactions().await
+    }
+
+    // Dynamic AI-driven fee calculation methods
+    pub async fn calculate_transaction_fee(
+        &self,
+        transaction_amount: Amount,
+        sender: &Address,
+        urgent: bool,
+    ) -> anyhow::Result<fee_calculation::FeeCalculationResult> {
+        self.fee_calculator.calculate_transaction_fee(transaction_amount, sender, urgent).await
+    }
+
+    pub async fn estimate_fee_range(&self, amount: Amount) -> anyhow::Result<(Amount, Amount, Amount)> {
+        self.fee_calculator.estimate_fee_range(amount).await
+    }
+
+    pub async fn update_network_metrics(
+        &self,
+        transaction_volume_24h: Amount,
+        pending_count: usize,
+        avg_confirmation_time: f64,
+        active_contributors: usize,
+    ) -> anyhow::Result<()> {
+        self.fee_calculator.update_network_metrics(
+            transaction_volume_24h,
+            pending_count,
+            avg_confirmation_time,
+            active_contributors,
+        ).await
+    }
+
+    pub async fn update_contributor_metrics(
+        &self,
+        total_contributors: usize,
+        active_contributors: usize,
+        reward_pool_balance: Amount,
+    ) -> anyhow::Result<()> {
+        self.fee_calculator.update_contributor_metrics(
+            total_contributors,
+            active_contributors,
+            reward_pool_balance,
+        ).await
+    }
+
+    pub async fn get_network_health_score(&self) -> f64 {
+        self.fee_calculator.get_network_health_score().await
     }
 }
 

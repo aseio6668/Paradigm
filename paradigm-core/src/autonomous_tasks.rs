@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-use crate::consensus::MLTask;
+use crate::consensus::{MLTask, MLTaskType};
 use crate::network_sync::NetworkSynchronizer;
 use crate::peer_manager::PeerManager;
 use crate::storage::ParadigmStorage;
@@ -224,7 +224,7 @@ impl AutonomousTaskGenerator {
                 id: task_id,
                 task_type: completed_task_data.task_type,
                 completed_at: Utc::now(),
-                contributor: Some(contributor),
+                contributor: Some(contributor.clone()),
                 success,
                 execution_time,
                 reward_paid: if success { completed_task_data.reward } else { 0 },
@@ -245,13 +245,15 @@ impl AutonomousTaskGenerator {
 
         let ml_task = MLTask {
             id: task_id,
-            task_type: "network_heartbeat".to_string(),
-            description: "Check network connectivity and peer responsiveness".to_string(),
+            task_type: MLTaskType::NetworkOptimization,
             data: vec![1, 2, 3, 4], // Minimal data for heartbeat
             difficulty: 1,
             reward: self.config.base_network_task_reward,
+            deadline: now + chrono::Duration::minutes(5),
             created_at: now,
-            expires_at: now + chrono::Duration::minutes(5),
+            assigned_to: None,
+            completed: false,
+            result: None,
         };
 
         Ok(GeneratedTask {
@@ -287,13 +289,15 @@ impl AutonomousTaskGenerator {
 
         let ml_task = MLTask {
             id: task_id,
-            task_type: "peer_connectivity".to_string(),
-            description: "Verify peer connections and update network topology".to_string(),
+            task_type: MLTaskType::NetworkOptimization,
             data: task_data,
             difficulty: 2,
             reward: self.config.base_network_task_reward * 2,
+            deadline: now + chrono::Duration::minutes(10),
             created_at: now,
-            expires_at: now + chrono::Duration::minutes(10),
+            assigned_to: None,
+            completed: false,
+            result: None,
         };
 
         Ok(GeneratedTask {
@@ -326,13 +330,15 @@ impl AutonomousTaskGenerator {
 
         let ml_task = MLTask {
             id: task_id,
-            task_type: "latency_measurement".to_string(),
-            description: "Measure network latency to optimize routing".to_string(),
+            task_type: MLTaskType::NetworkOptimization,
             data: vec![0; 64], // Ping payload
             difficulty: 1,
             reward: self.config.base_network_task_reward,
+            deadline: now + chrono::Duration::minutes(3),
             created_at: now,
-            expires_at: now + chrono::Duration::minutes(3),
+            assigned_to: None,
+            completed: false,
+            result: None,
         };
 
         Ok(GeneratedTask {
@@ -365,13 +371,15 @@ impl AutonomousTaskGenerator {
 
         let ml_task = MLTask {
             id: task_id,
-            task_type: "transaction_validation".to_string(),
-            description: "Validate pending transactions for blockchain inclusion".to_string(),
+            task_type: MLTaskType::SmartContractOptimization,
             data: vec![1; 256], // Transaction data placeholder
             difficulty: 3,
             reward: self.config.base_validation_task_reward,
+            deadline: now + chrono::Duration::minutes(15),
             created_at: now,
-            expires_at: now + chrono::Duration::minutes(15),
+            assigned_to: None,
+            completed: false,
+            result: None,
         };
 
         Ok(GeneratedTask {
@@ -404,13 +412,15 @@ impl AutonomousTaskGenerator {
 
         let ml_task = MLTask {
             id: task_id,
-            task_type: "blockchain_integrity".to_string(),
-            description: "Verify blockchain integrity and consistency".to_string(),
+            task_type: MLTaskType::SmartContractOptimization,
             data: vec![2; 512], // Blockchain state data
             difficulty: 4,
             reward: self.config.base_validation_task_reward * 2,
+            deadline: now + chrono::Duration::minutes(30),
             created_at: now,
-            expires_at: now + chrono::Duration::minutes(30),
+            assigned_to: None,
+            completed: false,
+            result: None,
         };
 
         Ok(GeneratedTask {
@@ -443,13 +453,15 @@ impl AutonomousTaskGenerator {
 
         let ml_task = MLTask {
             id: task_id,
-            task_type: "model_inference".to_string(),
-            description: "Perform ML model inference on network data".to_string(),
+            task_type: MLTaskType::ImageClassification,
             data: vec![3; 1024], // ML model data
             difficulty: 5,
             reward: self.config.base_ml_task_reward,
+            deadline: now + chrono::Duration::hours(1),
             created_at: now,
-            expires_at: now + chrono::Duration::hours(1),
+            assigned_to: None,
+            completed: false,
+            result: None,
         };
 
         Ok(GeneratedTask {
@@ -482,13 +494,15 @@ impl AutonomousTaskGenerator {
 
         let ml_task = MLTask {
             id: task_id,
-            task_type: "network_optimization".to_string(),
-            description: "Optimize network routing and performance".to_string(),
+            task_type: MLTaskType::NetworkOptimization,
             data: vec![4; 768],
             difficulty: 4,
             reward: self.config.base_ml_task_reward / 2,
+            deadline: now + chrono::Duration::minutes(45),
             created_at: now,
-            expires_at: now + chrono::Duration::minutes(45),
+            assigned_to: None,
+            completed: false,
+            result: None,
         };
 
         Ok(GeneratedTask {
@@ -521,13 +535,15 @@ impl AutonomousTaskGenerator {
 
         let ml_task = MLTask {
             id: task_id,
-            task_type: "metrics_collection".to_string(),
-            description: "Collect and analyze network performance metrics".to_string(),
+            task_type: MLTaskType::TimeSeriesAnalysis,
             data: vec![5; 128],
             difficulty: 2,
             reward: self.config.base_network_task_reward,
+            deadline: now + chrono::Duration::minutes(20),
             created_at: now,
-            expires_at: now + chrono::Duration::minutes(20),
+            assigned_to: None,
+            completed: false,
+            result: None,
         };
 
         Ok(GeneratedTask {
@@ -560,13 +576,15 @@ impl AutonomousTaskGenerator {
 
         let ml_task = MLTask {
             id: task_id,
-            task_type: "peer_reputation".to_string(),
-            description: "Update peer reputation scores based on performance".to_string(),
+            task_type: MLTaskType::TimeSeriesAnalysis,
             data: vec![6; 256],
             difficulty: 3,
             reward: self.config.base_network_task_reward * 2,
+            deadline: now + chrono::Duration::minutes(30),
             created_at: now,
-            expires_at: now + chrono::Duration::minutes(30),
+            assigned_to: None,
+            completed: false,
+            result: None,
         };
 
         Ok(GeneratedTask {

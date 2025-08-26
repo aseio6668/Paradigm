@@ -26,6 +26,7 @@ pub enum SyncStatus {
     Failed,
 }
 
+#[derive(Debug)]
 pub struct NetworkSynchronizer {
     storage: Arc<RwLock<ParadigmStorage>>,
     sync_status: SyncStatus,

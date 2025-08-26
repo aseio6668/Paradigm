@@ -173,9 +173,9 @@ pub async fn tasks_handler(State(state): State<ApiState>) -> Result<Json<TaskRes
             Ok(ml_tasks) => {
                 ml_tasks.into_iter().map(|ml_task| TaskRequest {
                     task_id: ml_task.id.to_string(),
-                    task_type: ml_task.task_type,
-                    difficulty: ml_task.difficulty,
-                    data: base64::encode(&ml_task.data),
+                    task_type: format!("{:?}", ml_task.task_type),
+                    difficulty: ml_task.difficulty as u32,
+                    data: hex::encode(&ml_task.data),
                     reward: ml_task.reward,
                     timestamp: ml_task.created_at.timestamp() as u64,
                 }).collect::<Vec<_>>()
@@ -262,7 +262,7 @@ pub async fn simple_task_submit_handler(
         "message": "Task completed successfully",
         "transaction_id": transaction_id,
         "amount_paid": reward_amount,
-        "recipient": contributor_address,
+        "recipient_address": contributor_address,
         "timestamp": chrono::Utc::now().timestamp()
     });
     

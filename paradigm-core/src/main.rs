@@ -113,9 +113,6 @@ async fn main() -> Result<()> {
         }
     }
     
-    if !manual_peers.is_empty() {
-        tracing::info!("Manual peer connections configured: {:?}", manual_peers);
-    }
 
     tracing::info!("Starting Paradigm node v{}", PARADIGM_VERSION);
     tracing::info!("Data directory: {}", data_dir.display());
@@ -139,6 +136,8 @@ async fn main() -> Result<()> {
         data_dir: data_dir.to_string_lossy().to_string(),
         enable_ml_tasks: true,
         max_peers: 50,
+        enable_hsm: false,
+        hsm_config: None,
     };
 
     // Create and start the node
@@ -179,6 +178,18 @@ async fn main() -> Result<()> {
     // Start the node
     node.start().await?;
 
+    // Add bootstrap peers to peer manager after node is started
+    if !manual_peers.is_empty() {
+        tracing::info!("Adding {} bootstrap peers to peer manager", manual_peers.len());
+        let peer_manager = node.peer_manager.read().await;
+        for peer in &manual_peers {
+            if let Err(e) = peer_manager.add_bootstrap_peer(peer.clone()).await {
+                tracing::warn!("Failed to add bootstrap peer {}: {}", peer, e);
+            }
+        }
+        tracing::info!("Bootstrap peers configured: {:?}", manual_peers);
+    }
+
     // Print initial network sync status
     let sync_info = node.get_sync_info().await;
     tracing::info!("Network sync: {} ({}%)", sync_info.status_string(), sync_info.progress_percentage);
@@ -187,15 +198,17 @@ async fn main() -> Result<()> {
     if enable_api {
         tracing::info!("Starting HTTP API server on port {}", api_port);
         
-        // Create API state
-        let api_state = ApiState::new();
+        // Create API state with autonomous task integration
+        let api_state = ApiState::new()
+            .with_autonomous_tasks(node.autonomous_tasks.clone())
+            .with_peer_manager(node.peer_manager.clone());
         
         // Set initial node status
         api_state.update_network_status("running".to_string()).await;
         api_state.update_peers_count(manual_peers.len() as u32).await;
         
-        // Generate some sample tasks for testing
-        generate_sample_tasks(&api_state, 5).await;
+        // No need to generate sample tasks - autonomous system will handle this
+        tracing::info!("API configured with autonomous task generation");
         
         // Clone the API state for the server task
         let server_state = api_state.clone();

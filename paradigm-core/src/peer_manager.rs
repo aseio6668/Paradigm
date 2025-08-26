@@ -67,6 +67,8 @@ pub struct KnownPeer {
     pub last_version: Option<String>,
     pub features: HashSet<String>,
     pub is_bootstrap: bool,
+    pub quality_metrics: PeerQualityMetrics,
+    pub reputation_history: Vec<ReputationEvent>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,6 +86,43 @@ pub struct PeerDatabase {
     pub updated_at: DateTime<Utc>,
     pub known_peers: HashMap<String, KnownPeer>,
     pub bootstrap_peers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PeerQualityMetrics {
+    pub reliability_score: f64,        // Connection success rate
+    pub task_success_rate: f64,        // Task completion success rate  
+    pub average_response_time: f64,     // Average response time in ms
+    pub uptime_percentage: f64,         // How often the peer is available
+    pub data_quality_score: f64,       // Quality of data provided
+    pub bandwidth_score: f64,          // Network performance
+    pub consistency_score: f64,        // Consistent behavior over time
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReputationEvent {
+    pub event_type: ReputationEventType,
+    pub impact: f64,                   // Positive or negative impact
+    pub timestamp: DateTime<Utc>,
+    pub description: String,
+    pub details: HashMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ReputationEventType {
+    TaskCompleted,
+    TaskFailed,
+    FastResponse,
+    SlowResponse,
+    ConnectionSuccess,
+    ConnectionFailure,
+    DataCorruption,
+    MaliciousBehavior,
+    HelpfulBehavior,
+    HighQualityData,
+    LowQualityData,
+    ConsistentBehavior,
+    InconsistentBehavior,
 }
 
 impl Default for PeerManagerConfig {
@@ -138,6 +177,8 @@ impl PeerManager {
             last_version: None,
             features: HashSet::new(),
             is_bootstrap: true,
+            quality_metrics: PeerQualityMetrics::default(),
+            reputation_history: Vec::new(),
         };
 
         known_peers.insert(address.clone(), peer);
@@ -207,6 +248,8 @@ impl PeerManager {
                 last_version: Some("1.0.0".to_string()),
                 features: HashSet::new(),
                 is_bootstrap: false,
+                quality_metrics: PeerQualityMetrics::default(),
+                reputation_history: Vec::new(),
             };
             known_peers.insert(address.to_string(), new_peer);
         }
@@ -325,6 +368,8 @@ impl PeerManager {
             last_version: None,
             features: HashSet::new(),
             is_bootstrap: false,
+            quality_metrics: PeerQualityMetrics::default(),
+            reputation_history: Vec::new(),
         };
 
         known_peers.insert(address.clone(), new_peer);
@@ -495,6 +540,146 @@ impl PeerManager {
         Ok(())
     }
 
+    /// Record a reputation event for a peer
+    pub async fn record_reputation_event(&self, peer_address: &str, event_type: ReputationEventType, impact: f64, description: String) -> Result<()> {
+        let mut known_peers = self.known_peers.write().await;
+        
+        if let Some(peer) = known_peers.get_mut(peer_address) {
+            // Add to reputation history
+            let event = ReputationEvent {
+                event_type: event_type.clone(),
+                impact,
+                timestamp: Utc::now(),
+                description: description.clone(),
+                details: HashMap::new(),
+            };
+            
+            peer.reputation_history.push(event);
+            
+            // Limit history size to prevent unbounded growth
+            if peer.reputation_history.len() > 100 {
+                peer.reputation_history.remove(0);
+            }
+            
+            // Update reputation score
+            peer.reputation_score = (peer.reputation_score + impact).clamp(0.0, 10.0);
+            
+            // Update quality metrics based on event type
+            self.update_quality_metrics(peer, &event_type, impact).await;
+            
+            tracing::debug!("Recorded reputation event for {}: {:?} (impact: {})", 
+                          peer_address, event_type, impact);
+        }
+        
+        Ok(())
+    }
+    
+    /// Update quality metrics based on reputation events
+    async fn update_quality_metrics(&self, peer: &mut KnownPeer, event_type: &ReputationEventType, impact: f64) {
+        let metrics = &mut peer.quality_metrics;
+        
+        match event_type {
+            ReputationEventType::TaskCompleted => {
+                metrics.task_success_rate = (metrics.task_success_rate * 0.9 + 1.0 * 0.1).min(1.0);
+                metrics.consistency_score = (metrics.consistency_score + 0.1).min(10.0);
+            },
+            ReputationEventType::TaskFailed => {
+                metrics.task_success_rate = (metrics.task_success_rate * 0.9).max(0.0);
+                metrics.consistency_score = (metrics.consistency_score - 0.2).max(0.0);
+            },
+            ReputationEventType::FastResponse => {
+                metrics.average_response_time = metrics.average_response_time * 0.8; // Improve response time
+            },
+            ReputationEventType::SlowResponse => {
+                metrics.average_response_time = metrics.average_response_time * 1.2; // Worsen response time
+            },
+            ReputationEventType::ConnectionSuccess => {
+                metrics.reliability_score = (metrics.reliability_score * 0.95 + 1.0 * 0.05).min(1.0);
+                metrics.uptime_percentage = (metrics.uptime_percentage * 0.95 + 1.0 * 0.05).min(1.0);
+            },
+            ReputationEventType::ConnectionFailure => {
+                metrics.reliability_score = (metrics.reliability_score * 0.95).max(0.0);
+                metrics.uptime_percentage = (metrics.uptime_percentage * 0.95).max(0.0);
+            },
+            ReputationEventType::HighQualityData => {
+                metrics.data_quality_score = (metrics.data_quality_score + 0.2).min(10.0);
+            },
+            ReputationEventType::LowQualityData => {
+                metrics.data_quality_score = (metrics.data_quality_score - 0.3).max(0.0);
+            },
+            ReputationEventType::ConsistentBehavior => {
+                metrics.consistency_score = (metrics.consistency_score + 0.1).min(10.0);
+            },
+            ReputationEventType::InconsistentBehavior => {
+                metrics.consistency_score = (metrics.consistency_score - 0.2).max(0.0);
+            },
+            _ => {}, // Other events don't directly affect specific metrics
+        }
+    }
+    
+    /// Get detailed peer quality assessment
+    pub async fn get_peer_quality_assessment(&self, peer_address: &str) -> Option<PeerQualityAssessment> {
+        let known_peers = self.known_peers.read().await;
+        
+        if let Some(peer) = known_peers.get(peer_address) {
+            let metrics = &peer.quality_metrics;
+            
+            // Calculate overall quality score
+            let overall_score = (
+                metrics.reliability_score * 0.25 +
+                metrics.task_success_rate * 0.25 +
+                metrics.uptime_percentage * 0.15 +
+                (10.0 - metrics.average_response_time.min(10.0) / 100.0) * 0.15 +
+                metrics.data_quality_score * 0.1 +
+                metrics.consistency_score * 0.1
+            ).clamp(0.0, 10.0);
+            
+            Some(PeerQualityAssessment {
+                address: peer_address.to_string(),
+                overall_score,
+                reputation_score: peer.reputation_score,
+                metrics: metrics.clone(),
+                last_assessment: Utc::now(),
+                recent_events: peer.reputation_history.iter()
+                    .rev()
+                    .take(10)
+                    .cloned()
+                    .collect(),
+                recommendation: if overall_score >= 8.0 {
+                    PeerRecommendation::HighlyRecommended
+                } else if overall_score >= 6.0 {
+                    PeerRecommendation::Recommended
+                } else if overall_score >= 4.0 {
+                    PeerRecommendation::Neutral
+                } else if overall_score >= 2.0 {
+                    PeerRecommendation::NotRecommended
+                } else {
+                    PeerRecommendation::Avoid
+                },
+            })
+        } else {
+            None
+        }
+    }
+    
+    /// Get peers ranked by quality
+    pub async fn get_peers_by_quality(&self, limit: usize) -> Vec<PeerQualityAssessment> {
+        let known_peers = self.known_peers.read().await;
+        
+        let mut assessments: Vec<PeerQualityAssessment> = Vec::new();
+        
+        for (address, peer) in known_peers.iter() {
+            if let Some(assessment) = self.get_peer_quality_assessment(address).await {
+                assessments.push(assessment);
+            }
+        }
+        
+        // Sort by overall quality score descending
+        assessments.sort_by(|a, b| b.overall_score.partial_cmp(&a.overall_score).unwrap_or(std::cmp::Ordering::Equal));
+        
+        assessments.into_iter().take(limit).collect()
+    }
+
     pub async fn get_stats(&self) -> PeerStats {
         let active_peers = self.active_peers.read().await;
         let known_peers = self.known_peers.read().await;
@@ -509,6 +694,9 @@ impl PeerManager {
                 let scores: Vec<f64> = known_peers.values().map(|p| p.reputation_score).collect();
                 if scores.is_empty() { 0.0 } else { scores.iter().sum::<f64>() / scores.len() as f64 }
             },
+            high_quality_peers: known_peers.values()
+                .filter(|p| p.reputation_score >= 7.0 && p.quality_metrics.reliability_score >= 0.8)
+                .count(),
         }
     }
 }
@@ -520,4 +708,25 @@ pub struct PeerStats {
     pub failed_peers: usize,
     pub bootstrap_peers: usize,
     pub average_reputation: f64,
+    pub high_quality_peers: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PeerQualityAssessment {
+    pub address: String,
+    pub overall_score: f64,
+    pub reputation_score: f64,
+    pub metrics: PeerQualityMetrics,
+    pub last_assessment: DateTime<Utc>,
+    pub recent_events: Vec<ReputationEvent>,
+    pub recommendation: PeerRecommendation,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PeerRecommendation {
+    HighlyRecommended,
+    Recommended,
+    Neutral,
+    NotRecommended,
+    Avoid,
 }

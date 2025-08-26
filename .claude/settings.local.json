@@ -56,7 +56,9 @@
       "Read(/C:\\Users\\aseio\\documents\\.source\\Paradigm[CC]\\paradigm-wallet\\src/**)",
       "Read(/C:\\Users\\aseio\\documents\\.source\\Paradigm[CC]\\paradigm-wallet/**)",
       "Read(/C:\\Users\\aseio\\documents\\.source\\Paradigm[CC]\\paradigm-contributor\\src/**)",
-      "Bash(rustc:*)"
+      "Bash(rustc:*)",
+      "Bash(copy paradigm-core.exe paradigm-core-new.exe)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": [],
