@@ -46,7 +46,11 @@ impl WalletFile {
             let mut wallet: WalletFile = serde_json::from_str(&content)?;
             wallet.last_used = chrono::Utc::now().timestamp() as u64;
             wallet.save(path)?;
-            info!("📂 Loaded wallet file: {} ({} addresses)", path.display(), wallet.addresses.len());
+            info!(
+                "📂 Loaded wallet file: {} ({} addresses)",
+                path.display(),
+                wallet.addresses.len()
+            );
             Ok(wallet)
         } else {
             let wallet = Self::new();
@@ -86,7 +90,7 @@ impl WalletFile {
         };
 
         self.addresses.insert(address_str.clone(), entry);
-        
+
         // Set as default if it's the first address
         if self.default_address.is_none() {
             self.default_address = Some(address_str.clone());
@@ -142,8 +146,15 @@ impl WalletFile {
     }
 
     pub fn export_all_keys(&self) -> Vec<(String, String, String)> {
-        self.addresses.iter()
-            .map(|(addr, entry)| (addr.clone(), entry.private_key_hex.clone(), entry.label.clone()))
+        self.addresses
+            .iter()
+            .map(|(addr, entry)| {
+                (
+                    addr.clone(),
+                    entry.private_key_hex.clone(),
+                    entry.label.clone(),
+                )
+            })
             .collect()
     }
 
@@ -152,10 +163,11 @@ impl WalletFile {
         if private_key_bytes.len() != 32 {
             return Err(anyhow::anyhow!("Invalid private key length"));
         }
-        
-        let private_key_array: [u8; 32] = private_key_bytes.try_into()
+
+        let private_key_array: [u8; 32] = private_key_bytes
+            .try_into()
             .map_err(|_| anyhow::anyhow!("Failed to convert private key"))?;
-        
+
         let signing_key = SigningKey::from_bytes(&private_key_array);
         let address = Address::from_public_key(&signing_key.verifying_key());
         let address_str = address.to_string();
@@ -173,7 +185,7 @@ impl WalletFile {
         };
 
         self.addresses.insert(address_str.clone(), entry);
-        
+
         info!("📥 Imported address: {} ({})", address_str, label);
         Ok(address_str)
     }
@@ -193,7 +205,11 @@ impl WalletManager {
         })
     }
 
-    pub fn get_or_create_address(&mut self, address_hint: Option<String>, label: &str) -> Result<String> {
+    pub fn get_or_create_address(
+        &mut self,
+        address_hint: Option<String>,
+        label: &str,
+    ) -> Result<String> {
         match address_hint {
             Some(addr) => {
                 // Verify the address exists in our wallet
@@ -201,7 +217,10 @@ impl WalletManager {
                     info!("🔑 Using existing wallet address: {}", addr);
                     Ok(addr)
                 } else {
-                    warn!("⚠️ Specified address {} not found in wallet, creating new one", addr);
+                    warn!(
+                        "⚠️ Specified address {} not found in wallet, creating new one",
+                        addr
+                    );
                     let new_addr = self.wallet_file.add_address(label)?;
                     self.save()?;
                     Ok(new_addr)
@@ -240,7 +259,9 @@ impl WalletManager {
     }
 
     pub fn import_key(&mut self, private_key_hex: &str, label: &str) -> Result<String> {
-        let address = self.wallet_file.import_private_key(private_key_hex, label)?;
+        let address = self
+            .wallet_file
+            .import_private_key(private_key_hex, label)?;
         self.save()?;
         Ok(address)
     }

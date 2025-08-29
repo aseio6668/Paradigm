@@ -157,8 +157,8 @@ impl WalletAccount {
 
         // Update transaction with signature
         let paradigm_sig = crate::types::Signature::new(
-            signature.to_bytes().to_vec(), 
-            crate::types::SignatureType::Ed25519
+            signature.to_bytes().to_vec(),
+            crate::types::SignatureType::Ed25519,
         );
         transaction.signature = Some(paradigm_sig);
         transaction.from = self.address.clone();
@@ -179,9 +179,12 @@ impl WalletAccount {
         }
 
         if signature.len() != 64 {
-            return Err(ParadigmError::InvalidSignature("Signature must be 64 bytes".to_string()));
+            return Err(ParadigmError::InvalidSignature(
+                "Signature must be 64 bytes".to_string(),
+            ));
         }
-        let sig_array: [u8; 64] = signature.try_into()
+        let sig_array: [u8; 64] = signature
+            .try_into()
             .map_err(|_| ParadigmError::InvalidSignature("Invalid signature length".to_string()))?;
         let sig = Signature::from_bytes(&sig_array);
 
@@ -819,7 +822,8 @@ pub mod utils {
         hasher.update(derivation_path.to_string().as_bytes());
         let hash = hasher.finalize();
 
-        let key_array: [u8; 32] = hash[..32].try_into()
+        let key_array: [u8; 32] = hash[..32]
+            .try_into()
             .map_err(|_| ParadigmError::InvalidKey("Invalid key length".to_string()))?;
         Ok(SigningKey::from_bytes(&key_array))
     }

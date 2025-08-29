@@ -43,7 +43,6 @@ pub struct P2PBehaviour {
     pub kademlia: kad::Behaviour<kad::store::MemoryStore>,
 }
 
-
 /// P2P Network struct
 pub struct P2PNetwork {
     swarm: Swarm<P2PBehaviour>,

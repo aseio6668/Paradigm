@@ -301,7 +301,11 @@ impl MultiSigWallet {
         }
         hasher.update(&threshold.to_be_bytes());
         let address_bytes = hasher.finalize();
-        let address = Address::from_bytes(address_bytes[..20].try_into().map_err(|_| Error::InvalidAddress("Invalid address length".to_string()))?);
+        let address = Address::from_bytes(
+            address_bytes[..20]
+                .try_into()
+                .map_err(|_| Error::InvalidAddress("Invalid address length".to_string()))?,
+        );
 
         Ok(MultiSigWallet {
             address,
@@ -321,7 +325,12 @@ impl MultiSigWallet {
             return Err(Error::InvalidInput("Not enough signers".to_string()));
         }
 
-        let message_hash = Hash::from_bytes(Sha3_256::digest(message).as_slice().try_into().map_err(|_| Error::InvalidHashLength)?);
+        let message_hash = Hash::from_bytes(
+            Sha3_256::digest(message)
+                .as_slice()
+                .try_into()
+                .map_err(|_| Error::InvalidHashLength)?,
+        );
         let participants: Vec<u32> = signers.iter().map(|(id, _)| *id).collect();
         let mut threshold_sig = ThresholdSignature::new(self.threshold, participants, message_hash);
 
@@ -493,7 +502,12 @@ impl ThresholdCrypto {
             let key_bytes = hasher.finalize();
 
             // Create verification key from hash (mock)
-            let vk_signing_key = SigningKey::from_bytes(key_bytes.as_slice().try_into().map_err(|_| Error::InvalidKey("Invalid key length".to_string()))?);
+            let vk_signing_key = SigningKey::from_bytes(
+                key_bytes
+                    .as_slice()
+                    .try_into()
+                    .map_err(|_| Error::InvalidKey("Invalid key length".to_string()))?,
+            );
             verification_keys.push(vk_signing_key.verifying_key());
         }
 

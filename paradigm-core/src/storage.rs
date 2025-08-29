@@ -914,9 +914,12 @@ impl ParadigmStorage {
     // Genesis-related storage methods
 
     /// Store genesis block
-    pub async fn store_genesis_block(&self, genesis_block: &crate::genesis::GenesisBlock) -> Result<()> {
+    pub async fn store_genesis_block(
+        &self,
+        genesis_block: &crate::genesis::GenesisBlock,
+    ) -> Result<()> {
         let genesis_data = serde_json::to_string(genesis_block)?;
-        
+
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS genesis_blocks (
@@ -926,7 +929,7 @@ impl ParadigmStorage {
                 config_data TEXT NOT NULL,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
-            "#
+            "#,
         )
         .execute(&self.db_pool)
         .await?;
@@ -945,9 +948,12 @@ impl ParadigmStorage {
     }
 
     /// Store AI governance parameters
-    pub async fn store_ai_governance_params(&self, params: &crate::genesis::AIGovernanceParams) -> Result<()> {
+    pub async fn store_ai_governance_params(
+        &self,
+        params: &crate::genesis::AIGovernanceParams,
+    ) -> Result<()> {
         let params_data = serde_json::to_string(params)?;
-        
+
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS ai_governance_params (
@@ -955,17 +961,15 @@ impl ParadigmStorage {
                 params_data TEXT NOT NULL,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
-            "#
+            "#,
         )
         .execute(&self.db_pool)
         .await?;
 
-        sqlx::query(
-            "INSERT OR REPLACE INTO ai_governance_params (id, params_data) VALUES (1, ?)"
-        )
-        .bind(params_data)
-        .execute(&self.db_pool)
-        .await?;
+        sqlx::query("INSERT OR REPLACE INTO ai_governance_params (id, params_data) VALUES (1, ?)")
+            .bind(params_data)
+            .execute(&self.db_pool)
+            .await?;
 
         Ok(())
     }
@@ -985,9 +989,12 @@ impl ParadigmStorage {
     }
 
     /// Store network genesis configuration
-    pub async fn store_network_genesis_config(&self, config: &crate::genesis::NetworkGenesisConfig) -> Result<()> {
+    pub async fn store_network_genesis_config(
+        &self,
+        config: &crate::genesis::NetworkGenesisConfig,
+    ) -> Result<()> {
         let config_data = serde_json::to_string(config)?;
-        
+
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS network_genesis_config (
@@ -995,13 +1002,13 @@ impl ParadigmStorage {
                 config_data TEXT NOT NULL,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
-            "#
+            "#,
         )
         .execute(&self.db_pool)
         .await?;
 
         sqlx::query(
-            "INSERT OR REPLACE INTO network_genesis_config (id, config_data) VALUES (1, ?)"
+            "INSERT OR REPLACE INTO network_genesis_config (id, config_data) VALUES (1, ?)",
         )
         .bind(config_data)
         .execute(&self.db_pool)
@@ -1011,9 +1018,12 @@ impl ParadigmStorage {
     }
 
     /// Store genesis features
-    pub async fn store_genesis_features(&self, features: &crate::genesis::GenesisFeatures) -> Result<()> {
+    pub async fn store_genesis_features(
+        &self,
+        features: &crate::genesis::GenesisFeatures,
+    ) -> Result<()> {
         let features_data = serde_json::to_string(features)?;
-        
+
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS genesis_features (
@@ -1021,17 +1031,15 @@ impl ParadigmStorage {
                 features_data TEXT NOT NULL,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
-            "#
+            "#,
         )
         .execute(&self.db_pool)
         .await?;
 
-        sqlx::query(
-            "INSERT OR REPLACE INTO genesis_features (id, features_data) VALUES (1, ?)"
-        )
-        .bind(features_data)
-        .execute(&self.db_pool)
-        .await?;
+        sqlx::query("INSERT OR REPLACE INTO genesis_features (id, features_data) VALUES (1, ?)")
+            .bind(features_data)
+            .execute(&self.db_pool)
+            .await?;
 
         Ok(())
     }

@@ -61,7 +61,10 @@
       "Bash(grep:*)",
       "Bash(target/release/paradigm-core.exe:*)",
       "Bash(target/release/paradigm-wallet.exe:*)",
-      "Bash(target/release/paradigm-contributor.exe --help)"
+      "Bash(target/release/paradigm-contributor.exe --help)",
+      "Bash(target/release/paradigm-contributor.exe --node-address 127.0.0.1:8080 --verbose)",
+      "Bash(curl:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": [],

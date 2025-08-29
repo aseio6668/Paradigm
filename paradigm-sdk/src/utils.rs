@@ -400,7 +400,9 @@ pub mod crypto {
         // Simplified recovery - real implementation would use secp256k1
         let mut addr_bytes = [0u8; 20];
         addr_bytes[..20].copy_from_slice(&message_hash.bytes[..20]);
-        Ok(Address::from_bytes(addr_bytes.try_into().map_err(|_| Error::InvalidAddress("Invalid address length".to_string()))?)?)
+        Ok(Address::from_bytes(addr_bytes.try_into().map_err(
+            |_| Error::InvalidAddress("Invalid address length".to_string()),
+        )?)?)
     }
 }
 

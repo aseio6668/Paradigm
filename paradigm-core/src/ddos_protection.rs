@@ -113,42 +113,57 @@ pub struct DDoSProtection {
 impl DDoSProtection {
     pub fn new() -> Self {
         let mut rules = HashMap::new();
-        
+
         // Configure rate limits for different request types
-        rules.insert(RequestType::Connection, RateLimitRule {
-            max_requests: 10,
-            window_duration: Duration::from_secs(60),
-            burst_limit: 3,
-            ban_duration: Duration::from_secs(300),
-        });
-        
-        rules.insert(RequestType::Transaction, RateLimitRule {
-            max_requests: 100,
-            window_duration: Duration::from_secs(60),
-            burst_limit: 20,
-            ban_duration: Duration::from_secs(600),
-        });
-        
-        rules.insert(RequestType::APICall, RateLimitRule {
-            max_requests: 1000,
-            window_duration: Duration::from_secs(60),
-            burst_limit: 50,
-            ban_duration: Duration::from_secs(180),
-        });
+        rules.insert(
+            RequestType::Connection,
+            RateLimitRule {
+                max_requests: 10,
+                window_duration: Duration::from_secs(60),
+                burst_limit: 3,
+                ban_duration: Duration::from_secs(300),
+            },
+        );
 
-        rules.insert(RequestType::BlockRequest, RateLimitRule {
-            max_requests: 50,
-            window_duration: Duration::from_secs(60),
-            burst_limit: 10,
-            ban_duration: Duration::from_secs(300),
-        });
+        rules.insert(
+            RequestType::Transaction,
+            RateLimitRule {
+                max_requests: 100,
+                window_duration: Duration::from_secs(60),
+                burst_limit: 20,
+                ban_duration: Duration::from_secs(600),
+            },
+        );
 
-        rules.insert(RequestType::PeerRequest, RateLimitRule {
-            max_requests: 20,
-            window_duration: Duration::from_secs(60),
-            burst_limit: 5,
-            ban_duration: Duration::from_secs(300),
-        });
+        rules.insert(
+            RequestType::APICall,
+            RateLimitRule {
+                max_requests: 1000,
+                window_duration: Duration::from_secs(60),
+                burst_limit: 50,
+                ban_duration: Duration::from_secs(180),
+            },
+        );
+
+        rules.insert(
+            RequestType::BlockRequest,
+            RateLimitRule {
+                max_requests: 50,
+                window_duration: Duration::from_secs(60),
+                burst_limit: 10,
+                ban_duration: Duration::from_secs(300),
+            },
+        );
+
+        rules.insert(
+            RequestType::PeerRequest,
+            RateLimitRule {
+                max_requests: 20,
+                window_duration: Duration::from_secs(60),
+                burst_limit: 5,
+                ban_duration: Duration::from_secs(300),
+            },
+        );
 
         Self {
             rules,
@@ -191,12 +206,18 @@ impl DDoSProtection {
         }
 
         // Get rate limit rule for request type
-        let rule = self.rules.get(&request_type).unwrap_or(&RateLimitRule::default()).clone();
+        let rule = self
+            .rules
+            .get(&request_type)
+            .unwrap_or(&RateLimitRule::default())
+            .clone();
 
         // Check rate limits
         let mut trackers = self.ip_trackers.write().await;
         let ip_map = trackers.entry(ip).or_insert_with(HashMap::new);
-        let tracker = ip_map.entry(request_type.clone()).or_insert_with(RequestTracker::new);
+        let tracker = ip_map
+            .entry(request_type.clone())
+            .or_insert_with(RequestTracker::new);
 
         let now = Instant::now();
 
@@ -236,8 +257,11 @@ impl DDoSProtection {
             tracker.total_violations += 1;
             self.ban_ip(ip, request_type, rule.ban_duration).await;
             self.increment_blocked_count().await;
-            tracing::warn!("🚫 Burst limit exceeded for {} from {}", 
-                          self.request_type_name(&request_type), ip);
+            tracing::warn!(
+                "🚫 Burst limit exceeded for {} from {}",
+                self.request_type_name(&request_type),
+                ip
+            );
             return Ok(false);
         }
 
@@ -246,9 +270,13 @@ impl DDoSProtection {
             tracker.total_violations += 1;
             self.ban_ip(ip, request_type, rule.ban_duration).await;
             self.increment_blocked_count().await;
-            tracing::warn!("🚫 Rate limit exceeded for {} from {} ({} requests in {}s)", 
-                          self.request_type_name(&request_type), ip, 
-                          tracker.requests.len(), rule.window_duration.as_secs());
+            tracing::warn!(
+                "🚫 Rate limit exceeded for {} from {} ({} requests in {}s)",
+                self.request_type_name(&request_type),
+                ip,
+                tracker.requests.len(),
+                rule.window_duration.as_secs()
+            );
             return Ok(false);
         }
 
@@ -287,13 +315,17 @@ impl DDoSProtection {
             if let Some(tracker) = ip_map.get_mut(&request_type) {
                 tracker.is_banned = true;
                 tracker.ban_expires = Some(Instant::now() + duration);
-                
+
                 // Update ban count
                 let mut stats = self.stats.write().await;
                 stats.active_bans += 1;
-                
-                tracing::warn!("⏰ Temporarily banned {} for {} ({}s)", 
-                              ip, self.request_type_name(&request_type), duration.as_secs());
+
+                tracing::warn!(
+                    "⏰ Temporarily banned {} for {} ({}s)",
+                    ip,
+                    self.request_type_name(&request_type),
+                    duration.as_secs()
+                );
             }
         }
     }
@@ -312,30 +344,43 @@ impl DDoSProtection {
     async fn increment_blocked_count(&self) {
         let mut stats = self.stats.write().await;
         stats.blocked_requests += 1;
-        stats.protection_effectiveness = 
+        stats.protection_effectiveness =
             (stats.blocked_requests as f64 / stats.total_requests as f64) * 100.0;
     }
 
     /// Detect threat patterns
-    async fn detect_threats(&self, ip: IpAddr, request_type: &RequestType, tracker: &RequestTracker) {
+    async fn detect_threats(
+        &self,
+        ip: IpAddr,
+        request_type: &RequestType,
+        tracker: &RequestTracker,
+    ) {
         // Simple threat detection based on violation patterns
         if tracker.total_violations > 5 {
-            tracing::warn!("🔍 Threat pattern detected: {} has {} violations", 
-                          ip, tracker.total_violations);
-            
+            tracing::warn!(
+                "🔍 Threat pattern detected: {} has {} violations",
+                ip,
+                tracker.total_violations
+            );
+
             let mut stats = self.stats.write().await;
             stats.threat_detections += 1;
         }
-        
+
         // Detect rapid-fire requests (more than 50 requests in 10 seconds)
         if tracker.requests.len() > 50 {
-            let recent_requests = tracker.requests.iter()
+            let recent_requests = tracker
+                .requests
+                .iter()
                 .filter(|&&time| Instant::now().duration_since(time) < Duration::from_secs(10))
                 .count();
-                
+
             if recent_requests > 50 {
-                tracing::error!("🚨 ALERT: Potential DDoS attack from {} - {} requests in 10s", 
-                               ip, recent_requests);
+                tracing::error!(
+                    "🚨 ALERT: Potential DDoS attack from {} - {} requests in 10s",
+                    ip,
+                    recent_requests
+                );
             }
         }
     }
@@ -355,12 +400,12 @@ impl DDoSProtection {
     /// Get current protection statistics
     pub async fn get_stats(&self) -> DDoSStats {
         let mut stats = self.stats.read().await.clone();
-        
+
         // Update active bans count
         let trackers = self.ip_trackers.read().await;
         let mut active_bans = 0;
         let mut ip_block_counts: HashMap<IpAddr, u32> = HashMap::new();
-        
+
         for (ip, ip_map) in trackers.iter() {
             for tracker in ip_map.values() {
                 if tracker.is_banned {
@@ -373,30 +418,30 @@ impl DDoSProtection {
                 }
             }
         }
-        
+
         stats.active_bans = active_bans;
-        
+
         // Sort top blocked IPs
         let mut ip_blocks: Vec<_> = ip_block_counts.into_iter().collect();
         ip_blocks.sort_by(|a, b| b.1.cmp(&a.1));
         stats.top_blocked_ips = ip_blocks.into_iter().take(10).collect();
-        
+
         stats
     }
 
     /// Start cleanup task to remove expired data
     pub async fn start_cleanup_task(&self) {
         let ip_trackers = self.ip_trackers.clone();
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(60));
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let mut trackers = ip_trackers.write().await;
                 let now = Instant::now();
-                
+
                 // Remove expired bans and old data
                 trackers.retain(|_ip, ip_map| {
                     ip_map.retain(|_req_type, tracker| {
@@ -409,16 +454,18 @@ impl DDoSProtection {
                                 }
                             }
                         }
-                        
+
                         // Keep tracker if it has recent activity or active ban
                         !tracker.requests.is_empty() || tracker.is_banned
                     });
-                    
+
                     !ip_map.is_empty()
                 });
-                
-                tracing::debug!("🧹 DDoS protection cleanup completed - tracking {} IPs", 
-                               trackers.len());
+
+                tracing::debug!(
+                    "🧹 DDoS protection cleanup completed - tracking {} IPs",
+                    trackers.len()
+                );
             }
         });
     }
@@ -430,8 +477,8 @@ impl DDoSProtection {
                 name: "Rapid Connection Attempts".to_string(),
                 description: "Multiple connection attempts in short time".to_string(),
                 detection_threshold: 20,
-                action: ThreatAction::TempBan { 
-                    duration: Duration::from_secs(600) 
+                action: ThreatAction::TempBan {
+                    duration: Duration::from_secs(600),
                 },
             },
             ThreatPattern {
@@ -444,8 +491,8 @@ impl DDoSProtection {
                 name: "API Abuse".to_string(),
                 description: "Excessive API calls".to_string(),
                 detection_threshold: 1000,
-                action: ThreatAction::TempBan { 
-                    duration: Duration::from_secs(300) 
+                action: ThreatAction::TempBan {
+                    duration: Duration::from_secs(300),
                 },
             },
         ]
@@ -463,7 +510,10 @@ mod tests {
 
         // First few requests should be allowed
         for _ in 0..5 {
-            let allowed = protection.check_request(test_ip, RequestType::APICall).await.unwrap();
+            let allowed = protection
+                .check_request(test_ip, RequestType::APICall)
+                .await
+                .unwrap();
             assert!(allowed);
         }
 
@@ -483,7 +533,10 @@ mod tests {
 
         // Should allow even excessive requests
         for _ in 0..1000 {
-            let allowed = protection.check_request(test_ip, RequestType::APICall).await.unwrap();
+            let allowed = protection
+                .check_request(test_ip, RequestType::APICall)
+                .await
+                .unwrap();
             assert!(allowed);
         }
     }

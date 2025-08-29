@@ -13,8 +13,8 @@ use tokio_rustls::TlsAcceptor;
 use uuid::Uuid;
 
 use crate::certificate_manager::CertificateManager;
-use rand::Rng;
 use crate::transaction::Transaction;
+use rand::Rng;
 
 /// Secure message types for P2P communication
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,9 +52,9 @@ pub enum SecureMessage {
 /// Connection security levels
 #[derive(Debug, Clone, PartialEq)]
 pub enum SecurityLevel {
-    None,           // Unencrypted (development only)
-    TLS,            // Standard TLS encryption
-    MutualTLS,      // Mutual authentication with client certificates
+    None,      // Unencrypted (development only)
+    TLS,       // Standard TLS encryption
+    MutualTLS, // Mutual authentication with client certificates
 }
 
 /// Connection state and metrics
@@ -142,11 +142,14 @@ impl SecureNetworkManager {
 
         // Get server configuration from certificate manager
         let server_config = self.cert_manager.get_server_config(None).await?;
-        
+
         // Create TLS acceptor
         self.tls_acceptor = Some(TlsAcceptor::from(server_config));
-        
-        tracing::info!("🔐 TLS encryption initialized (security level: {:?})", self.security_level);
+
+        tracing::info!(
+            "🔐 TLS encryption initialized (security level: {:?})",
+            self.security_level
+        );
         Ok(())
     }
 
@@ -169,7 +172,7 @@ impl SecureNetworkManager {
                         if Self::check_rate_limit(&rate_limits, &config, remote_addr).await {
                             let connections = connections.clone();
                             let tls_acceptor = tls_acceptor.clone();
-                            
+
                             tokio::spawn(async move {
                                 if let Err(e) = Self::handle_connection(
                                     stream,
@@ -178,7 +181,9 @@ impl SecureNetworkManager {
                                     tls_acceptor,
                                     node_id,
                                     false, // inbound connection
-                                ).await {
+                                )
+                                .await
+                                {
                                     tracing::warn!("Connection handling error: {}", e);
                                 }
                             });
@@ -203,8 +208,9 @@ impl SecureNetworkManager {
 
         let stream = tokio::time::timeout(
             self.config.connection_timeout,
-            TcpStream::connect(remote_addr)
-        ).await??;
+            TcpStream::connect(remote_addr),
+        )
+        .await??;
 
         let connection_id = Uuid::new_v4();
         let connections = self.connections.clone();
@@ -219,7 +225,9 @@ impl SecureNetworkManager {
                 tls_acceptor,
                 node_id,
                 true, // outbound connection
-            ).await {
+            )
+            .await
+            {
                 tracing::warn!("Outbound connection handling error: {}", e);
             }
         });
@@ -230,14 +238,20 @@ impl SecureNetworkManager {
     /// Send secure message to specific peer
     pub async fn send_message(&self, peer_id: Uuid, message: SecureMessage) -> Result<()> {
         let connections = self.connections.read().await;
-        
+
         if let Some(connection) = connections.get(&peer_id) {
-            tracing::debug!("📤 Sending {} message to peer {}", 
-                           message.message_type(), peer_id);
-            
+            tracing::debug!(
+                "📤 Sending {} message to peer {}",
+                message.message_type(),
+                peer_id
+            );
+
             // In a real implementation, we would serialize and send the message
             // through the encrypted connection
-            tracing::info!("Message sent via secure channel to {}", connection.remote_addr);
+            tracing::info!(
+                "Message sent via secure channel to {}",
+                connection.remote_addr
+            );
             Ok(())
         } else {
             Err(anyhow::anyhow!("Peer {} not connected", peer_id))
@@ -248,15 +262,22 @@ impl SecureNetworkManager {
     pub async fn broadcast_message(&self, message: SecureMessage) -> Result<u32> {
         let connections = self.connections.read().await;
         let peer_count = connections.len() as u32;
-        
-        tracing::info!("📡 Broadcasting {} message to {} peers", 
-                      message.message_type(), peer_count);
-        
+
+        tracing::info!(
+            "📡 Broadcasting {} message to {} peers",
+            message.message_type(),
+            peer_count
+        );
+
         // In real implementation, would send to all connections
         for (peer_id, connection) in connections.iter() {
-            tracing::debug!("Broadcasting to peer {} at {}", peer_id, connection.remote_addr);
+            tracing::debug!(
+                "Broadcasting to peer {} at {}",
+                peer_id,
+                connection.remote_addr
+            );
         }
-        
+
         Ok(peer_count)
     }
 
@@ -273,10 +294,10 @@ impl SecureNetworkManager {
     ) -> bool {
         let mut limits = rate_limits.write().await;
         let now = Instant::now();
-        
+
         let ip = remote_addr.ip();
         let ip_addr = SocketAddr::new(ip, 0); // Ignore port for IP-based limiting
-        
+
         match limits.get_mut(&ip_addr) {
             Some(rate) => {
                 // Clean up old entries
@@ -286,22 +307,25 @@ impl SecureNetworkManager {
                     rate.message_count = 0;
                     return true;
                 }
-                
+
                 // Check connection limit
                 if rate.count >= config.max_connections_per_ip {
                     return false;
                 }
-                
+
                 rate.count += 1;
                 true
             }
             None => {
-                limits.insert(ip_addr, ConnectionRate {
-                    count: 1,
-                    first_connection: now,
-                    message_count: 0,
-                    last_message: now,
-                });
+                limits.insert(
+                    ip_addr,
+                    ConnectionRate {
+                        count: 1,
+                        first_connection: now,
+                        message_count: 0,
+                        last_message: now,
+                    },
+                );
                 true
             }
         }
@@ -318,11 +342,11 @@ impl SecureNetworkManager {
     ) -> Result<()> {
         let connection_id = Uuid::new_v4();
         let now = Instant::now();
-        
+
         // Upgrade to TLS if configured
         let security_level = if let Some(acceptor) = &tls_acceptor {
             tracing::debug!("🔐 Upgrading connection to TLS");
-            
+
             // Perform TLS handshake
             match acceptor.accept(stream).await {
                 Ok(tls_stream) => {
@@ -338,7 +362,7 @@ impl SecureNetworkManager {
         } else {
             SecurityLevel::None
         };
-        
+
         // Store connection info
         let connection_info = ConnectionInfo {
             peer_id: None, // Will be set after handshake
@@ -350,37 +374,39 @@ impl SecureNetworkManager {
             security_level: security_level.clone(),
             is_outbound,
         };
-        
+
         {
             let mut conns = connections.write().await;
             conns.insert(connection_id, connection_info);
         }
-        
-        tracing::info!("✅ Secure connection established with {} ({}, security: {:?})", 
-                      remote_addr, 
-                      if is_outbound { "outbound" } else { "inbound" },
-                      &security_level);
-        
+
+        tracing::info!(
+            "✅ Secure connection established with {} ({}, security: {:?})",
+            remote_addr,
+            if is_outbound { "outbound" } else { "inbound" },
+            &security_level
+        );
+
         // Perform handshake protocol
         if let Err(e) = Self::perform_handshake(connection_id, &connections, node_id).await {
             tracing::warn!("Handshake failed with {}: {}", remote_addr, e);
-            
+
             // Remove failed connection
             let mut conns = connections.write().await;
             conns.remove(&connection_id);
-            
+
             return Err(e);
         }
-        
+
         // Start message handling loop
         Self::handle_peer_messages(connection_id, &connections, remote_addr).await?;
-        
+
         // Remove connection on disconnect
         {
             let mut conns = connections.write().await;
             conns.remove(&connection_id);
         }
-        
+
         tracing::info!("🔌 Connection with {} closed", remote_addr);
         Ok(())
     }
@@ -401,18 +427,18 @@ impl SecureNetworkManager {
                 "peers".to_string(),
             ],
         };
-        
+
         tracing::debug!("📤 Sending handshake for connection {}", connection_id);
-        
+
         // In a real implementation, we would:
         // 1. Send handshake message over the TLS stream
         // 2. Wait for peer's handshake response
         // 3. Validate peer's capabilities
         // 4. Exchange peer information
-        
+
         // Simulate handshake process
         tokio::time::sleep(Duration::from_millis(100)).await;
-        
+
         // Update connection with peer information
         {
             let mut conns = connections.write().await;
@@ -421,11 +447,11 @@ impl SecureNetworkManager {
                 conn_info.last_activity = Instant::now();
             }
         }
-        
+
         tracing::debug!("✅ Handshake completed for connection {}", connection_id);
         Ok(())
     }
-    
+
     /// Handle incoming messages from peer
     async fn handle_peer_messages(
         connection_id: Uuid,
@@ -435,10 +461,11 @@ impl SecureNetworkManager {
         // Simulate active connection with periodic ping/pong
         let mut ping_interval = tokio::time::interval(Duration::from_secs(30));
         let mut message_count = 0u32;
-        
-        for _ in 0..10 { // Simulate 10 message exchanges
+
+        for _ in 0..10 {
+            // Simulate 10 message exchanges
             ping_interval.tick().await;
-            
+
             // Create ping message
             let ping = SecureMessage::Ping {
                 timestamp: std::time::SystemTime::now()
@@ -446,10 +473,10 @@ impl SecureNetworkManager {
                     .as_secs(),
                 nonce: rand::random(),
             };
-            
+
             // In real implementation, would send over TLS stream and wait for pong
             tracing::trace!("📤 Ping sent to {}", remote_addr);
-            
+
             // Update connection stats
             {
                 let mut conns = connections.write().await;
@@ -459,11 +486,15 @@ impl SecureNetworkManager {
                     message_count += 1;
                 }
             }
-            
+
             tokio::time::sleep(Duration::from_millis(500)).await;
         }
-        
-        tracing::debug!("Message handling completed for {} ({} messages)", remote_addr, message_count);
+
+        tracing::debug!(
+            "Message handling completed for {} ({} messages)",
+            remote_addr,
+            message_count
+        );
         Ok(())
     }
 }
@@ -499,27 +530,27 @@ impl SecureMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_secure_network_manager() {
         let node_id = Uuid::new_v4();
         let config = RateLimitConfig::default();
-        
+
         let mut manager = SecureNetworkManager::new(
             node_id,
             SecurityLevel::None, // For testing
             config,
         );
-        
+
         // Test initialization
         manager.initialize_tls().await.unwrap();
-        
+
         // Test message creation
         let message = SecureMessage::Ping {
             timestamp: 12345,
             nonce: 67890,
         };
-        
+
         assert_eq!(message.message_type(), "Ping");
         assert!(message.estimated_size() > 0);
     }

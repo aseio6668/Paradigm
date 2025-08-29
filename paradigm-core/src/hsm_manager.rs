@@ -3,6 +3,7 @@
 // using hardware-backed security for production environments
 
 use anyhow::Result;
+use ring::rand::SecureRandom;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
@@ -11,9 +12,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 use zeroize::{Zeroize, ZeroizeOnDrop};
-use ring::rand::SecureRandom;
 
-use crate::{Address, AddressExt, PublicKey, Hash};
+use crate::{Address, AddressExt, Hash, PublicKey};
 
 /// HSM configuration and connection parameters
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,11 +57,11 @@ pub struct HSMKeyInfo {
 /// Types of cryptographic keys
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum KeyType {
-    Signing,     // For transaction signing
-    Encryption,  // For data encryption
+    Signing,        // For transaction signing
+    Encryption,     // For data encryption
     Authentication, // For node authentication
-    Treasury,    // For treasury operations
-    Emergency,   // For emergency operations
+    Treasury,       // For treasury operations
+    Emergency,      // For emergency operations
 }
 
 /// Supported cryptographic algorithms
@@ -213,7 +213,10 @@ impl HSMManager {
         // Initialize HSM connection
         manager.initialize_hsm().await?;
 
-        tracing::info!("🔐 HSM Manager initialized with {:?} HSM", manager.config.hsm_type);
+        tracing::info!(
+            "🔐 HSM Manager initialized with {:?} HSM",
+            manager.config.hsm_type
+        );
         Ok(manager)
     }
 
@@ -260,8 +263,12 @@ impl HSMManager {
         usage: Vec<KeyUsage>,
     ) -> Result<String> {
         let session_id = self.create_session().await?;
-        
-        tracing::info!("🔑 Generating {:?} key with {:?} algorithm in HSM", key_type, algorithm);
+
+        tracing::info!(
+            "🔑 Generating {:?} key with {:?} algorithm in HSM",
+            key_type,
+            algorithm
+        );
 
         // Validate algorithm compatibility
         self.validate_algorithm_support(&algorithm)?;
@@ -294,7 +301,14 @@ impl HSMManager {
         }
 
         // Log operation
-        self.log_operation(session_id, HSMOperation::KeyGeneration, Some(key_id.clone()), true, None).await;
+        self.log_operation(
+            session_id,
+            HSMOperation::KeyGeneration,
+            Some(key_id.clone()),
+            true,
+            None,
+        )
+        .await;
 
         // Backup key if enabled
         if let Some(backup_manager) = &self.backup_manager {
@@ -316,9 +330,10 @@ impl HSMManager {
         // Validate key exists and has signing permission
         {
             let cache = self.key_cache.read().await;
-            let key_info = cache.get(key_id)
+            let key_info = cache
+                .get(key_id)
                 .ok_or_else(|| anyhow::anyhow!("Key not found: {}", key_id))?;
-            
+
             if !key_info.usage.contains(&KeyUsage::Sign) {
                 return Err(anyhow::anyhow!("Key does not have signing permission"));
             }
@@ -334,7 +349,14 @@ impl HSMManager {
         };
 
         // Log operation
-        self.log_operation(session_id, HSMOperation::Signing, Some(key_id.to_string()), true, None).await;
+        self.log_operation(
+            session_id,
+            HSMOperation::Signing,
+            Some(key_id.to_string()),
+            true,
+            None,
+        )
+        .await;
 
         tracing::debug!("✅ Data signed successfully with key: {}", key_id);
         Ok(signature)
@@ -380,8 +402,8 @@ impl HSMManager {
         let key_cache = self.key_cache.read().await;
         let audit_log = self.audit_log.read().await;
 
-        let (successful_ops, failed_ops) = audit_log.iter()
-            .fold((0, 0), |(success, failed), entry| {
+        let (successful_ops, failed_ops) =
+            audit_log.iter().fold((0, 0), |(success, failed), entry| {
                 if entry.success {
                     (success + 1, failed)
                 } else {
@@ -469,7 +491,7 @@ impl HSMManager {
     async fn load_key_cache(&self) -> Result<()> {
         // Load existing keys from HSM into cache
         tracing::debug!("Loading key cache from HSM");
-        
+
         // For software HSM, we might load from a secure file
         // For hardware HSM, we would enumerate keys from the device
         Ok(())
@@ -478,7 +500,7 @@ impl HSMManager {
     async fn create_session(&self) -> Result<Uuid> {
         let session_id = Uuid::new_v4();
         let now = SystemTime::now();
-        
+
         let session = HSMSession {
             session_id,
             hsm_type: self.config.hsm_type.clone(),
@@ -511,13 +533,22 @@ impl HSMManager {
     // Placeholder implementations for different HSM types
     // In production, these would call actual HSM APIs
 
-    async fn generate_software_key(&self, algorithm: &CryptoAlgorithm, label: &str) -> Result<String> {
+    async fn generate_software_key(
+        &self,
+        algorithm: &CryptoAlgorithm,
+        label: &str,
+    ) -> Result<String> {
         let key_id = format!("soft_{}", Uuid::new_v4());
         tracing::debug!("Generated software key: {} ({})", key_id, label);
         Ok(key_id)
     }
 
-    async fn generate_pkcs11_key(&self, algorithm: &CryptoAlgorithm, label: &str, _usage: &[KeyUsage]) -> Result<String> {
+    async fn generate_pkcs11_key(
+        &self,
+        algorithm: &CryptoAlgorithm,
+        label: &str,
+        _usage: &[KeyUsage],
+    ) -> Result<String> {
         let key_id = format!("pkcs11_{}", Uuid::new_v4());
         tracing::debug!("Generated PKCS#11 key: {} ({})", key_id, label);
         Ok(key_id)
@@ -535,13 +566,21 @@ impl HSMManager {
         Ok(key_id)
     }
 
-    async fn generate_yubikey_key(&self, algorithm: &CryptoAlgorithm, label: &str) -> Result<String> {
+    async fn generate_yubikey_key(
+        &self,
+        algorithm: &CryptoAlgorithm,
+        label: &str,
+    ) -> Result<String> {
         let key_id = format!("yubikey_{}", Uuid::new_v4());
         tracing::debug!("Generated YubiKey key: {} ({})", key_id, label);
         Ok(key_id)
     }
 
-    async fn generate_ledger_key(&self, algorithm: &CryptoAlgorithm, label: &str) -> Result<String> {
+    async fn generate_ledger_key(
+        &self,
+        algorithm: &CryptoAlgorithm,
+        label: &str,
+    ) -> Result<String> {
         let key_id = format!("ledger_{}", Uuid::new_v4());
         tracing::debug!("Generated Ledger key: {} ({})", key_id, label);
         Ok(key_id)
@@ -552,7 +591,7 @@ impl HSMManager {
         use ed25519_dalek::{Signer, SigningKey};
         use rand::rngs::OsRng;
         use rand::RngCore;
-        
+
         let mut secret_bytes = [0u8; 32];
         OsRng.fill_bytes(&mut secret_bytes);
         let signing_key = SigningKey::from_bytes(&secret_bytes);
@@ -619,13 +658,16 @@ impl HSMManager {
         error_code: Option<String>,
     ) {
         let entry = HSMAuditEntry {
-            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs(),
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
             session_id,
             operation,
             key_id,
             success,
             error_code,
-            user_id: None, // Would get from context
+            user_id: None,   // Would get from context
             source_ip: None, // Would get from context
         };
 
@@ -643,7 +685,8 @@ impl HSMBackupManager {
     pub fn new() -> Result<Self> {
         // Generate encryption key for backups
         let mut encryption_key = [0u8; 32];
-        ring::rand::SystemRandom::new().fill(&mut encryption_key)
+        ring::rand::SystemRandom::new()
+            .fill(&mut encryption_key)
             .map_err(|_| anyhow::anyhow!("Failed to generate backup encryption key"))?;
 
         Ok(Self {
@@ -689,16 +732,18 @@ mod tests {
             hsm_type: HSMType::Software,
             ..Default::default()
         };
-        
+
         let hsm_manager = HSMManager::new(config).await.unwrap();
-        
-        let key_id = hsm_manager.generate_key(
-            KeyType::Signing,
-            CryptoAlgorithm::Ed25519,
-            "test-key".to_string(),
-            vec![KeyUsage::Sign],
-        ).await;
-        
+
+        let key_id = hsm_manager
+            .generate_key(
+                KeyType::Signing,
+                CryptoAlgorithm::Ed25519,
+                "test-key".to_string(),
+                vec![KeyUsage::Sign],
+            )
+            .await;
+
         assert!(key_id.is_ok());
         let key_id = key_id.unwrap();
         assert!(key_id.starts_with("soft_"));
@@ -708,7 +753,7 @@ mod tests {
     async fn test_hsm_stats() {
         let config = HSMConfig::default();
         let hsm_manager = HSMManager::new(config).await.unwrap();
-        
+
         let stats = hsm_manager.get_stats().await.unwrap();
         assert_eq!(stats.key_count, 0);
         assert!(matches!(stats.health_status, HSMHealthStatus::Offline));

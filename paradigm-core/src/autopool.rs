@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, warn, debug};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use crate::{Address, AddressExt};
@@ -16,7 +16,7 @@ pub const MIN_PAR_AMOUNT: u64 = 1;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutopoolParticipant {
     pub address: String,
-    pub computing_power: f64, // Relative computing power (hash rate, etc.)
+    pub computing_power: f64,   // Relative computing power (hash rate, etc.)
     pub contribution_time: u64, // Time spent contributing in seconds
     pub joined_at: DateTime<Utc>,
     pub last_active: DateTime<Utc>,
@@ -29,7 +29,7 @@ pub struct AutopoolParticipant {
 pub struct AutopoolSession {
     pub session_id: Uuid,
     pub created_at: DateTime<Utc>,
-    pub target_amount: u64, // Target PAR amount to reach before distribution
+    pub target_amount: u64,  // Target PAR amount to reach before distribution
     pub current_amount: u64, // Current accumulated PAR amount
     pub participants: HashMap<String, AutopoolParticipant>,
     pub work_threshold: f64, // Minimum work required to join pool
@@ -71,29 +71,29 @@ impl AutopoolManager {
     }
 
     /// Check if a contributor should be offered autopool participation
-    pub async fn should_offer_autopool(&self, estimated_earning: u64, computing_power: f64) -> bool {
+    pub async fn should_offer_autopool(
+        &self,
+        estimated_earning: u64,
+        computing_power: f64,
+    ) -> bool {
         if estimated_earning >= self.min_payout_threshold {
             return false; // Can earn enough individually
         }
 
         let difficulty = *self.network_difficulty.read().await;
-        
+
         // Offer autopool if:
         // 1. Estimated earning is below threshold
         // 2. Network difficulty is high relative to computing power
         // 3. Computing power is above minimum threshold to avoid spam
-        
-        estimated_earning < self.min_payout_threshold 
-            && difficulty > computing_power * 10.0 
+
+        estimated_earning < self.min_payout_threshold
+            && difficulty > computing_power * 10.0
             && computing_power > 0.001 // Minimum computing power
     }
 
     /// Opt a contributor into autopool system
-    pub async fn opt_into_autopool(
-        &self, 
-        address: &str, 
-        computing_power: f64
-    ) -> Result<Uuid> {
+    pub async fn opt_into_autopool(&self, address: &str, computing_power: f64) -> Result<Uuid> {
         info!("🔄 {} opting into autopool system", address);
 
         // Find or create suitable session
@@ -112,13 +112,18 @@ impl AutopoolManager {
 
         let mut sessions = self.active_sessions.write().await;
         if let Some(session) = sessions.get_mut(&session_id) {
-            session.participants.insert(address.to_string(), participant);
+            session
+                .participants
+                .insert(address.to_string(), participant);
             info!("✅ Added {} to autopool session {}", address, session_id);
         }
 
         // Update participant history
         let mut history = self.participant_history.write().await;
-        history.entry(address.to_string()).or_insert_with(Vec::new).push(session_id);
+        history
+            .entry(address.to_string())
+            .or_insert_with(Vec::new)
+            .push(session_id);
 
         Ok(session_id)
     }
@@ -131,7 +136,10 @@ impl AutopoolManager {
         work_amount: f64,
         time_spent: u64,
     ) -> Result<()> {
-        debug!("📊 Recording work: {} from {} ({}s)", work_amount, address, time_spent);
+        debug!(
+            "📊 Recording work: {} from {} ({}s)",
+            work_amount, address, time_spent
+        );
 
         let mut sessions = self.active_sessions.write().await;
         if let Some(session) = sessions.get_mut(&session_id) {
@@ -140,8 +148,10 @@ impl AutopoolManager {
                 participant.contribution_time += time_spent;
                 participant.last_active = Utc::now();
 
-                debug!("📈 {} total work: {}, time: {}s", 
-                       address, participant.work_units_completed, participant.contribution_time);
+                debug!(
+                    "📈 {} total work: {}, time: {}s",
+                    address, participant.work_units_completed, participant.contribution_time
+                );
             }
         }
 
@@ -150,12 +160,16 @@ impl AutopoolManager {
 
     /// Add earnings to a session (called when network rewards are earned)
     pub async fn add_session_earnings(&self, session_id: Uuid, amount: u64) -> Result<()> {
-        info!("💰 Adding {} PAR to session {}", amount as f64 / 100_000_000.0, session_id);
+        info!(
+            "💰 Adding {} PAR to session {}",
+            amount as f64 / 100_000_000.0,
+            session_id
+        );
 
         let mut sessions = self.active_sessions.write().await;
         if let Some(session) = sessions.get_mut(&session_id) {
             session.current_amount += amount;
-            
+
             // Check if session is ready for distribution
             if session.current_amount >= session.target_amount {
                 info!("🎯 Session {} ready for payout distribution", session_id);
@@ -167,7 +181,10 @@ impl AutopoolManager {
     }
 
     /// Distribute accumulated rewards to participants
-    pub async fn distribute_session_rewards(&self, session_id: Uuid) -> Result<Vec<AutopoolPayout>> {
+    pub async fn distribute_session_rewards(
+        &self,
+        session_id: Uuid,
+    ) -> Result<Vec<AutopoolPayout>> {
         info!("💸 Distributing rewards for session {}", session_id);
 
         let mut sessions = self.active_sessions.write().await;
@@ -179,11 +196,15 @@ impl AutopoolManager {
             }
 
             // Calculate total work and time contributions
-            let total_work: f64 = session.participants.values()
+            let total_work: f64 = session
+                .participants
+                .values()
                 .map(|p| p.work_units_completed as f64)
                 .sum();
-            
-            let total_time: u64 = session.participants.values()
+
+            let total_time: u64 = session
+                .participants
+                .values()
                 .map(|p| p.contribution_time)
                 .sum();
 
@@ -222,8 +243,12 @@ impl AutopoolManager {
                     };
 
                     payouts.push(payout);
-                    info!("💳 {} receives {:.8} PAR ({:.2}% share)", 
-                          address, payout_amount as f64 / 100_000_000.0, total_share * 100.0);
+                    info!(
+                        "💳 {} receives {:.8} PAR ({:.2}% share)",
+                        address,
+                        payout_amount as f64 / 100_000_000.0,
+                        total_share * 100.0
+                    );
                 }
             }
 
@@ -246,7 +271,8 @@ impl AutopoolManager {
         for (session_id, session) in sessions.iter() {
             if session.participants.len() < 50 && // Max 50 participants per session
                session.current_amount < session.target_amount &&
-               !session.distribution_pending {
+               !session.distribution_pending
+            {
                 return Ok(*session_id);
             }
         }
@@ -275,8 +301,11 @@ impl AutopoolManager {
         let mut sessions = self.active_sessions.write().await;
         sessions.insert(session_id, session);
 
-        info!("🆕 Created new autopool session {} (target: {:.8} PAR)", 
-              session_id, target_amount as f64 / 100_000_000.0);
+        info!(
+            "🆕 Created new autopool session {} (target: {:.8} PAR)",
+            session_id,
+            target_amount as f64 / 100_000_000.0
+        );
 
         Ok(session_id)
     }
@@ -287,7 +316,7 @@ impl AutopoolManager {
         // but not so high that sessions take forever to complete
         let base_target = self.min_payout_threshold * 10; // 10x minimum threshold
         let difficulty = *self.network_difficulty.read().await;
-        
+
         // Adjust target based on difficulty - higher difficulty = higher target
         (base_target as f64 * (1.0 + difficulty / 100.0)) as u64
     }
@@ -313,7 +342,9 @@ impl AutopoolManager {
     /// Check if address is currently in autopool
     pub async fn is_participant_active(&self, address: &str) -> bool {
         let sessions = self.active_sessions.read().await;
-        sessions.values().any(|s| s.participants.contains_key(address))
+        sessions
+            .values()
+            .any(|s| s.participants.contains_key(address))
     }
 
     /// Get session info for a participant
@@ -337,7 +368,7 @@ impl AutopoolManager {
         for (session_id, session) in sessions.iter_mut() {
             if session.participants.remove(address).is_some() {
                 info!("➖ Removed {} from session {}", address, session_id);
-                
+
                 // If session becomes empty, mark it for removal
                 if session.participants.is_empty() {
                     session_to_remove = Some(*session_id);
@@ -371,10 +402,10 @@ impl AutopoolManager {
             total_accumulated_par: total_accumulated,
             total_target_par: total_target,
             network_difficulty: *self.network_difficulty.read().await,
-            avg_session_progress: if total_target > 0 { 
-                (total_accumulated as f64 / total_target as f64) * 100.0 
-            } else { 
-                0.0 
+            avg_session_progress: if total_target > 0 {
+                (total_accumulated as f64 / total_target as f64) * 100.0
+            } else {
+                0.0
             },
         }
     }
@@ -399,8 +430,14 @@ impl AutopoolStats {
         println!("🎯 Active Sessions: {}", self.active_sessions);
         println!("👥 Total Participants: {}", self.total_participants);
         println!("✅ Completed Sessions: {}", self.completed_sessions);
-        println!("💰 Accumulated: {:.8} PAR", self.total_accumulated_par as f64 / 100_000_000.0);
-        println!("🎯 Target Total: {:.8} PAR", self.total_target_par as f64 / 100_000_000.0);
+        println!(
+            "💰 Accumulated: {:.8} PAR",
+            self.total_accumulated_par as f64 / 100_000_000.0
+        );
+        println!(
+            "🎯 Target Total: {:.8} PAR",
+            self.total_target_par as f64 / 100_000_000.0
+        );
         println!("⚡ Network Difficulty: {:.2}", self.network_difficulty);
         println!("📊 Avg Progress: {:.1}%", self.avg_session_progress);
     }

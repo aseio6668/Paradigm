@@ -1,4 +1,4 @@
-use crate::{Address, Amount, genesis::AIGovernanceParams, storage::ParadigmStorage};
+use crate::{genesis::AIGovernanceParams, storage::ParadigmStorage, Address, Amount};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -21,7 +21,7 @@ pub struct NetworkMetrics {
     pub transaction_volume_24h: Amount,
     pub pending_transaction_count: usize,
     pub average_confirmation_time: f64, // seconds
-    pub network_congestion: f64, // 0.0 to 1.0
+    pub network_congestion: f64,        // 0.0 to 1.0
     pub active_contributors: usize,
     pub last_updated: u64,
 }
@@ -65,7 +65,10 @@ impl Default for NetworkMetrics {
             average_confirmation_time: 10.0, // 10 seconds default
             network_congestion: 0.0,
             active_contributors: 1,
-            last_updated: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            last_updated: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
         }
     }
 }
@@ -104,28 +107,21 @@ impl DynamicFeeCalculator {
         let reward_system = self.contributor_rewards.read().await;
 
         // Calculate base fee using AI parameters
-        let base_fee_percentage = self.calculate_base_fee_percentage(
-            &governance_params,
-            &network_metrics,
-            transaction_amount,
-        ).await;
+        let base_fee_percentage = self
+            .calculate_base_fee_percentage(&governance_params, &network_metrics, transaction_amount)
+            .await;
 
         let base_fee = ((transaction_amount as f64) * base_fee_percentage) as Amount;
 
         // Apply congestion adjustments
-        let congestion_adjustment = self.calculate_congestion_adjustment(
-            &governance_params,
-            &network_metrics,
-            base_fee,
-            urgent,
-        ).await;
+        let congestion_adjustment = self
+            .calculate_congestion_adjustment(&governance_params, &network_metrics, base_fee, urgent)
+            .await;
 
         // Calculate contributor incentive (can be negative to reduce fees)
-        let contributor_incentive_signed = self.calculate_contributor_incentive(
-            &reward_system,
-            &network_metrics,
-            transaction_amount,
-        ).await;
+        let contributor_incentive_signed = self
+            .calculate_contributor_incentive(&reward_system, &network_metrics, transaction_amount)
+            .await;
 
         // Convert incentive to amount, handling negative values
         let contributor_incentive = if contributor_incentive_signed < 0 {
@@ -144,8 +140,10 @@ impl DynamicFeeCalculator {
         let total_fee = base_total.saturating_sub(reduction).max(1); // Minimum 1 unit
 
         // Ensure fee is within governance bounds
-        let min_fee = ((transaction_amount as f64) * governance_params.min_fee_percentage) as Amount;
-        let max_fee = ((transaction_amount as f64) * governance_params.max_fee_percentage) as Amount;
+        let min_fee =
+            ((transaction_amount as f64) * governance_params.min_fee_percentage) as Amount;
+        let max_fee =
+            ((transaction_amount as f64) * governance_params.max_fee_percentage) as Amount;
         let final_fee = total_fee.max(min_fee).min(max_fee);
 
         let result = FeeCalculationResult {
@@ -157,8 +155,10 @@ impl DynamicFeeCalculator {
             calculation_factors: FeeFactors {
                 transaction_amount,
                 network_congestion: network_metrics.network_congestion,
-                contributor_load: reward_system.active_contributors as f64 / reward_system.total_contributors as f64,
-                reward_pool_health: (reward_system.reward_pool_balance as f64) / (100_000_00000000.0), // Health as % of 100k PAR
+                contributor_load: reward_system.active_contributors as f64
+                    / reward_system.total_contributors as f64,
+                reward_pool_health: (reward_system.reward_pool_balance as f64)
+                    / (100_000_00000000.0), // Health as % of 100k PAR
                 governance_multiplier: governance_params.fee_sensitivity,
             },
         };
@@ -256,13 +256,15 @@ impl DynamicFeeCalculator {
         active_contributors: usize,
     ) -> Result<()> {
         let mut metrics = self.network_metrics.write().await;
-        
+
         // Calculate congestion based on various factors
-        let congestion = self.calculate_congestion_score(
-            pending_count,
-            avg_confirmation_time,
-            transaction_volume_24h,
-        ).await;
+        let congestion = self
+            .calculate_congestion_score(
+                pending_count,
+                avg_confirmation_time,
+                transaction_volume_24h,
+            )
+            .await;
 
         metrics.transaction_volume_24h = transaction_volume_24h;
         metrics.pending_transaction_count = pending_count;
@@ -273,7 +275,9 @@ impl DynamicFeeCalculator {
 
         tracing::debug!(
             "Network metrics updated: congestion {:.2}, pending {}, contributors {}",
-            congestion, pending_count, active_contributors
+            congestion,
+            pending_count,
+            active_contributors
         );
 
         Ok(())
@@ -315,7 +319,7 @@ impl DynamicFeeCalculator {
         rewards.total_contributors = total_contributors;
         rewards.active_contributors = active_contributors;
         rewards.reward_pool_balance = reward_pool_balance;
-        
+
         // Adjust reward multiplier based on pool health
         rewards.reward_multiplier = if reward_pool_balance > 10000_00000000 {
             1.5 // Healthy pool allows more generous rewards
@@ -331,13 +335,22 @@ impl DynamicFeeCalculator {
     /// Get current fee estimation for UI display
     pub async fn estimate_fee_range(&self, amount: Amount) -> Result<(Amount, Amount, Amount)> {
         // Calculate fees for different scenarios
-        let low_fee = self.calculate_transaction_fee(amount, &Address([0; 32]), false).await?.total_fee;
+        let low_fee = self
+            .calculate_transaction_fee(amount, &Address([0; 32]), false)
+            .await?
+            .total_fee;
         let normal_fee = {
             // Simulate moderate congestion
-            self.update_network_metrics(1000_00000000, 50, 15.0, 5).await?;
-            self.calculate_transaction_fee(amount, &Address([0; 32]), false).await?.total_fee
+            self.update_network_metrics(1000_00000000, 50, 15.0, 5)
+                .await?;
+            self.calculate_transaction_fee(amount, &Address([0; 32]), false)
+                .await?
+                .total_fee
         };
-        let high_fee = self.calculate_transaction_fee(amount, &Address([0; 32]), true).await?.total_fee;
+        let high_fee = self
+            .calculate_transaction_fee(amount, &Address([0; 32]), true)
+            .await?
+            .total_fee;
 
         Ok((low_fee, normal_fee, high_fee))
     }
@@ -351,6 +364,8 @@ impl DynamicFeeCalculator {
         let contributor_health = (rewards.active_contributors as f64 / 10.0).min(1.0);
         let pool_health = (rewards.reward_pool_balance as f64 / 1000_00000000.0).min(1.0);
 
-        (congestion_health * 0.4 + contributor_health * 0.3 + pool_health * 0.3).max(0.0).min(1.0)
+        (congestion_health * 0.4 + contributor_health * 0.3 + pool_health * 0.3)
+            .max(0.0)
+            .min(1.0)
     }
 }

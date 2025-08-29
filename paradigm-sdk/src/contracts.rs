@@ -958,7 +958,11 @@ pub mod utils {
         hasher.update(nonce.to_be_bytes());
         let hash = hasher.finalize();
 
-        Address::from_bytes(hash[12..32].try_into().map_err(|_| Error::InvalidAddress("Invalid address length".to_string()))?)
+        Address::from_bytes(
+            hash[12..32]
+                .try_into()
+                .map_err(|_| Error::InvalidAddress("Invalid address length".to_string()))?,
+        )
     }
 
     /// Create standard ERC20 token ABI

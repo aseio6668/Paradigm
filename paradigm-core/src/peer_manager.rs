@@ -62,7 +62,7 @@ pub struct KnownPeer {
     pub last_successful_connection: Option<DateTime<Utc>>,
     pub connection_attempts: u32,
     pub successful_connections: u32,
-    pub reputation_score: f64, // 0.0 to 10.0 
+    pub reputation_score: f64, // 0.0 to 10.0
     pub average_latency: f64,
     pub last_version: Option<String>,
     pub features: HashSet<String>,
@@ -90,19 +90,19 @@ pub struct PeerDatabase {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PeerQualityMetrics {
-    pub reliability_score: f64,        // Connection success rate
-    pub task_success_rate: f64,        // Task completion success rate  
-    pub average_response_time: f64,     // Average response time in ms
-    pub uptime_percentage: f64,         // How often the peer is available
-    pub data_quality_score: f64,       // Quality of data provided
-    pub bandwidth_score: f64,          // Network performance
-    pub consistency_score: f64,        // Consistent behavior over time
+    pub reliability_score: f64,     // Connection success rate
+    pub task_success_rate: f64,     // Task completion success rate
+    pub average_response_time: f64, // Average response time in ms
+    pub uptime_percentage: f64,     // How often the peer is available
+    pub data_quality_score: f64,    // Quality of data provided
+    pub bandwidth_score: f64,       // Network performance
+    pub consistency_score: f64,     // Consistent behavior over time
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReputationEvent {
     pub event_type: ReputationEventType,
-    pub impact: f64,                   // Positive or negative impact
+    pub impact: f64, // Positive or negative impact
     pub timestamp: DateTime<Utc>,
     pub description: String,
     pub details: HashMap<String, serde_json::Value>,
@@ -130,11 +130,11 @@ impl Default for PeerManagerConfig {
         Self {
             max_active_peers: 50,
             max_known_peers: 1000,
-            reconnection_interval: 300,  // 5 minutes
-            save_interval: 60,           // 1 minute
-            discovery_interval: 120,     // 2 minutes
+            reconnection_interval: 300, // 5 minutes
+            save_interval: 60,          // 1 minute
+            discovery_interval: 120,    // 2 minutes
             min_reputation_threshold: 1.0,
-            failure_retry_delay: 15,     // 15 minutes
+            failure_retry_delay: 15, // 15 minutes
         }
     }
 }
@@ -156,8 +156,10 @@ impl PeerManager {
         // Load existing peer database
         manager.load_peers().await?;
 
-        tracing::info!("PeerManager initialized with {} known peers", 
-                      manager.known_peers.read().await.len());
+        tracing::info!(
+            "PeerManager initialized with {} known peers",
+            manager.known_peers.read().await.len()
+        );
 
         Ok(manager)
     }
@@ -165,7 +167,7 @@ impl PeerManager {
     /// Add a bootstrap peer that's always trusted
     pub async fn add_bootstrap_peer(&self, address: String) -> Result<()> {
         let mut known_peers = self.known_peers.write().await;
-        
+
         let peer = KnownPeer {
             address: address.clone(),
             first_seen: Utc::now(),
@@ -206,7 +208,8 @@ impl PeerManager {
             tracing::info!("Successfully connected to peer: {}", address);
             Ok(true)
         } else {
-            self.on_peer_connection_failed(&address, "Connection timeout").await?;
+            self.on_peer_connection_failed(&address, "Connection timeout")
+                .await?;
             Ok(false)
         }
     }
@@ -273,15 +276,16 @@ impl PeerManager {
 
         // Add to failed peers with cooldown
         let mut failed_peers = self.failed_peers.write().await;
-        let failure_info = failed_peers.get(address).cloned().unwrap_or_else(|| {
-            FailureInfo {
+        let failure_info = failed_peers
+            .get(address)
+            .cloned()
+            .unwrap_or_else(|| FailureInfo {
                 address: address.to_string(),
                 failure_count: 0,
                 last_failure: now,
                 failure_reason: reason.to_string(),
                 next_retry: now,
-            }
-        });
+            });
 
         let updated_failure = FailureInfo {
             failure_count: failure_info.failure_count + 1,
@@ -331,7 +335,8 @@ impl PeerManager {
         candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
         // Return up to max_active_peers candidates
-        candidates.into_iter()
+        candidates
+            .into_iter()
             .take(self.config.max_active_peers)
             .map(|(addr, _)| addr)
             .collect()
@@ -347,9 +352,12 @@ impl PeerManager {
 
         if known_peers.len() >= self.config.max_known_peers {
             // Remove lowest reputation peer to make space
-            if let Some((lowest_addr, _)) = known_peers.iter()
+            if let Some((lowest_addr, _)) = known_peers
+                .iter()
                 .filter(|(_, peer)| !peer.is_bootstrap) // Don't remove bootstrap peers
-                .min_by(|(_, a), (_, b)| a.reputation_score.partial_cmp(&b.reputation_score).unwrap())
+                .min_by(|(_, a), (_, b)| {
+                    a.reputation_score.partial_cmp(&b.reputation_score).unwrap()
+                })
                 .map(|(addr, peer)| (addr.clone(), peer.clone()))
             {
                 known_peers.remove(&lowest_addr);
@@ -382,7 +390,8 @@ impl PeerManager {
     pub async fn get_shareable_peers(&self, max_count: usize) -> Vec<String> {
         let known_peers = self.known_peers.read().await;
 
-        known_peers.values()
+        known_peers
+            .values()
             .filter(|peer| peer.reputation_score >= 5.0) // Only share good peers
             .filter(|peer| peer.last_successful_connection.is_some()) // Only peers we've connected to
             .map(|peer| peer.address.clone())
@@ -407,9 +416,9 @@ impl PeerManager {
         let config = self.config.clone();
 
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(
-                tokio::time::Duration::from_secs(config.reconnection_interval)
-            );
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(
+                config.reconnection_interval,
+            ));
 
             loop {
                 interval.tick().await;
@@ -420,9 +429,13 @@ impl PeerManager {
                     let failed = failed_peers.read().await;
                     let now = Utc::now();
 
-                    known.values()
+                    known
+                        .values()
                         .filter(|peer| !active.contains_key(&peer.address))
-                        .filter(|peer| peer.reputation_score >= config.min_reputation_threshold || peer.is_bootstrap)
+                        .filter(|peer| {
+                            peer.reputation_score >= config.min_reputation_threshold
+                                || peer.is_bootstrap
+                        })
                         .filter(|peer| {
                             if let Some(failure) = failed.get(&peer.address) {
                                 failure.next_retry <= now
@@ -449,9 +462,8 @@ impl PeerManager {
         let config = self.config.clone();
 
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(
-                tokio::time::Duration::from_secs(config.discovery_interval)
-            );
+            let mut interval =
+                tokio::time::interval(tokio::time::Duration::from_secs(config.discovery_interval));
 
             loop {
                 interval.tick().await;
@@ -472,9 +484,8 @@ impl PeerManager {
         let config = self.config.clone();
 
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(
-                tokio::time::Duration::from_secs(config.save_interval)
-            );
+            let mut interval =
+                tokio::time::interval(tokio::time::Duration::from_secs(config.save_interval));
 
             loop {
                 interval.tick().await;
@@ -485,7 +496,8 @@ impl PeerManager {
                         version: "1.0.0".to_string(),
                         updated_at: Utc::now(),
                         known_peers: peers.clone(),
-                        bootstrap_peers: peers.values()
+                        bootstrap_peers: peers
+                            .values()
                             .filter(|p| p.is_bootstrap)
                             .map(|p| p.address.clone())
                             .collect(),
@@ -494,11 +506,16 @@ impl PeerManager {
 
                 if let Err(e) = tokio::fs::write(
                     &peers_file,
-                    serde_json::to_string_pretty(&database).unwrap_or_default()
-                ).await {
+                    serde_json::to_string_pretty(&database).unwrap_or_default(),
+                )
+                .await
+                {
                     tracing::error!("Failed to save peer database: {}", e);
                 } else {
-                    tracing::debug!("Saved peer database with {} peers", database.known_peers.len());
+                    tracing::debug!(
+                        "Saved peer database with {} peers",
+                        database.known_peers.len()
+                    );
                 }
             }
         });
@@ -541,9 +558,15 @@ impl PeerManager {
     }
 
     /// Record a reputation event for a peer
-    pub async fn record_reputation_event(&self, peer_address: &str, event_type: ReputationEventType, impact: f64, description: String) -> Result<()> {
+    pub async fn record_reputation_event(
+        &self,
+        peer_address: &str,
+        event_type: ReputationEventType,
+        impact: f64,
+        description: String,
+    ) -> Result<()> {
         let mut known_peers = self.known_peers.write().await;
-        
+
         if let Some(peer) = known_peers.get_mut(peer_address) {
             // Add to reputation history
             let event = ReputationEvent {
@@ -553,94 +576,111 @@ impl PeerManager {
                 description: description.clone(),
                 details: HashMap::new(),
             };
-            
+
             peer.reputation_history.push(event);
-            
+
             // Limit history size to prevent unbounded growth
             if peer.reputation_history.len() > 100 {
                 peer.reputation_history.remove(0);
             }
-            
+
             // Update reputation score
             peer.reputation_score = (peer.reputation_score + impact).clamp(0.0, 10.0);
-            
+
             // Update quality metrics based on event type
             self.update_quality_metrics(peer, &event_type, impact).await;
-            
-            tracing::debug!("Recorded reputation event for {}: {:?} (impact: {})", 
-                          peer_address, event_type, impact);
+
+            tracing::debug!(
+                "Recorded reputation event for {}: {:?} (impact: {})",
+                peer_address,
+                event_type,
+                impact
+            );
         }
-        
+
         Ok(())
     }
-    
+
     /// Update quality metrics based on reputation events
-    async fn update_quality_metrics(&self, peer: &mut KnownPeer, event_type: &ReputationEventType, impact: f64) {
+    async fn update_quality_metrics(
+        &self,
+        peer: &mut KnownPeer,
+        event_type: &ReputationEventType,
+        impact: f64,
+    ) {
         let metrics = &mut peer.quality_metrics;
-        
+
         match event_type {
             ReputationEventType::TaskCompleted => {
                 metrics.task_success_rate = (metrics.task_success_rate * 0.9 + 1.0 * 0.1).min(1.0);
                 metrics.consistency_score = (metrics.consistency_score + 0.1).min(10.0);
-            },
+            }
             ReputationEventType::TaskFailed => {
                 metrics.task_success_rate = (metrics.task_success_rate * 0.9).max(0.0);
                 metrics.consistency_score = (metrics.consistency_score - 0.2).max(0.0);
-            },
+            }
             ReputationEventType::FastResponse => {
-                metrics.average_response_time = metrics.average_response_time * 0.8; // Improve response time
-            },
+                metrics.average_response_time = metrics.average_response_time * 0.8;
+                // Improve response time
+            }
             ReputationEventType::SlowResponse => {
-                metrics.average_response_time = metrics.average_response_time * 1.2; // Worsen response time
-            },
+                metrics.average_response_time = metrics.average_response_time * 1.2;
+                // Worsen response time
+            }
             ReputationEventType::ConnectionSuccess => {
-                metrics.reliability_score = (metrics.reliability_score * 0.95 + 1.0 * 0.05).min(1.0);
-                metrics.uptime_percentage = (metrics.uptime_percentage * 0.95 + 1.0 * 0.05).min(1.0);
-            },
+                metrics.reliability_score =
+                    (metrics.reliability_score * 0.95 + 1.0 * 0.05).min(1.0);
+                metrics.uptime_percentage =
+                    (metrics.uptime_percentage * 0.95 + 1.0 * 0.05).min(1.0);
+            }
             ReputationEventType::ConnectionFailure => {
                 metrics.reliability_score = (metrics.reliability_score * 0.95).max(0.0);
                 metrics.uptime_percentage = (metrics.uptime_percentage * 0.95).max(0.0);
-            },
+            }
             ReputationEventType::HighQualityData => {
                 metrics.data_quality_score = (metrics.data_quality_score + 0.2).min(10.0);
-            },
+            }
             ReputationEventType::LowQualityData => {
                 metrics.data_quality_score = (metrics.data_quality_score - 0.3).max(0.0);
-            },
+            }
             ReputationEventType::ConsistentBehavior => {
                 metrics.consistency_score = (metrics.consistency_score + 0.1).min(10.0);
-            },
+            }
             ReputationEventType::InconsistentBehavior => {
                 metrics.consistency_score = (metrics.consistency_score - 0.2).max(0.0);
-            },
-            _ => {}, // Other events don't directly affect specific metrics
+            }
+            _ => {} // Other events don't directly affect specific metrics
         }
     }
-    
+
     /// Get detailed peer quality assessment
-    pub async fn get_peer_quality_assessment(&self, peer_address: &str) -> Option<PeerQualityAssessment> {
+    pub async fn get_peer_quality_assessment(
+        &self,
+        peer_address: &str,
+    ) -> Option<PeerQualityAssessment> {
         let known_peers = self.known_peers.read().await;
-        
+
         if let Some(peer) = known_peers.get(peer_address) {
             let metrics = &peer.quality_metrics;
-            
+
             // Calculate overall quality score
-            let overall_score = (
-                metrics.reliability_score * 0.25 +
-                metrics.task_success_rate * 0.25 +
-                metrics.uptime_percentage * 0.15 +
-                (10.0 - metrics.average_response_time.min(10.0) / 100.0) * 0.15 +
-                metrics.data_quality_score * 0.1 +
-                metrics.consistency_score * 0.1
-            ).clamp(0.0, 10.0);
-            
+            let overall_score = (metrics.reliability_score * 0.25
+                + metrics.task_success_rate * 0.25
+                + metrics.uptime_percentage * 0.15
+                + (10.0 - metrics.average_response_time.min(10.0) / 100.0) * 0.15
+                + metrics.data_quality_score * 0.1
+                + metrics.consistency_score * 0.1)
+                .clamp(0.0, 10.0);
+
             Some(PeerQualityAssessment {
                 address: peer_address.to_string(),
                 overall_score,
                 reputation_score: peer.reputation_score,
                 metrics: metrics.clone(),
                 last_assessment: Utc::now(),
-                recent_events: peer.reputation_history.iter()
+                recent_events: peer
+                    .reputation_history
+                    .iter()
                     .rev()
                     .take(10)
                     .cloned()
@@ -661,22 +701,26 @@ impl PeerManager {
             None
         }
     }
-    
+
     /// Get peers ranked by quality
     pub async fn get_peers_by_quality(&self, limit: usize) -> Vec<PeerQualityAssessment> {
         let known_peers = self.known_peers.read().await;
-        
+
         let mut assessments: Vec<PeerQualityAssessment> = Vec::new();
-        
+
         for (address, peer) in known_peers.iter() {
             if let Some(assessment) = self.get_peer_quality_assessment(address).await {
                 assessments.push(assessment);
             }
         }
-        
+
         // Sort by overall quality score descending
-        assessments.sort_by(|a, b| b.overall_score.partial_cmp(&a.overall_score).unwrap_or(std::cmp::Ordering::Equal));
-        
+        assessments.sort_by(|a, b| {
+            b.overall_score
+                .partial_cmp(&a.overall_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
         assessments.into_iter().take(limit).collect()
     }
 
@@ -692,9 +736,14 @@ impl PeerManager {
             bootstrap_peers: known_peers.values().filter(|p| p.is_bootstrap).count(),
             average_reputation: {
                 let scores: Vec<f64> = known_peers.values().map(|p| p.reputation_score).collect();
-                if scores.is_empty() { 0.0 } else { scores.iter().sum::<f64>() / scores.len() as f64 }
+                if scores.is_empty() {
+                    0.0
+                } else {
+                    scores.iter().sum::<f64>() / scores.len() as f64
+                }
             },
-            high_quality_peers: known_peers.values()
+            high_quality_peers: known_peers
+                .values()
                 .filter(|p| p.reputation_score >= 7.0 && p.quality_metrics.reliability_score >= 0.8)
                 .count(),
         }

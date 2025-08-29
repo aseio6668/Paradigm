@@ -235,7 +235,11 @@ impl StealthAddress {
         address_hasher.update(&public_view_key);
         address_hasher.update(&public_spend_key);
         let address_bytes = address_hasher.finalize();
-        let stealth_address = Address::from_bytes(address_bytes[..20].try_into().map_err(|_| Error::InvalidAddress("Invalid address length".to_string()))?);
+        let stealth_address = Address::from_bytes(
+            address_bytes[..20]
+                .try_into()
+                .map_err(|_| Error::InvalidAddress("Invalid address length".to_string()))?,
+        );
 
         // Generate transaction public key
         let mut tx_pubkey_hasher = Sha3_256::new();

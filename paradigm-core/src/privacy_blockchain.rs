@@ -70,11 +70,11 @@ pub struct BalanceSnapshot {
 impl Default for RetentionConfig {
     fn default() -> Self {
         Self {
-            transaction_retention_days: 30,  // Keep transactions for 1 month
-            balance_retention_days: 90,      // Keep balance snapshots for 3 months
-            task_retention_days: 7,          // Keep ML task history for 1 week
+            transaction_retention_days: 30, // Keep transactions for 1 month
+            balance_retention_days: 90,     // Keep balance snapshots for 3 months
+            task_retention_days: 7,         // Keep ML task history for 1 week
             auto_cleanup_enabled: true,
-            cleanup_interval_hours: 6,       // Clean up every 6 hours
+            cleanup_interval_hours: 6, // Clean up every 6 hours
         }
     }
 }
@@ -114,8 +114,9 @@ impl PrivacyBlockchain {
 
     /// Store a transaction with privacy protections and automatic expiry
     pub async fn store_private_transaction(&self, transaction: &Transaction) -> Result<()> {
-        let expires_at = Utc::now() + ChronoDuration::days(self.retention_config.transaction_retention_days);
-        
+        let expires_at =
+            Utc::now() + ChronoDuration::days(self.retention_config.transaction_retention_days);
+
         let ephemeral_tx = EphemeralTransaction {
             id: transaction.id,
             from_hash: self.hash_address(&transaction.from),
@@ -129,16 +130,24 @@ impl PrivacyBlockchain {
         // Store ephemeral transaction instead of raw transaction
         let storage = self.storage.write().await;
         // TODO: Add method to store ephemeral transactions in storage
-        tracing::info!("Stored private transaction {} (expires: {})", 
-                      ephemeral_tx.id, ephemeral_tx.expires_at);
+        tracing::info!(
+            "Stored private transaction {} (expires: {})",
+            ephemeral_tx.id,
+            ephemeral_tx.expires_at
+        );
 
         Ok(())
     }
 
     /// Create a balance snapshot that expires automatically
-    pub async fn create_balance_snapshot(&self, address: &Address, balance: u64) -> Result<BalanceSnapshot> {
-        let expires_at = Utc::now() + ChronoDuration::days(self.retention_config.balance_retention_days);
-        
+    pub async fn create_balance_snapshot(
+        &self,
+        address: &Address,
+        balance: u64,
+    ) -> Result<BalanceSnapshot> {
+        let expires_at =
+            Utc::now() + ChronoDuration::days(self.retention_config.balance_retention_days);
+
         let snapshot = BalanceSnapshot {
             address_hash: self.hash_address(address),
             balance,
@@ -147,8 +156,11 @@ impl PrivacyBlockchain {
             merkle_proof: self.create_merkle_proof(address, balance).await?,
         };
 
-        tracing::debug!("Created balance snapshot for address hash {} (expires: {})", 
-                       snapshot.address_hash, snapshot.expires_at);
+        tracing::debug!(
+            "Created balance snapshot for address hash {} (expires: {})",
+            snapshot.address_hash,
+            snapshot.expires_at
+        );
 
         Ok(snapshot)
     }
@@ -156,7 +168,7 @@ impl PrivacyBlockchain {
     /// Get current balance without revealing transaction history
     pub async fn get_private_balance(&self, address: &Address) -> Result<u64> {
         let address_hash = self.hash_address(address);
-        
+
         // Try to find a recent balance snapshot first
         if let Some(snapshot) = self.get_latest_balance_snapshot(&address_hash).await? {
             if snapshot.expires_at > Utc::now() {
@@ -165,11 +177,14 @@ impl PrivacyBlockchain {
         }
 
         // Fall back to calculating from recent transactions
-        let recent_balance = self.calculate_balance_from_recent_transactions(address).await?;
-        
+        let recent_balance = self
+            .calculate_balance_from_recent_transactions(address)
+            .await?;
+
         // Create new snapshot for future queries
-        self.create_balance_snapshot(address, recent_balance).await?;
-        
+        self.create_balance_snapshot(address, recent_balance)
+            .await?;
+
         Ok(recent_balance)
     }
 
@@ -181,19 +196,25 @@ impl PrivacyBlockchain {
         tracing::info!("Starting privacy blockchain cleanup at {}", now);
 
         // Clean up expired transactions
-        let tx_cutoff = now - ChronoDuration::days(self.retention_config.transaction_retention_days);
+        let tx_cutoff =
+            now - ChronoDuration::days(self.retention_config.transaction_retention_days);
         stats.transactions_removed = self.cleanup_expired_transactions(tx_cutoff).await?;
 
         // Clean up expired balance snapshots
-        let balance_cutoff = now - ChronoDuration::days(self.retention_config.balance_retention_days);
+        let balance_cutoff =
+            now - ChronoDuration::days(self.retention_config.balance_retention_days);
         stats.snapshots_removed = self.cleanup_expired_snapshots(balance_cutoff).await?;
 
         // Clean up expired ML task data
         let task_cutoff = now - ChronoDuration::days(self.retention_config.task_retention_days);
         stats.tasks_removed = self.cleanup_expired_tasks(task_cutoff).await?;
 
-        tracing::info!("Cleanup completed: {} transactions, {} snapshots, {} tasks removed",
-                      stats.transactions_removed, stats.snapshots_removed, stats.tasks_removed);
+        tracing::info!(
+            "Cleanup completed: {} transactions, {} snapshots, {} tasks removed",
+            stats.transactions_removed,
+            stats.snapshots_removed,
+            stats.tasks_removed
+        );
 
         Ok(stats)
     }
@@ -209,13 +230,13 @@ impl PrivacyBlockchain {
         let config = self.retention_config.clone();
 
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(
-                tokio::time::Duration::from_secs(cleanup_interval.num_seconds() as u64)
-            );
-            
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(
+                cleanup_interval.num_seconds() as u64,
+            ));
+
             loop {
                 interval.tick().await;
-                
+
                 let privacy_blockchain = PrivacyBlockchain {
                     storage: storage.clone(),
                     retention_config: config.clone(),
@@ -228,21 +249,23 @@ impl PrivacyBlockchain {
             }
         });
 
-        tracing::info!("Started auto-cleanup process (interval: {} hours)", 
-                      self.retention_config.cleanup_interval_hours);
+        tracing::info!(
+            "Started auto-cleanup process (interval: {} hours)",
+            self.retention_config.cleanup_interval_hours
+        );
         Ok(())
     }
 
     /// Get privacy statistics
     pub async fn get_privacy_stats(&self) -> Result<PrivacyStats> {
         let storage = self.storage.read().await;
-        
+
         // TODO: Add methods to get privacy-related counts from storage
         let stats = PrivacyStats {
             active_ephemeral_transactions: 0, // Count from storage
-            active_balance_snapshots: 0,     // Count from storage
-            total_cleanup_runs: 0,           // Count from storage
-            last_cleanup: None,              // Get from storage
+            active_balance_snapshots: 0,      // Count from storage
+            total_cleanup_runs: 0,            // Count from storage
+            last_cleanup: None,               // Get from storage
             privacy_level: self.calculate_privacy_level(),
         };
 
@@ -250,7 +273,7 @@ impl PrivacyBlockchain {
     }
 
     // Private helper methods
-    
+
     fn hash_address(&self, address: &Address) -> String {
         let mut hasher = blake3::Hasher::new();
         hasher.update(address.as_bytes());
@@ -275,7 +298,10 @@ impl PrivacyBlockchain {
         Ok(format!("merkle_proof_{}", uuid::Uuid::new_v4()))
     }
 
-    async fn get_latest_balance_snapshot(&self, _address_hash: &str) -> Result<Option<BalanceSnapshot>> {
+    async fn get_latest_balance_snapshot(
+        &self,
+        _address_hash: &str,
+    ) -> Result<Option<BalanceSnapshot>> {
         // TODO: Implement retrieval of latest balance snapshot
         Ok(None)
     }
@@ -302,12 +328,20 @@ impl PrivacyBlockchain {
 
     fn calculate_privacy_level(&self) -> PrivacyLevel {
         let mut score = 0;
-        
-        if self.privacy_settings.hide_amounts { score += 20; }
-        if self.privacy_settings.hide_addresses { score += 30; }
-        if self.privacy_settings.enable_mixing { score += 25; }
-        if self.privacy_settings.enable_zk_proofs { score += 25; }
-        
+
+        if self.privacy_settings.hide_amounts {
+            score += 20;
+        }
+        if self.privacy_settings.hide_addresses {
+            score += 30;
+        }
+        if self.privacy_settings.enable_mixing {
+            score += 25;
+        }
+        if self.privacy_settings.enable_zk_proofs {
+            score += 25;
+        }
+
         match score {
             0..=25 => PrivacyLevel::Low,
             26..=50 => PrivacyLevel::Medium,
@@ -346,7 +380,7 @@ impl PrivacyLevel {
     pub fn as_str(&self) -> &'static str {
         match self {
             PrivacyLevel::Low => "Low",
-            PrivacyLevel::Medium => "Medium", 
+            PrivacyLevel::Medium => "Medium",
             PrivacyLevel::High => "High",
             PrivacyLevel::Maximum => "Maximum",
         }

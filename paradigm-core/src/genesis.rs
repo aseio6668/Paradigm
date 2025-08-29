@@ -1,8 +1,8 @@
-use crate::{Address, Amount};
-use crate::tokenomics::treasury_manager::TreasuryManager;
 use crate::storage::ParadigmStorage;
-use serde::{Deserialize, Serialize};
+use crate::tokenomics::treasury_manager::TreasuryManager;
+use crate::{Address, Amount};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 /// Special network address that holds the initial supply for decentralized distribution
 pub const NETWORK_TREASURY_ADDRESS: &str = "PAR0000000000000000000000000000000000000000";
@@ -178,10 +178,10 @@ impl GenesisManager {
         config: GenesisConfig,
     ) -> anyhow::Result<GenesisBlock> {
         tracing::info!("Creating genesis block for new Paradigm chain");
-        
+
         // Create network treasury address (special address that network controls)
         let network_treasury = self.create_network_treasury_address();
-        
+
         let genesis_time = config.genesis_time;
         let initial_supply = config.initial_supply;
 
@@ -225,7 +225,9 @@ impl GenesisManager {
         };
 
         // Initialize treasury with the initial supply
-        self.treasury_manager.initialize_with_supply(initial_supply).await?;
+        self.treasury_manager
+            .initialize_with_supply(initial_supply)
+            .await?;
 
         tracing::info!(
             "Genesis block created with {} PAR allocated to network treasury",
@@ -247,16 +249,24 @@ impl GenesisManager {
 
         // Initialize network treasury with initial supply
         let network_treasury = self.create_network_treasury_address();
-        self.storage.set_balance(&network_treasury, genesis_block.config.initial_supply).await?;
+        self.storage
+            .set_balance(&network_treasury, genesis_block.config.initial_supply)
+            .await?;
 
         // Initialize AI governance parameters
-        self.storage.store_ai_governance_params(&genesis_block.config.ai_governance_params).await?;
+        self.storage
+            .store_ai_governance_params(&genesis_block.config.ai_governance_params)
+            .await?;
 
         // Initialize network configuration
-        self.storage.store_network_genesis_config(&genesis_block.config.network_config).await?;
+        self.storage
+            .store_network_genesis_config(&genesis_block.config.network_config)
+            .await?;
 
         // Enable genesis features
-        self.storage.store_genesis_features(&genesis_block.config.features).await?;
+        self.storage
+            .store_genesis_features(&genesis_block.config.features)
+            .await?;
 
         tracing::info!(
             "Chain initialized successfully. Network treasury holds {} PAR",
@@ -290,13 +300,14 @@ impl GenesisManager {
 
         // AI calculates optimal distribution amount
         let base_rate = 1000_00000000u64; // 1000 PAR base
-        
+
         // Dynamic adjustment based on network conditions
         let demand_multiplier = 1.0 + (network_demand - 0.5) * 0.5; // ±25% based on demand
         let quality_multiplier = 0.5 + contribution_quality; // 0.5x to 1.5x based on quality
-        
-        let distribution_amount = (base_rate as f64 * demand_multiplier * quality_multiplier) as Amount;
-        
+
+        let distribution_amount =
+            (base_rate as f64 * demand_multiplier * quality_multiplier) as Amount;
+
         // Ensure we don't exceed available treasury
         let actual_distribution = distribution_amount.min(current_balance);
 
@@ -317,13 +328,13 @@ impl GenesisManager {
     ) -> anyhow::Result<f64> {
         // Load AI governance parameters
         let params = self.storage.get_ai_governance_params().await?;
-        
+
         // Base fee calculation
         let base_fee = params.min_fee_percentage;
-        
+
         // Congestion adjustment
         let congestion_adjustment = network_congestion * params.fee_sensitivity;
-        
+
         // Final fee percentage
         let final_fee = (base_fee + congestion_adjustment)
             .max(params.min_fee_percentage)
@@ -347,13 +358,13 @@ impl GenesisManager {
         economic_indicators: &EconomicIndicators,
     ) -> anyhow::Result<bool> {
         let params = self.storage.get_ai_governance_params().await?;
-        
+
         if !params.allow_supply_expansion {
             return Ok(false);
         }
 
         let supply_ratio = current_circulating as f64 / max_supply as f64;
-        
+
         // Only consider expansion if we're near the threshold
         if supply_ratio < params.expansion_threshold {
             return Ok(false);
@@ -361,10 +372,10 @@ impl GenesisManager {
 
         // AI decision based on economic indicators
         let expansion_score = self.calculate_expansion_score(economic_indicators);
-        
+
         // Expand if score is high enough (threshold of 0.8)
         let should_expand = expansion_score > 0.8;
-        
+
         if should_expand {
             tracing::warn!(
                 "AI recommends supply expansion: score={:.2}, ratio={:.2}",
@@ -404,21 +415,21 @@ impl GenesisManager {
         use blake3::Hasher;
 
         let mut hasher = Hasher::new();
-        
+
         // Hash transactions
         for tx in transactions {
             let tx_data = serde_json::to_vec(tx)?;
             hasher.update(&tx_data);
         }
-        
+
         // Hash config
         let config_data = serde_json::to_vec(config)?;
         hasher.update(&config_data);
-        
+
         let hash_result = hasher.finalize();
         let mut hash = [0u8; 32];
         hash.copy_from_slice(hash_result.as_bytes());
-        
+
         Ok(hash)
     }
 }
@@ -441,15 +452,15 @@ impl TreasuryManager {
     /// Initialize treasury with network-held initial supply
     pub async fn initialize_with_supply(&mut self, initial_supply: Amount) -> anyhow::Result<()> {
         self.initialize().await?;
-        
+
         // Override balance with initial supply from genesis
         self.set_balance(initial_supply);
-        
+
         tracing::info!(
             "Treasury initialized with network-held supply: {} PAR",
             initial_supply as f64 / 100_000_000.0
         );
-        
+
         Ok(())
     }
 }

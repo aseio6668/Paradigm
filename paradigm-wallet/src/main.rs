@@ -1,11 +1,10 @@
 // Paradigm Wallet - CLI interface with full wallet management
 use anyhow::Result;
-use paradigm_core::wallet_manager::WalletManager;
 use paradigm_core::transaction_tester::TransactionTester;
+use paradigm_core::wallet_manager::WalletManager;
 use std::env;
 use std::path::PathBuf;
 use tracing_subscriber;
-
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -16,7 +15,7 @@ async fn main() -> Result<()> {
     println!("===================================");
 
     let args: Vec<String> = env::args().collect();
-    
+
     // Get wallet file path
     let wallet_path = if args.len() > 2 && args[1] == "--wallet-file" {
         PathBuf::from(&args[2])
@@ -28,8 +27,12 @@ async fn main() -> Result<()> {
     println!("💼 Using wallet file: {}", wallet_path.display());
 
     if args.len() > 1 {
-        let command_start = if args.len() > 2 && args[1] == "--wallet-file" { 3 } else { 1 };
-        
+        let command_start = if args.len() > 2 && args[1] == "--wallet-file" {
+            3
+        } else {
+            1
+        };
+
         if command_start < args.len() {
             match args[command_start].as_str() {
                 "create" => {
@@ -94,7 +97,9 @@ async fn main() -> Result<()> {
                 }
                 "send" => {
                     if args.len() < command_start + 4 {
-                        println!("Usage: paradigm-wallet send <from_address> <to_address> <amount>");
+                        println!(
+                            "Usage: paradigm-wallet send <from_address> <to_address> <amount>"
+                        );
                         println!("Example: paradigm-wallet send PAR1a2b3c4... PAR5d6e7f8... 0.1");
                         return Ok(());
                     }
@@ -106,7 +111,14 @@ async fn main() -> Result<()> {
                     } else {
                         None
                     };
-                    send_transaction(&mut wallet_manager, from_address, to_address, amount_str, message).await?;
+                    send_transaction(
+                        &mut wallet_manager,
+                        from_address,
+                        to_address,
+                        amount_str,
+                        message,
+                    )
+                    .await?;
                 }
                 "stress-test" => {
                     let count = if args.len() > command_start + 1 {
@@ -163,15 +175,14 @@ fn print_help() {
     println!("  paradigm-wallet stress-test 50");
 }
 
-
 fn create_address(wallet_manager: &mut WalletManager, label: &str) -> Result<()> {
     let address = wallet_manager.add_address(label)?;
-    
+
     println!("✅ Address created successfully!");
     println!("📋 Label: {}", label);
     println!("🏠 Address: {}", address);
     println!("⚠️  Keep your private key secure!");
-    
+
     Ok(())
 }
 
@@ -191,8 +202,12 @@ fn list_addresses(wallet_manager: &WalletManager) -> Result<()> {
 
         println!("{} 🪙 {}", marker, entry.label);
         println!("     📍 {}", entry.address);
-        println!("     💰 Balance: {:.8} PAR", entry.balance as f64 / 100_000_000.0);
-        println!("     📅 Created: {}", 
+        println!(
+            "     💰 Balance: {:.8} PAR",
+            entry.balance as f64 / 100_000_000.0
+        );
+        println!(
+            "     📅 Created: {}",
             chrono::DateTime::from_timestamp(entry.created_at as i64, 0)
                 .unwrap_or_default()
                 .format("%Y-%m-%d %H:%M:%S")
@@ -209,15 +224,19 @@ fn list_addresses(wallet_manager: &WalletManager) -> Result<()> {
     Ok(())
 }
 
-fn import_private_key(wallet_manager: &mut WalletManager, private_key: &str, label: &str) -> Result<()> {
+fn import_private_key(
+    wallet_manager: &mut WalletManager,
+    private_key: &str,
+    label: &str,
+) -> Result<()> {
     println!("📥 Importing private key: {}", label);
-    
+
     let address = wallet_manager.import_private_key(private_key, label)?;
-    
+
     println!("✅ Private key imported successfully!");
     println!("📋 Label: {}", label);
     println!("🏠 Address: {}", address);
-    
+
     Ok(())
 }
 
@@ -231,7 +250,7 @@ fn export_private_key(wallet_manager: &WalletManager, address: &str) -> Result<(
         println!("❌ Address '{}' not found!", address);
         println!("💡 Use 'paradigm-wallet list' to see available addresses");
     }
-    
+
     Ok(())
 }
 
@@ -239,89 +258,108 @@ fn export_all_keys(wallet_manager: &WalletManager) -> Result<()> {
     println!("🔐 Exporting all private keys");
     println!("⚠️  WARNING: Keep these private keys secure!");
     println!("=======================================");
-    
+
     let keys = wallet_manager.export_keys();
     if keys.is_empty() {
         println!("💤 No addresses found.");
         return Ok(());
     }
-    
+
     for (address, private_key, label) in keys {
         println!("📋 Label: {}", label);
         println!("🏠 Address: {}", address);
         println!("🔑 Private Key: {}", private_key);
         println!();
     }
-    
+
     Ok(())
 }
 
 fn show_balance(wallet_manager: &WalletManager, address: &str) -> Result<()> {
     if let Some(entry) = wallet_manager.get_address_info(address) {
         println!("💰 Balance for: {} ({})", entry.label, entry.address);
-        println!("💸 Balance: {:.8} PAR", entry.balance as f64 / 100_000_000.0);
-        println!("🏆 Total Earned: {:.8} PAR", entry.total_earned as f64 / 100_000_000.0);
+        println!(
+            "💸 Balance: {:.8} PAR",
+            entry.balance as f64 / 100_000_000.0
+        );
+        println!(
+            "🏆 Total Earned: {:.8} PAR",
+            entry.total_earned as f64 / 100_000_000.0
+        );
         println!("📋 Tasks Completed: {}", entry.tasks_completed);
     } else {
         println!("❌ Address '{}' not found!", address);
         println!("💡 Use 'paradigm-wallet list' to see available addresses");
     }
-    
+
     Ok(())
 }
 
 fn show_wallet_summary(wallet_manager: &WalletManager) -> Result<()> {
     println!("🪙 Wallet Summary");
     println!("==================");
-    
+
     let addresses = wallet_manager.list_addresses();
     if addresses.is_empty() {
         println!("💤 No addresses found. Create one with: paradigm-wallet create <label>");
         return Ok(());
     }
-    
+
     let mut total_balance = 0u64;
     let mut total_earned = 0u64;
     let mut total_tasks = 0u64;
-    
+
     for (_, entry) in &addresses {
         total_balance += entry.balance;
         total_earned += entry.total_earned;
         total_tasks += entry.tasks_completed;
     }
-    
+
     println!("📊 Total Addresses: {}", addresses.len());
-    println!("💰 Total Balance: {:.8} PAR", total_balance as f64 / 100_000_000.0);
-    println!("🏆 Total Earned: {:.8} PAR", total_earned as f64 / 100_000_000.0);
+    println!(
+        "💰 Total Balance: {:.8} PAR",
+        total_balance as f64 / 100_000_000.0
+    );
+    println!(
+        "🏆 Total Earned: {:.8} PAR",
+        total_earned as f64 / 100_000_000.0
+    );
     println!("📋 Tasks Completed: {}", total_tasks);
-    
+
     if let Some(default) = &wallet_manager.get_default_address() {
         if let Some(entry) = wallet_manager.get_address_info(default) {
             println!("⭐ Default Address: {} ({})", entry.label, default);
         }
     }
-    
+
     Ok(())
 }
 
 fn show_address_info(wallet_manager: &WalletManager, address: &str) -> Result<()> {
     if let Some(entry) = wallet_manager.get_address_info(address) {
         let is_default = wallet_manager.get_default_address().as_deref() == Some(address);
-        
+
         println!("🪙 Address Information");
         println!("======================");
         println!("📋 Label: {}", entry.label);
         println!("🏠 Address: {}", entry.address);
-        println!("💰 Balance: {:.8} PAR", entry.balance as f64 / 100_000_000.0);
-        println!("🏆 Total Earned: {:.8} PAR", entry.total_earned as f64 / 100_000_000.0);
+        println!(
+            "💰 Balance: {:.8} PAR",
+            entry.balance as f64 / 100_000_000.0
+        );
+        println!(
+            "🏆 Total Earned: {:.8} PAR",
+            entry.total_earned as f64 / 100_000_000.0
+        );
         println!("📋 Tasks Completed: {}", entry.tasks_completed);
-        println!("📅 Created: {}", 
+        println!(
+            "📅 Created: {}",
             chrono::DateTime::from_timestamp(entry.created_at as i64, 0)
                 .unwrap_or_default()
                 .format("%Y-%m-%d %H:%M:%S")
         );
         println!("⭐ Default: {}", if is_default { "Yes" } else { "No" });
-        
+
         // Show abbreviated private key for security
         let abbreviated_key = format!(
             "{}...{}",
@@ -330,14 +368,13 @@ fn show_address_info(wallet_manager: &WalletManager, address: &str) -> Result<()
         );
         println!(
             "🔑 Private Key: {} (use 'export {}' to see full key)",
-            abbreviated_key,
-            address
+            abbreviated_key, address
         );
     } else {
         println!("❌ Address '{}' not found!", address);
         println!("💡 Use 'paradigm-wallet list' to see available addresses");
     }
-    
+
     Ok(())
 }
 
@@ -348,31 +385,30 @@ async fn run_transaction_test(
 ) -> Result<()> {
     println!("🧪 Starting Transaction Test...");
     println!("================================");
-    
+
     let mut tester = TransactionTester::new();
-    let result = tester.run_wallet_transaction_test(wallet_manager, amount, message).await?;
-    
+    let result = tester
+        .run_wallet_transaction_test(wallet_manager, amount, message)
+        .await?;
+
     println!("📊 Test Summary:");
     println!("Success Rate: {:.1}%", tester.get_success_rate());
-    
+
     Ok(())
 }
 
-async fn run_stress_test(
-    wallet_manager: &mut WalletManager,
-    count: usize,
-) -> Result<()> {
+async fn run_stress_test(wallet_manager: &mut WalletManager, count: usize) -> Result<()> {
     println!("🏋️ Starting Stress Test...");
     println!("===========================");
     println!("Running {} transactions...", count);
-    
+
     let mut tester = TransactionTester::new();
     let results = tester.run_stress_test(wallet_manager, count, false).await?;
-    
+
     println!("🎯 Final Results:");
     println!("Success Rate: {:.1}%", tester.get_success_rate());
     println!("Total Tests: {}", results.len());
-    
+
     Ok(())
 }
 
@@ -383,31 +419,33 @@ async fn send_transaction(
     amount_str: &str,
     message: Option<String>,
 ) -> Result<()> {
-    use paradigm_core::{Address, transaction::Transaction, Amount};
-    use ed25519_dalek::{Signer, SigningKey};
     use chrono::Utc;
+    use ed25519_dalek::{Signer, SigningKey};
+    use paradigm_core::{transaction::Transaction, Address, Amount};
     use uuid::Uuid;
-    
+
     println!("💸 Sending Transaction...");
     println!("=========================");
-    
+
     // Parse amount - convert from PAR to smallest unit (8 decimals)
-    let amount_par: f64 = amount_str.parse()
+    let amount_par: f64 = amount_str
+        .parse()
         .map_err(|_| anyhow::anyhow!("Invalid amount format. Use decimal format like 0.1"))?;
-    
+
     if amount_par <= 0.0 {
         return Err(anyhow::anyhow!("Amount must be greater than 0"));
     }
-    
+
     let amount: Amount = (amount_par * 100_000_000.0) as u64;
-    
+
     // Verify sender address exists in wallet
-    let sender_info = wallet_manager.get_address_info(from_address)
+    let sender_info = wallet_manager
+        .get_address_info(from_address)
         .ok_or_else(|| anyhow::anyhow!("Sender address '{}' not found in wallet", from_address))?;
-    
+
     // Calculate dynamic AI-driven fee
     let estimated_fee = calculate_estimated_fee(amount, false).await?; // Not urgent by default
-    
+
     // Check if sender has sufficient balance
     if sender_info.balance < amount + estimated_fee {
         return Err(anyhow::anyhow!(
@@ -417,31 +455,31 @@ async fn send_transaction(
             estimated_fee as f64 / 100_000_000.0
         ));
     }
-    
+
     // Parse addresses
     let from_addr = Address::from_string(from_address)?;
     let to_addr = Address::from_string(to_address)?;
-    
+
     // Get or create private key for sender
     let private_key_hex = &sender_info.private_key_hex;
-    let private_key_bytes = hex::decode(private_key_hex)
-        .map_err(|_| anyhow::anyhow!("Invalid private key format"))?;
-    
+    let private_key_bytes =
+        hex::decode(private_key_hex).map_err(|_| anyhow::anyhow!("Invalid private key format"))?;
+
     let mut key_bytes = [0u8; 32];
     if private_key_bytes.len() != 32 {
         return Err(anyhow::anyhow!("Private key must be exactly 32 bytes"));
     }
     key_bytes.copy_from_slice(&private_key_bytes);
-    
+
     let signing_key = SigningKey::from_bytes(&key_bytes);
-    
+
     // Validate message length (10 characters max)
     if let Some(ref msg) = message {
         if msg.len() > 10 {
             return Err(anyhow::anyhow!("Message must be 10 characters or less"));
         }
     }
-    
+
     // Create transaction
     let mut transaction = Transaction {
         id: Uuid::new_v4(),
@@ -454,40 +492,49 @@ async fn send_transaction(
         nonce: sender_info.tasks_completed + 1, // Use tasks_completed + 1 as nonce
         message: message.clone(),
     };
-    
+
     // Sign the transaction
     let transaction_bytes = serde_json::to_vec(&transaction)?;
     let signature = signing_key.sign(&transaction_bytes);
     transaction.signature = signature.to_bytes().to_vec();
-    
+
     println!("📋 Transaction Details:");
     println!("  From: {} ({})", sender_info.label, from_address);
     println!("  To: {}", to_address);
     println!("  Amount: {:.8} PAR", amount as f64 / 100_000_000.0);
-    println!("  Fee: {:.8} PAR (AI-calculated)", estimated_fee as f64 / 100_000_000.0);
-    println!("  Total: {:.8} PAR", (amount + estimated_fee) as f64 / 100_000_000.0);
+    println!(
+        "  Fee: {:.8} PAR (AI-calculated)",
+        estimated_fee as f64 / 100_000_000.0
+    );
+    println!(
+        "  Total: {:.8} PAR",
+        (amount + estimated_fee) as f64 / 100_000_000.0
+    );
     if let Some(ref msg) = message {
         println!("  Message: {}", msg);
     }
     println!("  Transaction ID: {}", transaction.id);
-    
+
     // TODO: Submit transaction to network when network client is available
     println!("⚠️  Note: Network submission not implemented yet.");
     println!("✅ Transaction created and signed successfully!");
     println!("🔐 Signature: {}", hex::encode(&transaction.signature));
-    
+
     Ok(())
 }
 
 /// Calculate estimated fee using simplified AI-driven logic when not connected to full node
-async fn calculate_estimated_fee(amount: paradigm_core::Amount, urgent: bool) -> Result<paradigm_core::Amount> {
+async fn calculate_estimated_fee(
+    amount: paradigm_core::Amount,
+    urgent: bool,
+) -> Result<paradigm_core::Amount> {
     // Default AI governance parameters (fallback when not connected to node)
     let min_fee_percentage = 0.001; // 0.1%
-    let max_fee_percentage = 0.05;  // 5%
-    
+    let max_fee_percentage = 0.05; // 5%
+
     // Base fee calculation
     let mut base_fee_percentage = min_fee_percentage;
-    
+
     // Amount-based adjustments
     if amount > 1000_00000000 {
         // Large transactions (>1000 PAR) get slightly higher base fee
@@ -496,14 +543,14 @@ async fn calculate_estimated_fee(amount: paradigm_core::Amount, urgent: bool) ->
         // Small transactions (<1 PAR) get reduced base fee to encourage micro-transactions
         base_fee_percentage *= 0.5;
     }
-    
+
     // Simulate network congestion (in production, this would come from node metrics)
     let network_congestion = 0.2; // Assume 20% congestion
     let congestion_adjustment = network_congestion * 0.1; // Fee sensitivity
-    
+
     // Urgent transactions pay premium
     let urgency_multiplier = if urgent { 2.0 } else { 1.0 };
-    
+
     // Near-zero fee optimization for small amounts
     let near_zero_threshold = 10_00000000; // 10 PAR
     let near_zero_reduction = if amount < near_zero_threshold {
@@ -513,26 +560,30 @@ async fn calculate_estimated_fee(amount: paradigm_core::Amount, urgent: bool) ->
     } else {
         0.0
     };
-    
+
     // Calculate final fee percentage
-    let final_fee_percentage = ((base_fee_percentage + congestion_adjustment) * urgency_multiplier - near_zero_reduction)
-        .max(0.0001) // Minimum 0.01% 
+    let final_fee_percentage = ((base_fee_percentage + congestion_adjustment) * urgency_multiplier
+        - near_zero_reduction)
+        .max(0.0001) // Minimum 0.01%
         .min(max_fee_percentage);
-    
+
     let calculated_fee = ((amount as f64) * final_fee_percentage) as paradigm_core::Amount;
-    
+
     // Absolute minimum fee to prevent spam (but very small)
     let absolute_minimum = 10_000; // 0.0001 PAR
     let final_fee = calculated_fee.max(absolute_minimum);
-    
+
     println!("💡 Fee calculation:");
     println!("   Base rate: {:.4}%", base_fee_percentage * 100.0);
     println!("   Network congestion: {:.1}%", network_congestion * 100.0);
     println!("   Urgency multiplier: {:.1}x", urgency_multiplier);
     if near_zero_reduction > 0.0 {
-        println!("   Near-zero optimization: -{:.4}%", near_zero_reduction * 100.0);
+        println!(
+            "   Near-zero optimization: -{:.4}%",
+            near_zero_reduction * 100.0
+        );
     }
     println!("   Final rate: {:.4}%", final_fee_percentage * 100.0);
-    
+
     Ok(final_fee)
 }

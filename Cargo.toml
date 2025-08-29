@@ -24,8 +24,8 @@ sha3 = "0.10"
 blake3 = "1.3"
 rand = "0.8"
 ring = "0.17.14"  # Force newer version to fix security vulnerability
-libp2p = { version = "0.54", features = ["tcp", "mdns", "noise", "yamux", "gossipsub", "kad", "macros", "tokio"] }
-sqlx = { version = "0.8.1", features = ["runtime-tokio-rustls", "sqlite"] }
+libp2p = { version = "0.55", features = ["tcp", "mdns", "noise", "yamux", "gossipsub", "kad", "macros", "tokio"] }
+sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "sqlite"] }
 reqwest = { version = "0.11", features = ["json"] }
 tonic = "0.10"
 prost = "0.12"
@@ -49,3 +49,10 @@ candle-core = { version = "0.4", features = ["cuda", "metal"] }
 candle-nn = { version = "0.4" }
 candle-transformers = { version = "0.4" }
 wgpu = { version = "0.19", features = ["vulkan", "dx12", "metal"] }
+
+# Security overrides to fix vulnerabilities  
+# Note: RSA vulnerability (RUSTSEC-2023-0071) has no fix available yet
+# Ring vulnerability will be resolved by forcing newer version in workspace
+
+# Force newer versions to fix vulnerabilities
+rcgen = "0.12"

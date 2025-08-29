@@ -1,16 +1,18 @@
 // Paradigm Contributor - ML Task Processing Client with GPU Acceleration
 use anyhow::Result;
 use clap::Parser;
-use paradigm_core::{MLTask, Address, AddressExt, wallet_manager::WalletManager, autopool::AutopoolManager};
-use std::{fs, path::PathBuf, time::Duration};
-use tracing::{info, warn, error};
-use uuid::Uuid;
+use ed25519_dalek::SigningKey;
+use paradigm_core::{
+    autopool::AutopoolManager, wallet_manager::WalletManager, Address, AddressExt, MLTask,
+};
+use rand::rngs::OsRng;
+use rand::RngCore;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use ed25519_dalek::SigningKey;
-use rand::rngs::OsRng;
-use rand::RngCore;
+use std::{fs, path::PathBuf, time::Duration};
+use tracing::{error, info, warn};
+use uuid::Uuid;
 
 mod gpu_compute;
 mod performance_monitor;
@@ -83,7 +85,7 @@ impl ContributorWallet {
         let contributor_address = Address::from_public_key(&signing_key.verifying_key());
         let address_str = contributor_address.to_string();
         let now = chrono::Utc::now().timestamp() as u64;
-        
+
         Self {
             address: address_str,
             private_key_bytes: signing_key.to_bytes().to_vec(),
@@ -94,14 +96,21 @@ impl ContributorWallet {
             last_updated: now,
         }
     }
-    
+
     pub fn load_or_create(wallet_path: &PathBuf) -> Result<Self> {
         if wallet_path.exists() {
             let wallet_data = fs::read_to_string(wallet_path)?;
             let wallet: ContributorWallet = serde_json::from_str(&wallet_data)?;
             info!("📂 Loaded existing wallet: {}", wallet.address);
-            info!("💰 Current balance: {:.8} PAR", wallet.balance as f64 / 100_000_000.0);
-            info!("📊 Total earned: {:.8} PAR from {} tasks", wallet.total_earned as f64 / 100_000_000.0, wallet.tasks_completed);
+            info!(
+                "💰 Current balance: {:.8} PAR",
+                wallet.balance as f64 / 100_000_000.0
+            );
+            info!(
+                "📊 Total earned: {:.8} PAR from {} tasks",
+                wallet.total_earned as f64 / 100_000_000.0,
+                wallet.tasks_completed
+            );
             Ok(wallet)
         } else {
             let wallet = Self::new();
@@ -111,7 +120,7 @@ impl ContributorWallet {
             Ok(wallet)
         }
     }
-    
+
     pub fn save(&self, wallet_path: &PathBuf) -> Result<()> {
         if let Some(parent) = wallet_path.parent() {
             fs::create_dir_all(parent)?;
@@ -120,7 +129,7 @@ impl ContributorWallet {
         fs::write(wallet_path, wallet_json)?;
         Ok(())
     }
-    
+
     pub fn add_payout(&mut self, amount: u64, wallet_path: &PathBuf) -> Result<()> {
         self.balance += amount;
         self.total_earned += amount;
@@ -129,9 +138,12 @@ impl ContributorWallet {
         self.save(wallet_path)?;
         Ok(())
     }
-    
+
     pub fn get_signing_key(&self) -> Result<SigningKey> {
-        let key_bytes: [u8; 32] = self.private_key_bytes.as_slice().try_into()
+        let key_bytes: [u8; 32] = self
+            .private_key_bytes
+            .as_slice()
+            .try_into()
             .map_err(|_| anyhow::anyhow!("Invalid private key format"))?;
         Ok(SigningKey::from_bytes(&key_bytes))
     }
@@ -165,19 +177,23 @@ impl NetworkConnection {
 
     pub async fn test_connection(&mut self, timeout_secs: u64) -> bool {
         self.status = NetworkStatus::Connecting;
-        
+
         let url = format!("http://{}/health", self.node_address);
         let timeout = Duration::from_secs(timeout_secs);
-        
+
         match tokio::time::timeout(timeout, self.client.get(&url).send()).await {
             Ok(Ok(response)) => {
                 if response.status().is_success() {
                     self.status = NetworkStatus::Connected;
                     self.last_ping = Some(std::time::Instant::now());
-                    info!("✅ Successfully connected to Paradigm node at {}", self.node_address);
+                    info!(
+                        "✅ Successfully connected to Paradigm node at {}",
+                        self.node_address
+                    );
                     true
                 } else {
-                    self.status = NetworkStatus::NetworkError(format!("HTTP {}", response.status()));
+                    self.status =
+                        NetworkStatus::NetworkError(format!("HTTP {}", response.status()));
                     false
                 }
             }
@@ -198,7 +214,7 @@ impl NetworkConnection {
         }
 
         let url = format!("http://{}/api/tasks/available", self.node_address);
-        
+
         match self.client.get(&url).send().await {
             Ok(response) => {
                 if response.status().is_success() {
@@ -207,7 +223,10 @@ impl NetworkConnection {
                             if task_response.available_tasks.is_empty() {
                                 Ok(None)
                             } else {
-                                info!("Received {} available tasks from network", task_response.available_tasks.len());
+                                info!(
+                                    "Received {} available tasks from network",
+                                    task_response.available_tasks.len()
+                                );
                                 Ok(Some(task_response.available_tasks))
                             }
                         }
@@ -235,7 +254,13 @@ impl NetworkConnection {
         matches!(self.status, NetworkStatus::Connected)
     }
 
-    pub async fn submit_task_completion(&mut self, task_id: String, result: String, completion_time_ms: u64, contributor_address: String) -> Result<PayoutResponse, String> {
+    pub async fn submit_task_completion(
+        &mut self,
+        task_id: String,
+        result: String,
+        completion_time_ms: u64,
+        contributor_address: String,
+    ) -> Result<PayoutResponse, String> {
         if !matches!(self.status, NetworkStatus::Connected) {
             return Err("Not connected to network".to_string());
         }
@@ -247,7 +272,7 @@ impl NetworkConnection {
             completion_time_ms,
             contributor_address,
         };
-        
+
         match self.client.post(&url).json(&submission).send().await {
             Ok(response) => {
                 if response.status().is_success() {
@@ -259,7 +284,10 @@ impl NetworkConnection {
                         }
                     }
                 } else {
-                    Err(format!("Failed to submit task completion: HTTP {}", response.status()))
+                    Err(format!(
+                        "Failed to submit task completion: HTTP {}",
+                        response.status()
+                    ))
                 }
             }
             Err(e) => {
@@ -294,11 +322,11 @@ pub struct Args {
     /// Enable verbose logging
     #[arg(short, long)]
     verbose: bool,
-    
+
     /// Connection timeout in seconds
     #[arg(long, default_value_t = 10)]
     timeout: u64,
-    
+
     /// Retry interval in seconds for network connection
     #[arg(long, default_value_t = 30)]
     retry_interval: u64,
@@ -397,23 +425,27 @@ async fn main() -> Result<()> {
     } else {
         WalletManager::get_default_wallet_path()
     };
-    
+
     let mut wallet_manager = WalletManager::new(wallet_path.clone())?;
-    let address_str = wallet_manager.get_or_create_address(
-        args.wallet_address.clone(), 
-        "Contributor Work Address"
-    )?;
-    
+    let address_str = wallet_manager
+        .get_or_create_address(args.wallet_address.clone(), "Contributor Work Address")?;
+
     info!("💳 Contributor wallet address: {}", address_str);
     info!("🔑 Ready to receive PAR token rewards");
     info!("💾 Wallet file: {}", wallet_path.display());
-    
+
     // Show wallet info if address already exists
     if let Some(entry) = wallet_manager.get_address_info(&address_str) {
         if entry.total_earned > 0 {
             info!("📊 Existing wallet stats:");
-            info!("   💰 Balance: {:.8} PAR", entry.balance as f64 / 100_000_000.0);
-            info!("   🎯 Total earned: {:.8} PAR", entry.total_earned as f64 / 100_000_000.0);
+            info!(
+                "   💰 Balance: {:.8} PAR",
+                entry.balance as f64 / 100_000_000.0
+            );
+            info!(
+                "   🎯 Total earned: {:.8} PAR",
+                entry.total_earned as f64 / 100_000_000.0
+            );
             info!("   ⚡ Tasks completed: {}", entry.tasks_completed);
         }
     }
@@ -421,8 +453,10 @@ async fn main() -> Result<()> {
     // Initialize autopool system if enabled
     let autopool_manager = if args.enable_autopool {
         let autopool = AutopoolManager::new(args.autopool_threshold);
-        info!("🔄 Autopool system enabled (threshold: {:.8} PAR)", 
-              args.autopool_threshold as f64 / 100_000_000.0);
+        info!(
+            "🔄 Autopool system enabled (threshold: {:.8} PAR)",
+            args.autopool_threshold as f64 / 100_000_000.0
+        );
         info!("💡 Small contributions will be automatically pooled for efficient payouts");
         Some(autopool)
     } else {
@@ -435,7 +469,7 @@ async fn main() -> Result<()> {
     let mut connection_retry_count = 0u32;
     let mut last_connection_attempt = std::time::Instant::now();
     let mut in_mock_mode = false;
-    
+
     info!("✅ Contributor initialized successfully");
     info!("🔄 Starting main processing loop...");
     info!("🌐 Attempting to connect to Paradigm network...");
@@ -443,7 +477,7 @@ async fn main() -> Result<()> {
     // Main processing loop with real network connectivity
     let mut task_count = 0u64;
     let mut mock_task_count = 0u64;
-    
+
     loop {
         tokio::select! {
             // Network connection and task processing
@@ -452,10 +486,10 @@ async fn main() -> Result<()> {
                 let needs_connection_attempt = match network_connection.get_status() {
                     NetworkStatus::Disconnected | NetworkStatus::NetworkError(_) => {
                         // In mock mode, check more frequently for network recovery
-                        let check_interval = if in_mock_mode { 
+                        let check_interval = if in_mock_mode {
                             Duration::from_secs(5)  // Check every 5 seconds when in mock mode
-                        } else { 
-                            Duration::from_secs(args.retry_interval) 
+                        } else {
+                            Duration::from_secs(args.retry_interval)
                         };
                         last_connection_attempt.elapsed() > check_interval
                     }
@@ -470,7 +504,7 @@ async fn main() -> Result<()> {
                 if needs_connection_attempt {
                     connection_retry_count += 1;
                     last_connection_attempt = std::time::Instant::now();
-                    
+
                     if connection_retry_count > 1 {
                         if !in_mock_mode {
                             warn!("🔄 Connection attempt #{} to {}...", connection_retry_count, args.node_address);
@@ -478,9 +512,9 @@ async fn main() -> Result<()> {
                     } else {
                         info!("🔗 Testing connection to Paradigm node...");
                     }
-                    
+
                     let connected = network_connection.test_connection(args.timeout).await;
-                    
+
                     if connected {
                         if in_mock_mode {
                             info!("🎉 Network connection restored! Switching from mock mode to real tasks.");
@@ -495,7 +529,7 @@ async fn main() -> Result<()> {
                             warn!("⚠️  RUNNING IN MOCK MODE - No real work is being done!");
                             warn!("💡 Make sure the Paradigm node is running and accessible.");
                         }
-                        
+
                         if !in_mock_mode {
                             in_mock_mode = true;
                             info!("🎭 Entering mock mode - simulating tasks until network is available");
@@ -512,13 +546,13 @@ async fn main() -> Result<()> {
                             for task in tasks {
                                 task_count += 1;
                                 let start_time = std::time::Instant::now();
-                                
+
                                 // Real task processing would go here
                                 tokio::time::sleep(Duration::from_millis(100)).await;
-                                
+
                                 let completion_time = start_time.elapsed();
                                 let reward_par = task.reward as f64 / 100_000_000.0;
-                                
+
                                 // Submit task completion and request payout
                                 let task_result = format!("task_completed_{}", task.task_id);
                                 match network_connection.submit_task_completion(
@@ -529,7 +563,7 @@ async fn main() -> Result<()> {
                                 ).await {
                                     Ok(payout) => {
                                         let actual_paid = payout.amount_paid as f64 / 100_000_000.0;
-                                        
+
                                         // Check if autopool should be used for small rewards
                                         if let Some(ref autopool) = autopool_manager {
                                             if autopool.should_offer_autopool(payout.amount_paid, 1.0).await {
@@ -544,11 +578,11 @@ async fn main() -> Result<()> {
                                                             work_amount,
                                                             completion_time.as_secs()
                                                         ).await;
-                                                        
+
                                                         // Add earnings to session instead of direct payout
                                                         let _ = autopool.add_session_earnings(session_id, payout.amount_paid).await;
-                                                        
-                                                        info!("🔄 [AUTOPOOL] Task #{} → {:.8} PAR added to session {}", 
+
+                                                        info!("🔄 [AUTOPOOL] Task #{} → {:.8} PAR added to session {}",
                                                               task_count, actual_paid, session_id);
                                                         info!("💡 Small contribution pooled for efficient payout");
                                                     }
@@ -572,14 +606,14 @@ async fn main() -> Result<()> {
                                                 warn!("Failed to update wallet: {}", e);
                                             }
                                         }
-                                        
-                                        info!("✅ [REAL] Task #{} completed in {:?} | 💰 RECEIVED {:.8} PAR → {}", 
+
+                                        info!("✅ [REAL] Task #{} completed in {:?} | 💰 RECEIVED {:.8} PAR → {}",
                                               task_count, completion_time, actual_paid, address_str);
                                         info!("📦 Transaction ID: {}", payout.transaction_id);
-                                        
+
                                         // Show updated balance
                                         if let Some(entry) = wallet_manager.get_address_info(&address_str) {
-                                            info!("💰 New balance: {:.8} PAR | Total earned: {:.8} PAR", 
+                                            info!("💰 New balance: {:.8} PAR | Total earned: {:.8} PAR",
                                                   entry.balance as f64 / 100_000_000.0,
                                                   entry.total_earned as f64 / 100_000_000.0);
                                         }
@@ -605,7 +639,7 @@ async fn main() -> Result<()> {
                 } else if in_mock_mode {
                     // Run in mock mode - generate fake tasks to show the system works
                     mock_task_count += 1;
-                    
+
                     let mock_task = MLTask {
                         id: Uuid::new_v4(),
                         task_type: paradigm_core::consensus::MLTaskType::ImageClassification,
@@ -621,10 +655,10 @@ async fn main() -> Result<()> {
 
                     let start_time = std::time::Instant::now();
                     tokio::time::sleep(Duration::from_millis(200)).await;
-                    
+
                     let completion_time = start_time.elapsed();
                     let reward_par = mock_task.reward as f64 / 100_000_000.0;
-                    
+
                     // Periodically check if the network has come back online during mock mode
                     if mock_task_count % 10 == 0 {
                         info!("🔍 [MOCK] Checking if Paradigm network is back online...");
@@ -632,7 +666,7 @@ async fn main() -> Result<()> {
                             info!("🎉 Network detected! Will switch to real tasks on next cycle.");
                         }
                     }
-                    
+
                     if mock_task_count % 5 == 0 {
                         warn!("🎭 [MOCK] Simulated task #{} in {:?} - NO real PAR earned",
                               mock_task_count, completion_time);
@@ -667,13 +701,13 @@ async fn main() -> Result<()> {
                     // Check for sessions ready for payout
                     let stats = autopool.get_autopool_stats().await;
                     if stats.active_sessions > 0 {
-                        info!("🔄 Autopool Status: {} sessions, {} participants", 
+                        info!("🔄 Autopool Status: {} sessions, {} participants",
                               stats.active_sessions, stats.total_participants);
-                        
+
                         // In a full implementation, we would check each session and distribute payouts
                         // For now, just log the status
                         if stats.avg_session_progress > 90.0 {
-                            info!("🎯 Some autopool sessions near completion ({:.1}% avg progress)", 
+                            info!("🎯 Some autopool sessions near completion ({:.1}% avg progress)",
                                   stats.avg_session_progress);
                         }
                     }

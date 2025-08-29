@@ -74,22 +74,22 @@ pub enum AutonomousTaskType {
     NetworkHeartbeat,
     PeerConnectivityCheck,
     NetworkLatencyMeasurement,
-    
+
     /// Transaction and blockchain validation
     TransactionValidation,
     BlockchainIntegrityCheck,
     BalanceConsistencyVerification,
-    
+
     /// Network synchronization
     DataSyncVerification,
     PeerStateComparison,
     ChainConsistencyCheck,
-    
+
     /// Machine learning workloads
     ModelInference,
     DataProcessing,
     NetworkOptimization,
-    
+
     /// System maintenance
     DatabaseCleanup,
     PeerReputationUpdate,
@@ -115,7 +115,7 @@ pub struct ResourceRequirements {
 impl Default for TaskGenerationConfig {
     fn default() -> Self {
         Self {
-            generation_interval: 60,     // Generate tasks every minute
+            generation_interval: 60, // Generate tasks every minute
             max_pending_tasks: 100,
             base_network_task_reward: 10_000_000,    // 0.1 PAR
             base_validation_task_reward: 50_000_000, // 0.5 PAR
@@ -200,8 +200,9 @@ impl AutonomousTaskGenerator {
     /// Get available tasks for contributors
     pub async fn get_available_tasks(&self) -> Result<Vec<MLTask>> {
         let pending_tasks = self.pending_tasks.read().await;
-        
-        let ml_tasks: Vec<MLTask> = pending_tasks.iter()
+
+        let ml_tasks: Vec<MLTask> = pending_tasks
+            .iter()
             .filter(|task| task.expires_at > Utc::now())
             .map(|task| task.ml_task.clone())
             .collect();
@@ -210,14 +211,20 @@ impl AutonomousTaskGenerator {
     }
 
     /// Mark task as completed
-    pub async fn complete_task(&self, task_id: Uuid, contributor: Address, success: bool, execution_time: u32) -> Result<()> {
+    pub async fn complete_task(
+        &self,
+        task_id: Uuid,
+        contributor: Address,
+        success: bool,
+        execution_time: u32,
+    ) -> Result<()> {
         // Remove from pending tasks
         let mut pending_tasks = self.pending_tasks.write().await;
         let task = pending_tasks.iter().find(|t| t.id == task_id).cloned();
-        
+
         if let Some(completed_task_data) = task {
             pending_tasks.retain(|t| t.id != task_id);
-            
+
             // Add to completed tasks
             let mut completed_tasks = self.completed_tasks.write().await;
             let completed_task = CompletedTask {
@@ -227,11 +234,20 @@ impl AutonomousTaskGenerator {
                 contributor: Some(contributor.clone()),
                 success,
                 execution_time,
-                reward_paid: if success { completed_task_data.reward } else { 0 },
+                reward_paid: if success {
+                    completed_task_data.reward
+                } else {
+                    0
+                },
             };
-            
+
             completed_tasks.insert(task_id, completed_task);
-            tracing::info!("Task {} completed by {} (success: {})", task_id, contributor, success);
+            tracing::info!(
+                "Task {} completed by {} (success: {})",
+                task_id,
+                contributor,
+                success
+            );
         }
 
         Ok(())
@@ -627,14 +643,14 @@ impl AutonomousTaskGenerator {
     async fn assess_validation_needs(&self) -> Result<ValidationAssessment> {
         // TODO: Get actual pending transaction count from storage
         Ok(ValidationAssessment {
-            pending_transactions: 15, // Placeholder
+            pending_transactions: 15,    // Placeholder
             needs_integrity_check: true, // Periodic integrity checks
         })
     }
 
     async fn assess_ml_workload(&self) -> Result<MLWorkloadAssessment> {
         let completed_count = self.completed_tasks.read().await.len();
-        
+
         Ok(MLWorkloadAssessment {
             has_inference_requests: completed_count < 10, // Generate if we haven't done much
             needs_optimization: completed_count % 50 == 0, // Optimize every 50 tasks
@@ -643,8 +659,15 @@ impl AutonomousTaskGenerator {
 
     async fn should_generate_maintenance_tasks(&self) -> bool {
         let completed_tasks = self.completed_tasks.read().await;
-        let last_maintenance = completed_tasks.values()
-            .filter(|task| matches!(task.task_type, AutonomousTaskType::MetricsCollection | AutonomousTaskType::PeerReputationUpdate))
+        let last_maintenance = completed_tasks
+            .values()
+            .filter(|task| {
+                matches!(
+                    task.task_type,
+                    AutonomousTaskType::MetricsCollection
+                        | AutonomousTaskType::PeerReputationUpdate
+                )
+            })
             .map(|task| task.completed_at)
             .max();
 
@@ -665,9 +688,8 @@ impl AutonomousTaskGenerator {
         let network_sync = self.network_sync.clone();
 
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(
-                tokio::time::Duration::from_secs(config.generation_interval)
-            );
+            let mut interval =
+                tokio::time::interval(tokio::time::Duration::from_secs(config.generation_interval));
 
             loop {
                 interval.tick().await;
@@ -684,7 +706,7 @@ impl AutonomousTaskGenerator {
                 match generator.generate_tasks().await {
                     Ok(new_tasks) => {
                         let mut pending = pending_tasks.write().await;
-                        
+
                         // Add new tasks to queue
                         for task in new_tasks {
                             if pending.len() < config.max_pending_tasks {
@@ -728,7 +750,8 @@ impl AutonomousTaskGenerator {
         let pending_tasks = self.pending_tasks.read().await;
         let completed_tasks = self.completed_tasks.read().await;
 
-        let pending_by_type: HashMap<String, usize> = pending_tasks.iter()
+        let pending_by_type: HashMap<String, usize> = pending_tasks
+            .iter()
             .map(|task| format!("{:?}", task.task_type))
             .fold(HashMap::new(), |mut acc, task_type| {
                 *acc.entry(task_type).or_insert(0) += 1;

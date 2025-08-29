@@ -55,14 +55,14 @@ impl NetworkSynchronizer {
 
         // Generate local sync data
         self.local_sync_data = Some(self.generate_local_sync_data().await?);
-        
+
         tracing::info!("Network synchronization started");
         Ok(())
     }
 
     pub async fn generate_local_sync_data(&self) -> Result<NetworkSyncData> {
         let storage = self.storage.read().await;
-        
+
         // Get local network state
         let total_transactions = storage.get_transaction_count().await.unwrap_or(0);
         let latest_block_height = 0; // TODO: implement block height tracking
@@ -106,13 +106,19 @@ impl NetworkSynchronizer {
 
         // Calculate average peer state
         let total_peers = self.peer_sync_data.len() as f32;
-        let avg_transactions: f32 = self.peer_sync_data.values()
+        let avg_transactions: f32 = self
+            .peer_sync_data
+            .values()
             .map(|data| data.total_transactions as f32)
-            .sum::<f32>() / total_peers;
+            .sum::<f32>()
+            / total_peers;
 
-        let avg_block_height: f32 = self.peer_sync_data.values()
+        let avg_block_height: f32 = self
+            .peer_sync_data
+            .values()
             .map(|data| data.latest_block_height as f32)
-            .sum::<f32>() / total_peers;
+            .sum::<f32>()
+            / total_peers;
 
         // Calculate sync percentage based on transaction count and block height
         let transaction_sync = if avg_transactions == 0.0 {
@@ -139,7 +145,9 @@ impl NetworkSynchronizer {
 
         tracing::debug!(
             "Sync progress: {:.1}% (Transactions: {:.1}%, Blocks: {:.1}%)",
-            self.sync_progress, transaction_sync, block_sync
+            self.sync_progress,
+            transaction_sync,
+            block_sync
         );
     }
 
@@ -173,7 +181,9 @@ impl NetworkSynchronizer {
             progress_percentage: self.get_sync_percentage(),
             peer_count: self.get_peer_count(),
             last_sync_attempt: self.last_sync_attempt,
-            local_transactions: self.local_sync_data.as_ref()
+            local_transactions: self
+                .local_sync_data
+                .as_ref()
                 .map(|data| data.total_transactions)
                 .unwrap_or(0),
         }
@@ -216,9 +226,10 @@ impl SyncInfo {
     pub fn progress_bar(&self) -> String {
         let filled = (self.progress_percentage as f32 / 100.0 * 20.0) as usize;
         let empty = 20 - filled;
-        format!("[{}{}] {}%", 
-            "█".repeat(filled), 
-            "░".repeat(empty), 
+        format!(
+            "[{}{}] {}%",
+            "█".repeat(filled),
+            "░".repeat(empty),
             self.progress_percentage
         )
     }

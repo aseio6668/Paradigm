@@ -46,7 +46,7 @@ pub struct MiningStats {
 pub struct ProofOfWorkMiner {
     difficulty: Arc<RwLock<u32>>,
     stats: Arc<RwLock<MiningStats>>,
-    target_block_time: u64, // seconds
+    target_block_time: u64,              // seconds
     difficulty_adjustment_interval: u32, // blocks
 }
 
@@ -76,8 +76,11 @@ impl ProofOfWorkMiner {
         let current_difficulty = *self.difficulty.read().await;
         let target = Self::calculate_target(current_difficulty);
 
-        tracing::info!("🔨 Starting to mine block with {} transactions (difficulty: {})", 
-                      transactions.len(), current_difficulty);
+        tracing::info!(
+            "🔨 Starting to mine block with {} transactions (difficulty: {})",
+            transactions.len(),
+            current_difficulty
+        );
 
         // Calculate merkle root
         let merkle_root = self.calculate_merkle_root(&transactions);
@@ -100,7 +103,7 @@ impl ProofOfWorkMiner {
             attempts += 1;
 
             let hash = self.calculate_block_hash(&header);
-            
+
             // Check if hash meets difficulty target
             if Self::hash_meets_target(&hash, &target) {
                 header.hash = hash;
@@ -109,7 +112,11 @@ impl ProofOfWorkMiner {
 
             // Progress logging every 100k attempts
             if attempts % 100_000 == 0 {
-                tracing::debug!("Mining progress: {} attempts, nonce: {}", attempts, header.nonce);
+                tracing::debug!(
+                    "Mining progress: {} attempts, nonce: {}",
+                    attempts,
+                    header.nonce
+                );
             }
 
             // Prevent infinite loops in development
@@ -122,14 +129,15 @@ impl ProofOfWorkMiner {
         }
 
         let mining_time = start_time.elapsed().as_secs_f64();
-        
+
         // Update statistics
         let mut stats = self.stats.write().await;
         stats.blocks_mined += 1;
         stats.total_hash_attempts += attempts;
         stats.current_difficulty = current_difficulty;
-        stats.average_time_per_block = 
-            (stats.average_time_per_block * (stats.blocks_mined - 1) as f64 + mining_time) / stats.blocks_mined as f64;
+        stats.average_time_per_block =
+            (stats.average_time_per_block * (stats.blocks_mined - 1) as f64 + mining_time)
+                / stats.blocks_mined as f64;
         stats.network_hashrate = attempts as f64 / mining_time;
 
         let tx_len = transactions.len() as u32;
@@ -139,8 +147,13 @@ impl ProofOfWorkMiner {
             transaction_count: tx_len,
         };
 
-        tracing::info!("⚡ Block {} mined! Time: {:.2}s, Attempts: {}, Hash: {}", 
-                      block.header.block_id, mining_time, attempts, hex::encode(&block.header.hash[..8]));
+        tracing::info!(
+            "⚡ Block {} mined! Time: {:.2}s, Attempts: {}, Hash: {}",
+            block.header.block_id,
+            mining_time,
+            attempts,
+            hex::encode(&block.header.hash[..8])
+        );
 
         // Adjust difficulty if needed
         if stats.blocks_mined % self.difficulty_adjustment_interval as u64 == 0 {
@@ -153,11 +166,14 @@ impl ProofOfWorkMiner {
     /// Validate a block's proof-of-work
     pub async fn validate_block(&self, block: &Block) -> Result<bool> {
         let current_difficulty = *self.difficulty.read().await;
-        
+
         // Check if block difficulty matches current network difficulty
         if block.header.difficulty != current_difficulty {
-            tracing::warn!("Block difficulty {} doesn't match network difficulty {}", 
-                          block.header.difficulty, current_difficulty);
+            tracing::warn!(
+                "Block difficulty {} doesn't match network difficulty {}",
+                block.header.difficulty,
+                current_difficulty
+            );
             return Ok(false);
         }
 
@@ -182,7 +198,10 @@ impl ProofOfWorkMiner {
             return Ok(false);
         }
 
-        tracing::info!("✅ Block {} proof-of-work validated successfully", block.header.block_id);
+        tracing::info!(
+            "✅ Block {} proof-of-work validated successfully",
+            block.header.block_id
+        );
         Ok(true)
     }
 
@@ -192,7 +211,13 @@ impl ProofOfWorkMiner {
         hasher.update(header.block_id.as_bytes());
         hasher.update(&header.previous_hash);
         hasher.update(&header.merkle_root);
-        hasher.update(&header.timestamp.timestamp_nanos_opt().unwrap_or(0).to_le_bytes());
+        hasher.update(
+            &header
+                .timestamp
+                .timestamp_nanos_opt()
+                .unwrap_or(0)
+                .to_le_bytes(),
+        );
         hasher.update(&header.difficulty.to_le_bytes());
         hasher.update(&header.nonce.to_le_bytes());
         hasher.finalize().as_bytes().to_vec()
@@ -205,14 +230,12 @@ impl ProofOfWorkMiner {
         }
 
         // Calculate transaction hashes
-        let mut hashes: Vec<Vec<u8>> = transactions.iter()
-            .map(|tx| tx.hash())
-            .collect();
+        let mut hashes: Vec<Vec<u8>> = transactions.iter().map(|tx| tx.hash()).collect();
 
         // Build merkle tree
         while hashes.len() > 1 {
             let mut next_level = Vec::new();
-            
+
             for chunk in hashes.chunks(2) {
                 let mut hasher = Hasher::new();
                 hasher.update(&chunk[0]);
@@ -223,7 +246,7 @@ impl ProofOfWorkMiner {
                 }
                 next_level.push(hasher.finalize().as_bytes().to_vec());
             }
-            
+
             hashes = next_level;
         }
 
@@ -263,8 +286,12 @@ impl ProofOfWorkMiner {
         if new_difficulty != current_difficulty {
             let mut difficulty = self.difficulty.write().await;
             *difficulty = new_difficulty;
-            tracing::info!("⚖️ Difficulty adjusted: {} → {} (avg block time: {:.1}s)", 
-                          current_difficulty, new_difficulty, actual_time);
+            tracing::info!(
+                "⚖️ Difficulty adjusted: {} → {} (avg block time: {:.1}s)",
+                current_difficulty,
+                new_difficulty,
+                actual_time
+            );
         }
     }
 
@@ -313,31 +340,24 @@ mod tests {
     #[tokio::test]
     async fn test_proof_of_work_mining() {
         let miner = ProofOfWorkMiner::new(1, 30); // Low difficulty for testing
-        
+
         // Create test transactions
         let keypair = Keypair::generate();
         let from_addr = AddressExt::from_public_key(&keypair.verifying_key());
         let to_addr = AddressExt::from_public_key(&keypair.verifying_key());
-        
-        let tx = Transaction::new(
-            from_addr,
-            to_addr,
-            1000,
-            10,
-            Utc::now(),
-            &keypair,
-        ).unwrap();
+
+        let tx = Transaction::new(from_addr, to_addr, 1000, 10, Utc::now(), &keypair).unwrap();
 
         let transactions = vec![tx];
         let previous_hash = vec![0; 32];
 
         // Mine a block
         let block = miner.mine_block(transactions, previous_hash).await.unwrap();
-        
+
         // Validate the block
         let is_valid = miner.validate_block(&block).await.unwrap();
         assert!(is_valid);
-        
+
         // Check stats
         let stats = miner.get_stats().await;
         assert_eq!(stats.blocks_mined, 1);

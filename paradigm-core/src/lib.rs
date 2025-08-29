@@ -5,34 +5,34 @@ use tokio::sync::RwLock;
 
 pub mod ai;
 pub mod api;
+pub mod autonomous_tasks;
+pub mod autopool;
+pub mod certificate_manager;
 pub mod consensus;
+pub mod ddos_protection;
+pub mod ephemeral_storage;
 /// The core Paradigm network node implementation
 pub mod error;
+pub mod fee_calculation;
 pub mod genesis;
 pub mod governance;
+pub mod hsm_manager;
 pub mod ml_tasks;
+pub mod multisig_treasury;
 pub mod network;
+pub mod network_sync;
+pub mod peer_manager;
 pub mod performance;
+pub mod privacy_blockchain;
+pub mod proof_of_work;
+pub mod secure_networking;
 pub mod storage;
 pub mod tokenomics;
 pub mod transaction;
+pub mod transaction_tester;
+pub mod transaction_validation;
 pub mod wallet;
 pub mod wallet_manager;
-pub mod transaction_tester;
-pub mod autopool;
-pub mod network_sync;
-pub mod privacy_blockchain;
-pub mod ephemeral_storage;
-pub mod peer_manager;
-pub mod autonomous_tasks;
-pub mod proof_of_work;
-pub mod secure_networking;
-pub mod ddos_protection;
-pub mod certificate_manager;
-pub mod hsm_manager;
-pub mod transaction_validation;
-pub mod multisig_treasury;
-pub mod fee_calculation;
 
 // Performance optimization modules
 pub mod crypto_optimization;
@@ -56,14 +56,17 @@ impl Address {
 
     pub fn from_string(addr_str: &str) -> anyhow::Result<Self> {
         if !addr_str.starts_with("PAR") {
-            return Err(anyhow::anyhow!("Invalid address format: must start with PAR"));
+            return Err(anyhow::anyhow!(
+                "Invalid address format: must start with PAR"
+            ));
         }
-        
+
         let hex_part = &addr_str[3..]; // Remove "PAR" prefix
-        if hex_part.len() != 40 { // 20 bytes * 2 hex chars
+        if hex_part.len() != 40 {
+            // 20 bytes * 2 hex chars
             return Err(anyhow::anyhow!("Invalid address length"));
         }
-        
+
         let hex_bytes = hex::decode(hex_part)?;
         let mut addr = [0u8; 32];
         addr[..20].copy_from_slice(&hex_bytes);
@@ -206,39 +209,32 @@ impl ParadigmNode {
 
         let tokenomics = Arc::new(RwLock::new(tokenomics::TokenomicsSystem::new()));
 
-        let network_sync = Arc::new(RwLock::new(
-            network_sync::NetworkSynchronizer::new(storage.clone())
-        ));
+        let network_sync = Arc::new(RwLock::new(network_sync::NetworkSynchronizer::new(
+            storage.clone(),
+        )));
 
-        let privacy_blockchain = Arc::new(RwLock::new(
-            privacy_blockchain::PrivacyBlockchain::new(storage.clone())
-        ));
+        let privacy_blockchain = Arc::new(RwLock::new(privacy_blockchain::PrivacyBlockchain::new(
+            storage.clone(),
+        )));
 
-        let ephemeral_storage = Arc::new(RwLock::new(
-            ephemeral_storage::EphemeralStorage::new()
-        ));
+        let ephemeral_storage = Arc::new(RwLock::new(ephemeral_storage::EphemeralStorage::new()));
 
         let peer_manager = Arc::new(RwLock::new(
-            peer_manager::PeerManager::new(&config.data_dir).await?
+            peer_manager::PeerManager::new(&config.data_dir).await?,
         ));
 
-        let autonomous_tasks = Arc::new(RwLock::new(
-            autonomous_tasks::AutonomousTaskGenerator::new(
+        let autonomous_tasks =
+            Arc::new(RwLock::new(autonomous_tasks::AutonomousTaskGenerator::new(
                 storage.clone(),
                 peer_manager.clone(),
-                network_sync.clone()
-            )
-        ));
+                network_sync.clone(),
+            )));
 
         // Initialize Proof-of-Work miner with moderate difficulty and 60-second target block time
-        let pow_miner = Arc::new(RwLock::new(
-            proof_of_work::ProofOfWorkMiner::new(2, 60)
-        ));
+        let pow_miner = Arc::new(RwLock::new(proof_of_work::ProofOfWorkMiner::new(2, 60)));
 
         // Initialize DDoS protection
-        let ddos_protection = Arc::new(RwLock::new(
-            ddos_protection::DDoSProtection::new()
-        ));
+        let ddos_protection = Arc::new(RwLock::new(ddos_protection::DDoSProtection::new()));
 
         // Initialize HSM manager if enabled
         let hsm_manager = if config.enable_hsm {
@@ -268,23 +264,20 @@ impl ParadigmNode {
             min_fee: 1_000_000, // 0.01 PAR
             ..Default::default()
         };
-        let transaction_validator = Arc::new(
-            transaction_validation::TransactionValidator::new(validation_config).await?
-        );
+        let transaction_validator =
+            Arc::new(transaction_validation::TransactionValidator::new(validation_config).await?);
         tracing::info!("🔍 Transaction validator initialized with formal rules");
 
         // Initialize multi-signature treasury manager
         let mut multisig_treasury = multisig_treasury::MultiSigTreasuryManager::new(
-            storage.read().await.get_db_pool().clone()
+            storage.read().await.get_db_pool().clone(),
         );
         multisig_treasury.initialize().await?;
         let multisig_treasury = Arc::new(RwLock::new(multisig_treasury));
         tracing::info!("🏦 Multi-signature treasury manager initialized");
 
         // Initialize dynamic fee calculator
-        let fee_calculator = Arc::new(
-            fee_calculation::DynamicFeeCalculator::new(storage.clone())
-        );
+        let fee_calculator = Arc::new(fee_calculation::DynamicFeeCalculator::new(storage.clone()));
         tracing::info!("📊 Dynamic AI-driven fee calculator initialized");
 
         Ok(ParadigmNode {
@@ -379,31 +372,36 @@ impl ParadigmNode {
         &self,
         transaction: transaction::Transaction,
     ) -> anyhow::Result<()> {
-        tracing::info!("📤 Submitting transaction: {} from {} to {} (amount: {}, fee: {})", 
-                      transaction.id, 
-                      transaction.from.to_string(), 
-                      transaction.to.to_string(),
-                      transaction.amount,
-                      transaction.fee);
+        tracing::info!(
+            "📤 Submitting transaction: {} from {} to {} (amount: {}, fee: {})",
+            transaction.id,
+            transaction.from.to_string(),
+            transaction.to.to_string(),
+            transaction.amount,
+            transaction.fee
+        );
 
         // Get sender balance for validation
         let sender_balance = self.get_balance(&transaction.from).await?;
-        
+
         // Create public key from address (simplified - in production would use proper key derivation)
         let from_address_bytes = transaction.from.as_bytes();
         if from_address_bytes.len() != 32 {
             return Err(anyhow::anyhow!("Invalid sender address length"));
         }
-        
+
         let mut key_bytes = [0u8; 32];
         key_bytes.copy_from_slice(&from_address_bytes[..32]);
-        
+
         let public_key = match ed25519_dalek::VerifyingKey::from_bytes(&key_bytes) {
             Ok(key) => key,
             Err(_) => {
                 // For development, create a dummy key to allow validation testing
-                tracing::warn!("Transaction from {}: unable to derive public key, using development mode", transaction.from.to_string());
-                
+                tracing::warn!(
+                    "Transaction from {}: unable to derive public key, using development mode",
+                    transaction.from.to_string()
+                );
+
                 // Still run formal validation with dummy key to test other rules
                 use rand::rngs::OsRng;
                 use rand::RngCore;
@@ -412,24 +410,37 @@ impl ParadigmNode {
                 ed25519_dalek::SigningKey::from_bytes(&secret).verifying_key()
             }
         };
-        
+
         // Run comprehensive formal validation
-        let validation_result = self.transaction_validator
-            .validate_transaction(&transaction, sender_balance, &public_key).await?;
-        
+        let validation_result = self
+            .transaction_validator
+            .validate_transaction(&transaction, sender_balance, &public_key)
+            .await?;
+
         if !validation_result.is_valid {
-            tracing::error!("❌ Transaction validation failed: {:?}", validation_result.errors);
-            return Err(anyhow::anyhow!("Transaction validation failed: {:?}", validation_result.errors));
+            tracing::error!(
+                "❌ Transaction validation failed: {:?}",
+                validation_result.errors
+            );
+            return Err(anyhow::anyhow!(
+                "Transaction validation failed: {:?}",
+                validation_result.errors
+            ));
         }
-        
+
         if !validation_result.warnings.is_empty() {
-            tracing::warn!("⚠️ Transaction validation warnings: {:?}", validation_result.warnings);
+            tracing::warn!(
+                "⚠️ Transaction validation warnings: {:?}",
+                validation_result.warnings
+            );
         }
-        
-        tracing::info!("✅ Transaction {} validated successfully ({}ms, risk: {})", 
-                      transaction.id, 
-                      validation_result.validation_time_ms,
-                      validation_result.risk_score);
+
+        tracing::info!(
+            "✅ Transaction {} validated successfully ({}ms, risk: {})",
+            transaction.id,
+            validation_result.validation_time_ms,
+            validation_result.risk_score
+        );
 
         // Store the validated transaction in storage
         let mut storage = self.storage.write().await;
@@ -439,7 +450,10 @@ impl ParadigmNode {
         let mut network = self.network.write().await;
         network.broadcast_transaction(&transaction).await?;
 
-        tracing::info!("📡 Transaction {} processed and broadcasted", transaction.id);
+        tracing::info!(
+            "📡 Transaction {} processed and broadcasted",
+            transaction.id
+        );
         Ok(())
     }
 
@@ -471,9 +485,14 @@ impl ParadigmNode {
         privacy_blockchain.get_privacy_stats().await
     }
 
-    pub async fn store_private_transaction(&self, transaction: &transaction::Transaction) -> anyhow::Result<()> {
+    pub async fn store_private_transaction(
+        &self,
+        transaction: &transaction::Transaction,
+    ) -> anyhow::Result<()> {
         let privacy_blockchain = self.privacy_blockchain.read().await;
-        privacy_blockchain.store_private_transaction(transaction).await
+        privacy_blockchain
+            .store_private_transaction(transaction)
+            .await
     }
 
     pub async fn get_private_balance(&self, address: &Address) -> anyhow::Result<u64> {
@@ -486,12 +505,21 @@ impl ParadigmNode {
         ephemeral_storage.get_balance(address).await
     }
 
-    pub async fn get_ephemeral_transactions(&self, address: &Address, limit: Option<usize>) -> anyhow::Result<Vec<ephemeral_storage::EphemeralTransaction>> {
+    pub async fn get_ephemeral_transactions(
+        &self,
+        address: &Address,
+        limit: Option<usize>,
+    ) -> anyhow::Result<Vec<ephemeral_storage::EphemeralTransaction>> {
         let ephemeral_storage = self.ephemeral_storage.read().await;
-        ephemeral_storage.get_address_transactions(address, limit).await
+        ephemeral_storage
+            .get_address_transactions(address, limit)
+            .await
     }
 
-    pub async fn store_ephemeral_transaction(&self, transaction: &transaction::Transaction) -> anyhow::Result<()> {
+    pub async fn store_ephemeral_transaction(
+        &self,
+        transaction: &transaction::Transaction,
+    ) -> anyhow::Result<()> {
         let ephemeral_storage = self.ephemeral_storage.read().await;
         ephemeral_storage.store_transaction(transaction).await
     }
@@ -505,7 +533,9 @@ impl ParadigmNode {
         signers: Vec<multisig_treasury::WalletSigner>,
     ) -> anyhow::Result<uuid::Uuid> {
         let mut treasury = self.multisig_treasury.write().await;
-        treasury.create_treasury_wallet(name, wallet_type, threshold, signers).await
+        treasury
+            .create_treasury_wallet(name, wallet_type, threshold, signers)
+            .await
     }
 
     pub async fn propose_treasury_transaction(
@@ -515,7 +545,9 @@ impl ParadigmNode {
         proposer_id: uuid::Uuid,
     ) -> anyhow::Result<uuid::Uuid> {
         let mut treasury = self.multisig_treasury.write().await;
-        treasury.propose_transaction(wallet_id, transaction, proposer_id).await
+        treasury
+            .propose_transaction(wallet_id, transaction, proposer_id)
+            .await
     }
 
     pub async fn sign_treasury_transaction(
@@ -525,7 +557,9 @@ impl ParadigmNode {
         signing_key: &ed25519_dalek::SigningKey,
     ) -> anyhow::Result<bool> {
         let mut treasury = self.multisig_treasury.write().await;
-        treasury.sign_transaction(transaction_id, signer_id, signing_key).await
+        treasury
+            .sign_transaction(transaction_id, signer_id, signing_key)
+            .await
     }
 
     pub async fn execute_treasury_transaction(
@@ -534,10 +568,10 @@ impl ParadigmNode {
     ) -> anyhow::Result<transaction::Transaction> {
         let mut treasury = self.multisig_treasury.write().await;
         let executed_tx = treasury.execute_transaction(transaction_id).await?;
-        
+
         // Submit the executed transaction to the network
         self.submit_transaction(executed_tx.clone()).await?;
-        
+
         Ok(executed_tx)
     }
 
@@ -570,10 +604,15 @@ impl ParadigmNode {
         sender: &Address,
         urgent: bool,
     ) -> anyhow::Result<fee_calculation::FeeCalculationResult> {
-        self.fee_calculator.calculate_transaction_fee(transaction_amount, sender, urgent).await
+        self.fee_calculator
+            .calculate_transaction_fee(transaction_amount, sender, urgent)
+            .await
     }
 
-    pub async fn estimate_fee_range(&self, amount: Amount) -> anyhow::Result<(Amount, Amount, Amount)> {
+    pub async fn estimate_fee_range(
+        &self,
+        amount: Amount,
+    ) -> anyhow::Result<(Amount, Amount, Amount)> {
         self.fee_calculator.estimate_fee_range(amount).await
     }
 
@@ -584,12 +623,14 @@ impl ParadigmNode {
         avg_confirmation_time: f64,
         active_contributors: usize,
     ) -> anyhow::Result<()> {
-        self.fee_calculator.update_network_metrics(
-            transaction_volume_24h,
-            pending_count,
-            avg_confirmation_time,
-            active_contributors,
-        ).await
+        self.fee_calculator
+            .update_network_metrics(
+                transaction_volume_24h,
+                pending_count,
+                avg_confirmation_time,
+                active_contributors,
+            )
+            .await
     }
 
     pub async fn update_contributor_metrics(
@@ -598,11 +639,13 @@ impl ParadigmNode {
         active_contributors: usize,
         reward_pool_balance: Amount,
     ) -> anyhow::Result<()> {
-        self.fee_calculator.update_contributor_metrics(
-            total_contributors,
-            active_contributors,
-            reward_pool_balance,
-        ).await
+        self.fee_calculator
+            .update_contributor_metrics(
+                total_contributors,
+                active_contributors,
+                reward_pool_balance,
+            )
+            .await
     }
 
     pub async fn get_network_health_score(&self) -> f64 {

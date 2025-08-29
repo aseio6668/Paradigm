@@ -1,3 +1,7 @@
+use crate::{
+    autonomous_tasks::AutonomousTaskGenerator, peer_manager::PeerManager, storage::ParadigmStorage,
+    Address, AddressExt, Amount, Transaction,
+};
 use axum::{
     extract::State,
     http::StatusCode,
@@ -12,7 +16,6 @@ use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::{info, warn};
 use uuid::Uuid;
-use crate::{storage::ParadigmStorage, autonomous_tasks::AutonomousTaskGenerator, peer_manager::PeerManager, Address, Amount, Transaction, AddressExt};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HealthResponse {
@@ -89,13 +92,16 @@ impl ApiState {
             peer_manager: None,
         }
     }
-    
+
     pub fn with_storage(mut self, storage: Arc<RwLock<ParadigmStorage>>) -> Self {
         self.storage = Some(storage);
         self
     }
 
-    pub fn with_autonomous_tasks(mut self, autonomous_tasks: Arc<RwLock<AutonomousTaskGenerator>>) -> Self {
+    pub fn with_autonomous_tasks(
+        mut self,
+        autonomous_tasks: Arc<RwLock<AutonomousTaskGenerator>>,
+    ) -> Self {
         self.autonomous_tasks = Some(autonomous_tasks);
         self
     }
@@ -145,7 +151,9 @@ impl ApiState {
     }
 }
 
-pub async fn health_handler(State(state): State<ApiState>) -> Result<Json<HealthResponse>, StatusCode> {
+pub async fn health_handler(
+    State(state): State<ApiState>,
+) -> Result<Json<HealthResponse>, StatusCode> {
     let peers_count = *state.peers_count.read().await;
     let block_height = *state.block_height.read().await;
     let network_status = state.network_status.read().await.clone();
@@ -159,27 +167,32 @@ pub async fn health_handler(State(state): State<ApiState>) -> Result<Json<Health
         network_status: network_status.clone(),
     };
 
-    info!("Health check - Peers: {}, Height: {}, Status: {}", 
-          peers_count, block_height, network_status);
-    
+    info!(
+        "Health check - Peers: {}, Height: {}, Status: {}",
+        peers_count, block_height, network_status
+    );
+
     Ok(Json(response))
 }
 
-pub async fn tasks_handler(State(state): State<ApiState>) -> Result<Json<TaskResponse>, StatusCode> {
+pub async fn tasks_handler(
+    State(state): State<ApiState>,
+) -> Result<Json<TaskResponse>, StatusCode> {
     // Try to get tasks from autonomous task generator first
     let autonomous_tasks = if let Some(task_generator) = &state.autonomous_tasks {
         let generator = task_generator.read().await;
         match generator.get_available_tasks().await {
-            Ok(ml_tasks) => {
-                ml_tasks.into_iter().map(|ml_task| TaskRequest {
+            Ok(ml_tasks) => ml_tasks
+                .into_iter()
+                .map(|ml_task| TaskRequest {
                     task_id: ml_task.id.to_string(),
                     task_type: format!("{:?}", ml_task.task_type),
                     difficulty: ml_task.difficulty as u32,
                     data: hex::encode(&ml_task.data),
                     reward: ml_task.reward,
                     timestamp: ml_task.created_at.timestamp() as u64,
-                }).collect::<Vec<_>>()
-            }
+                })
+                .collect::<Vec<_>>(),
             Err(e) => {
                 warn!("Failed to get autonomous tasks: {}", e);
                 Vec::new()
@@ -197,7 +210,7 @@ pub async fn tasks_handler(State(state): State<ApiState>) -> Result<Json<TaskRes
     };
 
     let queue_size = available_tasks.len() as u32;
-    
+
     // Calculate estimated reward based on current task difficulty
     let estimated_reward = available_tasks
         .iter()
@@ -211,11 +224,17 @@ pub async fn tasks_handler(State(state): State<ApiState>) -> Result<Json<TaskRes
         estimated_reward,
     };
 
-    info!("Task request - Available: {} (autonomous: {}), Queue size: {}, Est. reward: {}", 
-          available_tasks.len(), 
-          if state.autonomous_tasks.is_some() { "yes" } else { "no" },
-          queue_size, 
-          estimated_reward);
+    info!(
+        "Task request - Available: {} (autonomous: {}), Queue size: {}, Est. reward: {}",
+        available_tasks.len(),
+        if state.autonomous_tasks.is_some() {
+            "yes"
+        } else {
+            "no"
+        },
+        queue_size,
+        estimated_reward
+    );
 
     Ok(Json(response))
 }
@@ -223,20 +242,23 @@ pub async fn tasks_handler(State(state): State<ApiState>) -> Result<Json<TaskRes
 // Simple task submission handler for single-node testing
 pub async fn simple_task_submit_handler(
     State(state): State<ApiState>,
-    Json(body): Json<serde_json::Value>
+    Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     // Extract basic info from the submission
     let task_id = body["task_id"].as_str().unwrap_or("unknown");
     let contributor_address = body["contributor_address"].as_str().unwrap_or("unknown");
     let completion_time = body["completion_time"].as_u64().unwrap_or(1000);
-    
-    info!("✅ Task submission received: {} from {}", task_id, contributor_address);
+
+    info!(
+        "✅ Task submission received: {} from {}",
+        task_id, contributor_address
+    );
     info!("⏱️  Completion time: {}ms", completion_time);
-    
+
     // Remove task from queue if it exists
     let mut queue = state.task_queue.write().await;
     let task_position = queue.iter().position(|task| task.task_id == task_id);
-    
+
     let reward_amount = if let Some(pos) = task_position {
         let completed_task = queue.remove(pos);
         info!("📋 Removed completed task: {}", task_id);
@@ -246,16 +268,19 @@ pub async fn simple_task_submit_handler(
         warn!("⚠️ Task {} not in queue, using default reward", task_id);
         100000000 // 1.0 PAR default
     };
-    
+
     drop(queue);
-    
+
     // Generate transaction ID and create payout response
     let transaction_id = uuid::Uuid::new_v4().to_string();
     let reward_par = reward_amount as f64 / 100_000_000.0;
-    
-    info!("💰 Payout: {:.8} PAR to {}", reward_par, contributor_address);
+
+    info!(
+        "💰 Payout: {:.8} PAR to {}",
+        reward_par, contributor_address
+    );
     info!("📦 Transaction ID: {}", transaction_id);
-    
+
     // Create successful payout response
     let response = serde_json::json!({
         "success": true,
@@ -265,7 +290,7 @@ pub async fn simple_task_submit_handler(
         "recipient_address": contributor_address,
         "timestamp": chrono::Utc::now().timestamp()
     });
-    
+
     Ok(Json(response))
 }
 
@@ -273,26 +298,26 @@ pub async fn simple_task_submit_handler(
 TODO: Fix compilation issues with axum handler
 pub async fn task_submit_handler(State(state): State<ApiState>, Json(submission): Json<TaskSubmission>) -> Result<Json<PayoutResponse>, StatusCode> {
     info!("📝 Received task submission from {}", submission.contributor_address);
-    
+
     // Verify task was actually requested
     let mut queue = state.task_queue.write().await;
     let task_position = queue.iter().position(|task| task.task_id == submission.task_id);
-    
+
     if let Some(pos) = task_position {
         // Remove completed task from queue
         let completed_task = queue.remove(pos);
         drop(queue); // Release the write lock early
-        
+
         // Store the completed task
         let mut completed_tasks = state.completed_tasks.write().await;
         completed_tasks.insert(submission.task_id.clone(), submission.clone());
         drop(completed_tasks);
-        
+
         // Process payout - create real blockchain transaction
         let reward_amount = completed_task.reward;
         let transaction_id = Uuid::new_v4().to_string();
         let reward_par = reward_amount as f64 / 100_000_000.0;
-        
+
         // Create blockchain transaction if storage available
         if let Some(storage) = &state.storage {
             match create_payout_transaction(&submission.contributor_address, reward_amount, &transaction_id).await {
@@ -311,15 +336,15 @@ pub async fn task_submit_handler(State(state): State<ApiState>, Json(submission)
         } else {
             info!("📝 SIMULATED: Payout logged (no blockchain storage configured)");
         }
-        
+
         // Update total payouts
         let mut total_payouts = state.total_payouts.write().await;
         *total_payouts += reward_amount;
         drop(total_payouts);
-        
-        info!("💰 PAYOUT: {:.8} PAR → {} | TX: {}", 
+
+        info!("💰 PAYOUT: {:.8} PAR → {} | TX: {}",
               reward_par, submission.contributor_address, transaction_id);
-        
+
         // Create successful payout response
         let response = PayoutResponse {
             success: true,
@@ -328,11 +353,11 @@ pub async fn task_submit_handler(State(state): State<ApiState>, Json(submission)
             recipient_address: submission.contributor_address.clone(),
             message: format!("Successfully paid {:.8} PAR for task completion", reward_par),
         };
-        
+
         Ok(Json(response))
     } else {
         warn!("❌ Task submission rejected: task_id {} not found in queue", submission.task_id);
-        
+
         let response = PayoutResponse {
             success: false,
             transaction_id: "".to_string(),
@@ -340,7 +365,7 @@ pub async fn task_submit_handler(State(state): State<ApiState>, Json(submission)
             recipient_address: submission.contributor_address,
             message: "Task not found or already completed".to_string(),
         };
-        
+
         Ok(Json(response))
     }
 }
@@ -354,19 +379,22 @@ pub fn create_api_router(state: ApiState) -> Router {
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
-                .layer(CorsLayer::permissive())
+                .layer(CorsLayer::permissive()),
         )
         .with_state(state)
 }
 
-pub async fn start_api_server(port: u16, state: ApiState) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn start_api_server(
+    port: u16,
+    state: ApiState,
+) -> Result<(), Box<dyn std::error::Error>> {
     let app = create_api_router(state);
-    
+
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
     info!("🌐 API server starting on port {}", port);
-    
+
     axum::serve(listener, app).await?;
-    
+
     Ok(())
 }
 
@@ -374,7 +402,7 @@ pub async fn start_api_server(port: u16, state: ApiState) -> Result<(), Box<dyn 
 pub async fn generate_sample_tasks(state: &ApiState, count: u32) {
     use rand::Rng;
     let mut rng = rand::thread_rng();
-    
+
     for i in 0..count {
         let task = TaskRequest {
             task_id: Uuid::new_v4().to_string(),
@@ -389,10 +417,10 @@ pub async fn generate_sample_tasks(state: &ApiState, count: u32) {
             reward: rng.gen_range(50000000..=200000000), // 0.5 to 2 PAR
             timestamp: chrono::Utc::now().timestamp() as u64,
         };
-        
+
         state.add_task(task).await;
     }
-    
+
     info!("Generated {} sample tasks for testing", count);
 }
 
@@ -402,15 +430,15 @@ async fn create_payout_transaction(recipient_address: &str, amount: u64, tx_id: 
     use crate::genesis::NETWORK_TREASURY_ADDRESS;
     use ed25519_dalek::{SigningKey, Signature};
     use rand::rngs::OsRng;
-    
+
     // Parse recipient address
     let to_address = Address::from_string(recipient_address)
         .map_err(|e| format!("Invalid recipient address: {}", e))?;
-    
+
     // Create network treasury address (this would normally use a proper treasury key)
     let from_address = Address::from_string(NETWORK_TREASURY_ADDRESS)
         .map_err(|e| format!("Invalid treasury address: {}", e))?;
-    
+
     // Create the transaction
     let mut transaction = Transaction {
         id: tx_id.to_string(),
@@ -422,17 +450,17 @@ async fn create_payout_transaction(recipient_address: &str, amount: u64, tx_id: 
         nonce: 0, // This would normally be managed by the wallet
         fee: Amount::from_sat(1000), // Small fee (0.00001 PAR)
     };
-    
+
     // In a real implementation, we would sign with the treasury's private key
     // For now, we create a placeholder signature
     let signing_key = SigningKey::generate(&mut OsRng);
     let signature_data = format!("{}{}{}{}", transaction.from.to_string(), transaction.to.to_string(), transaction.amount.to_sat(), transaction.timestamp);
     let signature = signing_key.sign(signature_data.as_bytes());
     transaction.signature = Some(signature);
-    
-    info!("🔗 Created payout transaction: {} PAR {} → {}", 
+
+    info!("🔗 Created payout transaction: {} PAR {} → {}",
           amount as f64 / 100_000_000.0, NETWORK_TREASURY_ADDRESS, recipient_address);
-    
+
     Ok(transaction)
 }
 */

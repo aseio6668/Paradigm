@@ -36,7 +36,7 @@ dirs = { workspace = true }
 
 # Performance optimization dependencies
 dashmap = "5.5"
-ring = "0.17"
+ring = { workspace = true }
 subtle = "2.5"
 zeroize = "1.7"
 sysinfo = "0.30"
@@ -46,7 +46,7 @@ tempfile = { version = "3.8", optional = true }
 rustls = "0.21"
 tokio-rustls = "0.24"
 rustls-pemfile = "1.0"
-rcgen = "0.11"
+rcgen = { workspace = true }
 
 [build-dependencies]
 tonic-build = "0.10"

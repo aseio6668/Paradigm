@@ -183,7 +183,13 @@ impl SecurityAudit {
         for addr in &affected_addresses {
             hasher.update(addr.as_bytes());
         }
-        let audit_id = Hash::from_bytes(hasher.finalize().as_slice().try_into().map_err(|_| Error::InvalidHashLength)?);
+        let audit_id = Hash::from_bytes(
+            hasher
+                .finalize()
+                .as_slice()
+                .try_into()
+                .map_err(|_| Error::InvalidHashLength)?,
+        );
 
         SecurityAudit {
             audit_id,

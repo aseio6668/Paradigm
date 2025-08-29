@@ -77,7 +77,10 @@ impl Default for CertConfig {
                 "::1".to_string(),
             ],
             is_ca: false,
-            key_usage: vec!["digital_signature".to_string(), "key_encipherment".to_string()],
+            key_usage: vec![
+                "digital_signature".to_string(),
+                "key_encipherment".to_string(),
+            ],
         }
     }
 }
@@ -118,11 +121,14 @@ impl CertificateManager {
 
     /// Generate a self-signed certificate for development
     pub async fn generate_self_signed_cert(&self, config: CertConfig) -> Result<Uuid> {
-        tracing::info!("🔐 Generating self-signed certificate: {}", config.subject_name);
+        tracing::info!(
+            "🔐 Generating self-signed certificate: {}",
+            config.subject_name
+        );
 
         // Create certificate parameters
         let mut params = CertificateParams::new(config.san_entries.clone());
-        
+
         // Set distinguished name
         let mut dn = DistinguishedName::new();
         dn.push(DnType::CommonName, config.subject_name.clone());
@@ -132,7 +138,8 @@ impl CertificateManager {
 
         // Set validity period
         let not_before = SystemTime::now();
-        let not_after = not_before + Duration::from_secs(config.validity_days as u64 * 24 * 60 * 60);
+        let not_after =
+            not_before + Duration::from_secs(config.validity_days as u64 * 24 * 60 * 60);
         params.not_before = rcgen::date_time_ymd(2024, 1, 1);
         params.not_after = rcgen::date_time_ymd(2025, 1, 1);
 
@@ -140,7 +147,9 @@ impl CertificateManager {
         params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
 
         // Add Subject Alternative Names
-        params.subject_alt_names = config.san_entries.iter()
+        params.subject_alt_names = config
+            .san_entries
+            .iter()
             .map(|name| {
                 if name.parse::<std::net::IpAddr>().is_ok() {
                     SanType::IpAddress(name.parse().unwrap())
@@ -163,7 +172,10 @@ impl CertificateManager {
             subject: config.subject_name.clone(),
             issuer: config.subject_name.clone(),
             valid_from: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
-            valid_to: (SystemTime::now() + Duration::from_secs(config.validity_days as u64 * 24 * 60 * 60)).duration_since(UNIX_EPOCH)?.as_secs(),
+            valid_to: (SystemTime::now()
+                + Duration::from_secs(config.validity_days as u64 * 24 * 60 * 60))
+            .duration_since(UNIX_EPOCH)?
+            .as_secs(),
             serial_number: hex::encode(&cert_der[..8]),
             fingerprint: hex::encode(blake3::hash(&cert_der).as_bytes()),
             is_ca: config.is_ca,
@@ -199,16 +211,16 @@ impl CertificateManager {
         {
             let mut store = self.store.write().await;
             store.certificates.insert(cert_id, cert_info);
-            
+
             // Set as default if it's the first certificate
             if store.default_cert_id.is_none() {
                 store.default_cert_id = Some(cert_id);
             }
-            
+
             if config.is_ca {
                 store.ca_cert_ids.push(cert_id);
             }
-            
+
             store.updated_at = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
         }
 
@@ -224,10 +236,12 @@ impl CertificateManager {
         let configs = self.server_configs.read().await;
         let store = self.store.read().await;
 
-        let cert_id = cert_id.or(store.default_cert_id)
+        let cert_id = cert_id
+            .or(store.default_cert_id)
             .ok_or_else(|| anyhow::anyhow!("No certificate available"))?;
 
-        configs.get(&cert_id)
+        configs
+            .get(&cert_id)
             .cloned()
             .ok_or_else(|| anyhow::anyhow!("Certificate not found: {}", cert_id))
     }
@@ -235,26 +249,26 @@ impl CertificateManager {
     /// Validate certificate expiration and health
     pub async fn validate_certificate(&self, cert_id: Uuid) -> Result<bool> {
         let store = self.store.read().await;
-        
+
         if let Some(cert_info) = store.certificates.get(&cert_id) {
             let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
-            
+
             // Check if certificate is still valid
             if now < cert_info.valid_from {
                 tracing::warn!("Certificate {} not yet valid", cert_id);
                 return Ok(false);
             }
-            
+
             if now > cert_info.valid_to {
                 tracing::warn!("Certificate {} has expired", cert_id);
                 return Ok(false);
             }
-            
+
             // Check if certificate expires soon (within 30 days)
             if now + (30 * 24 * 60 * 60) > cert_info.valid_to {
                 tracing::warn!("Certificate {} expires soon (within 30 days)", cert_id);
             }
-            
+
             Ok(true)
         } else {
             Err(anyhow::anyhow!("Certificate not found: {}", cert_id))
@@ -275,20 +289,20 @@ impl CertificateManager {
     pub async fn remove_certificate(&self, cert_id: Uuid) -> Result<()> {
         {
             let mut store = self.store.write().await;
-            
+
             // Remove from store
             if store.certificates.remove(&cert_id).is_none() {
                 return Err(anyhow::anyhow!("Certificate not found: {}", cert_id));
             }
-            
+
             // Update default if removing default cert
             if store.default_cert_id == Some(cert_id) {
                 store.default_cert_id = store.certificates.keys().next().copied();
             }
-            
+
             // Remove from CA list
             store.ca_cert_ids.retain(|id| *id != cert_id);
-            
+
             store.updated_at = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
         }
 
@@ -301,7 +315,7 @@ impl CertificateManager {
         // Remove files
         let cert_path = self.cert_dir.join(format!("{}.crt", cert_id));
         let key_path = self.cert_dir.join(format!("{}.key", cert_id));
-        
+
         let _ = fs::remove_file(cert_path);
         let _ = fs::remove_file(key_path);
 
@@ -329,19 +343,27 @@ impl CertificateManager {
                     store_lock.certificates.clone()
                 };
 
-                let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
 
                 for (cert_id, cert_info) in certificates {
                     // Check for expiring certificates (within 30 days)
                     if now + (30 * 24 * 60 * 60) > cert_info.valid_to {
-                        tracing::warn!("⚠️ Certificate {} expires soon: {} days remaining", 
-                                     cert_id, 
-                                     (cert_info.valid_to - now) / (24 * 60 * 60));
+                        tracing::warn!(
+                            "⚠️ Certificate {} expires soon: {} days remaining",
+                            cert_id,
+                            (cert_info.valid_to - now) / (24 * 60 * 60)
+                        );
                     }
 
                     // Check for expired certificates
                     if now > cert_info.valid_to {
-                        tracing::error!("❌ Certificate {} has expired and should be renewed", cert_id);
+                        tracing::error!(
+                            "❌ Certificate {} has expired and should be renewed",
+                            cert_id
+                        );
                     }
                 }
 
@@ -381,7 +403,10 @@ impl CertificateManager {
         let key_path = self.cert_dir.join(format!("{}.key", cert_id));
 
         if !cert_path.exists() || !key_path.exists() {
-            return Err(anyhow::anyhow!("Certificate files not found for {}", cert_id));
+            return Err(anyhow::anyhow!(
+                "Certificate files not found for {}",
+                cert_id
+            ));
         }
 
         let cert_der = fs::read(cert_path)?;
@@ -404,18 +429,18 @@ impl CertificateManager {
     /// Initialize with default certificates if none exist
     pub async fn initialize_default_certificates(&self) -> Result<()> {
         let store = self.store.read().await;
-        
+
         if store.certificates.is_empty() {
             drop(store);
-            
+
             tracing::info!("🔐 No certificates found, generating default self-signed certificate");
-            
+
             let config = CertConfig::default();
             self.generate_self_signed_cert(config).await?;
-            
+
             tracing::info!("✅ Default certificate generated successfully");
         }
-        
+
         Ok(())
     }
 }
@@ -431,7 +456,10 @@ mod tests {
         let cert_manager = CertificateManager::new(temp_dir.path()).await.unwrap();
 
         let config = CertConfig::default();
-        let cert_id = cert_manager.generate_self_signed_cert(config).await.unwrap();
+        let cert_id = cert_manager
+            .generate_self_signed_cert(config)
+            .await
+            .unwrap();
 
         // Verify certificate was created
         let cert_info = cert_manager.get_certificate_info(cert_id).await;
@@ -452,11 +480,23 @@ mod tests {
         let cert_manager = CertificateManager::new(temp_dir.path()).await.unwrap();
 
         // Generate multiple certificates
-        let config1 = CertConfig { subject_name: "test1".to_string(), ..Default::default() };
-        let config2 = CertConfig { subject_name: "test2".to_string(), ..Default::default() };
+        let config1 = CertConfig {
+            subject_name: "test1".to_string(),
+            ..Default::default()
+        };
+        let config2 = CertConfig {
+            subject_name: "test2".to_string(),
+            ..Default::default()
+        };
 
-        let cert_id1 = cert_manager.generate_self_signed_cert(config1).await.unwrap();
-        let cert_id2 = cert_manager.generate_self_signed_cert(config2).await.unwrap();
+        let cert_id1 = cert_manager
+            .generate_self_signed_cert(config1)
+            .await
+            .unwrap();
+        let cert_id2 = cert_manager
+            .generate_self_signed_cert(config2)
+            .await
+            .unwrap();
 
         // List certificates
         let certificates = cert_manager.list_certificates().await;

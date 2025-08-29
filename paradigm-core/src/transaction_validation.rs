@@ -72,9 +72,9 @@ pub struct ValidationRule {
 /// Validation severity levels
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ValidationSeverity {
-    Critical,  // Transaction must be rejected
-    Warning,   // Log warning but allow transaction
-    Info,      // Informational only
+    Critical, // Transaction must be rejected
+    Warning,  // Log warning but allow transaction
+    Info,     // Informational only
 }
 
 /// Network configuration for validation
@@ -99,9 +99,9 @@ impl Default for NetworkValidationConfig {
         Self {
             network_id: "paradigm-mainnet".to_string(),
             chain_id: 1,
-            min_fee: 1_000_000, // 0.01 PAR
+            min_fee: 1_000_000,                // 0.01 PAR
             max_transaction_size: 1024 * 1024, // 1MB
-            max_message_size: 1024, // 1KB
+            max_message_size: 1024,            // 1KB
             transaction_timeout_hours: 24,
             rate_limit_per_address_per_hour: 1000,
             require_memo_for_large_amounts: true,
@@ -162,8 +162,10 @@ impl TransactionValidator {
         // Initialize default validation rules
         validator.initialize_default_rules().await?;
 
-        tracing::info!("🔍 Transaction validator initialized with {} rules", 
-                      validator.rules.read().await.len());
+        tracing::info!(
+            "🔍 Transaction validator initialized with {} rules",
+            validator.rules.read().await.len()
+        );
 
         Ok(validator)
     }
@@ -197,7 +199,10 @@ impl TransactionValidator {
         for rule in active_rules.iter() {
             match rule.rule_type {
                 ValidationRuleType::Signature => {
-                    if let Err(e) = self.validate_signature(transaction, sender_public_key).await {
+                    if let Err(e) = self
+                        .validate_signature(transaction, sender_public_key)
+                        .await
+                    {
                         errors.push(e);
                         self.increment_rule_trigger(&rule.id).await;
                     }
@@ -277,9 +282,12 @@ impl TransactionValidator {
             self.track_valid_transaction(transaction).await?;
         }
 
-        tracing::debug!("✅ Validation completed: {} ({}ms, risk: {})", 
-                       if result.is_valid { "VALID" } else { "INVALID" },
-                       validation_time_ms, risk_score);
+        tracing::debug!(
+            "✅ Validation completed: {} ({}ms, risk: {})",
+            if result.is_valid { "VALID" } else { "INVALID" },
+            validation_time_ms,
+            risk_score
+        );
 
         Ok(result)
     }
@@ -288,7 +296,7 @@ impl TransactionValidator {
     pub async fn add_validation_rule(&self, rule: ValidationRule) -> Result<()> {
         let mut rules = self.rules.write().await;
         rules.insert(rule.id.clone(), rule.clone());
-        
+
         tracing::info!("➕ Added validation rule: {} ({})", rule.name, rule.id);
         Ok(())
     }
@@ -297,22 +305,26 @@ impl TransactionValidator {
     pub async fn remove_validation_rule(&self, rule_id: &str) -> Result<bool> {
         let mut rules = self.rules.write().await;
         let removed = rules.remove(rule_id).is_some();
-        
+
         if removed {
             tracing::info!("➖ Removed validation rule: {}", rule_id);
         }
-        
+
         Ok(removed)
     }
 
     /// Enable/disable a validation rule
     pub async fn toggle_validation_rule(&self, rule_id: &str, enabled: bool) -> Result<bool> {
         let mut rules = self.rules.write().await;
-        
+
         if let Some(rule) = rules.get_mut(rule_id) {
             rule.enabled = enabled;
             rule.updated_at = Utc::now();
-            tracing::info!("🔄 Toggled rule {} to {}", rule_id, if enabled { "enabled" } else { "disabled" });
+            tracing::info!(
+                "🔄 Toggled rule {} to {}",
+                rule_id,
+                if enabled { "enabled" } else { "disabled" }
+            );
             Ok(true)
         } else {
             Ok(false)
@@ -323,7 +335,7 @@ impl TransactionValidator {
     pub async fn whitelist_address(&self, address: &Address) -> Result<()> {
         let mut whitelist = self.whitelisted_addresses.write().await;
         whitelist.insert(address.to_string());
-        
+
         tracing::info!("✅ Added address to whitelist: {}", address.to_string());
         Ok(())
     }
@@ -332,7 +344,7 @@ impl TransactionValidator {
     pub async fn blacklist_address(&self, address: &Address) -> Result<()> {
         let mut blacklist = self.blacklisted_addresses.write().await;
         blacklist.insert(address.to_string());
-        
+
         tracing::info!("🚫 Added address to blacklist: {}", address.to_string());
         Ok(())
     }
@@ -349,7 +361,11 @@ impl TransactionValidator {
 
     // Private validation methods
 
-    async fn validate_signature(&self, transaction: &Transaction, public_key: &PublicKey) -> Result<(), ValidationError> {
+    async fn validate_signature(
+        &self,
+        transaction: &Transaction,
+        public_key: &PublicKey,
+    ) -> Result<(), ValidationError> {
         if transaction.signature.is_empty() {
             return Err(ValidationError::InvalidSignature);
         }
@@ -361,21 +377,25 @@ impl TransactionValidator {
         }
     }
 
-    async fn validate_balance(&self, transaction: &Transaction, sender_balance: Amount) -> Result<(), ValidationError> {
+    async fn validate_balance(
+        &self,
+        transaction: &Transaction,
+        sender_balance: Amount,
+    ) -> Result<(), ValidationError> {
         let total_cost = transaction.amount + transaction.fee;
-        
+
         if sender_balance < total_cost {
             return Err(ValidationError::InsufficientBalance);
         }
-        
+
         if transaction.amount == 0 {
             return Err(ValidationError::InvalidAmount);
         }
-        
+
         if transaction.fee < self.config.min_fee {
             return Err(ValidationError::InvalidFee);
         }
-        
+
         Ok(())
     }
 
@@ -385,7 +405,7 @@ impl TransactionValidator {
             if message.len() > self.config.max_message_size {
                 return Err(ValidationError::InvalidMessageFormat);
             }
-            
+
             // Check for invalid characters or suspicious content
             if message.contains('\0') || message.len() > 1000 {
                 return Err(ValidationError::InvalidMessageFormat);
@@ -403,56 +423,60 @@ impl TransactionValidator {
     async fn validate_temporal(&self, transaction: &Transaction) -> Result<(), ValidationError> {
         let now = Utc::now().timestamp();
         let tx_time = transaction.timestamp.timestamp();
-        
+
         // Check if transaction is too old
         let max_age_seconds = (self.config.transaction_timeout_hours as i64) * 3600;
         if now - tx_time > max_age_seconds {
             return Err(ValidationError::TransactionTooOld);
         }
-        
+
         // Check if transaction is from the future (allow small clock skew)
-        if tx_time > now + 300 { // 5 minutes tolerance
+        if tx_time > now + 300 {
+            // 5 minutes tolerance
             return Err(ValidationError::TransactionInFuture);
         }
-        
+
         Ok(())
     }
 
     async fn validate_rate_limit(&self, transaction: &Transaction) -> Result<(), ValidationError> {
         let address_key = transaction.from.to_string();
         let mut trackers = self.address_trackers.write().await;
-        
+
         let now = Utc::now();
         let hour_ago = now - ChronoDuration::hours(1);
-        
+
         match trackers.get_mut(&address_key) {
             Some(tracker) => {
                 // Reset counter if it's been more than an hour
                 if tracker.last_transaction < hour_ago {
                     tracker.transaction_count = 0;
                 }
-                
+
                 if tracker.transaction_count >= self.config.rate_limit_per_address_per_hour {
                     return Err(ValidationError::ExceedsRateLimit);
                 }
-                
+
                 tracker.transaction_count += 1;
                 tracker.last_transaction = now;
                 tracker.total_volume += transaction.amount;
             }
             None => {
                 // First transaction from this address
-                trackers.insert(address_key, AddressTracker {
-                    address: transaction.from.clone(),
-                    transaction_count: 1,
-                    last_transaction: now,
-                    total_volume: transaction.amount,
-                    risk_flags: HashSet::new(),
-                    first_seen: now,
-                });
+                trackers.insert(
+                    address_key,
+                    AddressTracker {
+                        address: transaction.from.clone(),
+                        transaction_count: 1,
+                        last_transaction: now,
+                        total_volume: transaction.amount,
+                        risk_flags: HashSet::new(),
+                        first_seen: now,
+                    },
+                );
             }
         }
-        
+
         Ok(())
     }
 
@@ -460,28 +484,35 @@ impl TransactionValidator {
         // Check blacklist
         if self.config.enable_address_blacklist {
             let blacklist = self.blacklisted_addresses.read().await;
-            if blacklist.contains(&transaction.from.to_string()) || 
-               blacklist.contains(&transaction.to.to_string()) {
+            if blacklist.contains(&transaction.from.to_string())
+                || blacklist.contains(&transaction.to.to_string())
+            {
                 return Err(ValidationError::BlockedAddress);
             }
         }
-        
+
         // Check whitelist (if enabled, only whitelisted addresses can transact)
         if self.config.enable_address_whitelist {
             let whitelist = self.whitelisted_addresses.read().await;
-            if !whitelist.contains(&transaction.from.to_string()) || 
-               !whitelist.contains(&transaction.to.to_string()) {
-                return Err(ValidationError::PolicyViolation("Address not whitelisted".to_string()));
+            if !whitelist.contains(&transaction.from.to_string())
+                || !whitelist.contains(&transaction.to.to_string())
+            {
+                return Err(ValidationError::PolicyViolation(
+                    "Address not whitelisted".to_string(),
+                ));
             }
         }
-        
+
         // Require memo for large transactions
-        if self.config.require_memo_for_large_amounts && 
-           transaction.amount >= self.config.large_amount_threshold &&
-           transaction.message.is_none() {
-            return Err(ValidationError::PolicyViolation("Large transactions require memo".to_string()));
+        if self.config.require_memo_for_large_amounts
+            && transaction.amount >= self.config.large_amount_threshold
+            && transaction.message.is_none()
+        {
+            return Err(ValidationError::PolicyViolation(
+                "Large transactions require memo".to_string(),
+            ));
         }
-        
+
         Ok(())
     }
 
@@ -494,29 +525,29 @@ impl TransactionValidator {
     async fn validate_duplicate(&self, transaction: &Transaction) -> Result<(), ValidationError> {
         let tx_id = transaction.id.to_string();
         let mut processed = self.processed_transactions.write().await;
-        
+
         if processed.contains(&tx_id) {
             return Err(ValidationError::DuplicateTransaction);
         }
-        
+
         // Keep only recent transaction IDs (last 10,000)
         if processed.len() > 10_000 {
             // In a real implementation, we'd use a more sophisticated approach
             // like a time-based cleanup or LRU cache
             processed.clear();
         }
-        
+
         Ok(())
     }
 
     async fn calculate_risk_score(&self, transaction: &Transaction) -> u32 {
         let mut score = 0u32;
-        
+
         // Large amount = higher risk
         if transaction.amount > self.config.large_amount_threshold {
             score += 20;
         }
-        
+
         // Check address history
         let trackers = self.address_trackers.read().await;
         if let Some(tracker) = trackers.get(&transaction.from.to_string()) {
@@ -524,29 +555,30 @@ impl TransactionValidator {
             if tracker.first_seen > Utc::now() - ChronoDuration::days(7) {
                 score += 15;
             }
-            
+
             // High velocity = higher risk
             if tracker.transaction_count > 100 {
                 score += 10;
             }
-            
+
             // Risk flags
             score += tracker.risk_flags.len() as u32 * 5;
         } else {
             // Unknown address = moderate risk
             score += 10;
         }
-        
+
         // Self-send = slight risk increase
         if transaction.from == transaction.to {
             score += 5;
         }
-        
+
         // No memo on large transaction = risk increase
-        if transaction.amount > self.config.large_amount_threshold && transaction.message.is_none() {
+        if transaction.amount > self.config.large_amount_threshold && transaction.message.is_none()
+        {
             score += 10;
         }
-        
+
         score.min(100) // Cap at 100
     }
 
@@ -564,21 +596,22 @@ impl TransactionValidator {
 
     async fn update_validation_stats(&self, result: &ValidationResult) {
         let mut stats = self.validation_stats.write().await;
-        
+
         if result.is_valid {
             stats.successful_validations += 1;
         } else {
             stats.failed_validations += 1;
         }
-        
+
         // Update average validation time
-        let total_time = stats.average_validation_time_ms * (stats.total_validations - 1) as f64 + result.validation_time_ms as f64;
+        let total_time = stats.average_validation_time_ms * (stats.total_validations - 1) as f64
+            + result.validation_time_ms as f64;
         stats.average_validation_time_ms = total_time / stats.total_validations as f64;
-        
+
         // Update risk score distribution
         let bucket = (result.risk_score / 10).min(9) as usize;
         stats.risk_score_distribution[bucket] += 1;
-        
+
         // Count errors
         for error in &result.errors {
             let error_name = format!("{:?}", error);
@@ -588,12 +621,15 @@ impl TransactionValidator {
 
     async fn increment_rule_trigger(&self, rule_id: &str) {
         let mut stats = self.validation_stats.write().await;
-        *stats.rule_trigger_counts.entry(rule_id.to_string()).or_insert(0) += 1;
+        *stats
+            .rule_trigger_counts
+            .entry(rule_id.to_string())
+            .or_insert(0) += 1;
     }
 
     async fn initialize_default_rules(&mut self) -> Result<()> {
         let now = Utc::now();
-        
+
         let default_rules = vec![
             ValidationRule {
                 id: "signature_required".to_string(),
@@ -612,7 +648,8 @@ impl TransactionValidator {
                 rule_type: ValidationRuleType::Balance,
                 enabled: true,
                 severity: ValidationSeverity::Critical,
-                description: "Sender must have sufficient balance for transaction + fee".to_string(),
+                description: "Sender must have sufficient balance for transaction + fee"
+                    .to_string(),
                 parameters: HashMap::new(),
                 created_at: now,
                 updated_at: now,
@@ -667,7 +704,8 @@ impl TransactionValidator {
                 rule_type: ValidationRuleType::Policy,
                 enabled: true,
                 severity: ValidationSeverity::Critical,
-                description: "Transactions involving blacklisted addresses are rejected".to_string(),
+                description: "Transactions involving blacklisted addresses are rejected"
+                    .to_string(),
                 parameters: HashMap::new(),
                 created_at: now,
                 updated_at: now,
@@ -697,7 +735,7 @@ impl TransactionValidator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{AddressExt, transaction::Transaction};
+    use crate::{transaction::Transaction, AddressExt};
     use ed25519_dalek::SigningKey;
     use rand::rngs::OsRng;
 
@@ -705,23 +743,25 @@ mod tests {
     async fn test_transaction_validator() {
         let config = NetworkValidationConfig::default();
         let validator = TransactionValidator::new(config).await.unwrap();
-        
+
         // Test with default rules
         let rules = validator.get_validation_rules().await;
         assert!(!rules.is_empty());
-        assert!(rules.iter().any(|r| r.rule_type == ValidationRuleType::Signature));
+        assert!(rules
+            .iter()
+            .any(|r| r.rule_type == ValidationRuleType::Signature));
     }
 
     #[tokio::test]
     async fn test_signature_validation() {
         let config = NetworkValidationConfig::default();
         let validator = TransactionValidator::new(config).await.unwrap();
-        
+
         // Create test transaction
         let keypair = SigningKey::generate(&mut OsRng);
         let public_key = keypair.verifying_key();
         let address = Address::from_public_key(&public_key);
-        
+
         let transaction = Transaction {
             id: uuid::Uuid::new_v4(),
             from: address.clone(),
@@ -732,22 +772,25 @@ mod tests {
             timestamp: Utc::now().timestamp(),
             signature: vec![1, 2, 3], // Invalid signature for testing
         };
-        
+
         // Should fail due to invalid signature
-        let result = validator.validate_transaction(&transaction, 2000_00000000, &public_key).await.unwrap();
+        let result = validator
+            .validate_transaction(&transaction, 2000_00000000, &public_key)
+            .await
+            .unwrap();
         assert!(!result.is_valid);
         assert!(result.errors.contains(&ValidationError::InvalidSignature));
     }
 
-    #[tokio::test] 
+    #[tokio::test]
     async fn test_balance_validation() {
         let config = NetworkValidationConfig::default();
         let validator = TransactionValidator::new(config).await.unwrap();
-        
+
         let keypair = SigningKey::generate(&mut OsRng);
         let public_key = keypair.verifying_key();
         let address = Address::from_public_key(&public_key);
-        
+
         let transaction = Transaction {
             id: uuid::Uuid::new_v4(),
             from: address.clone(),
@@ -758,10 +801,15 @@ mod tests {
             timestamp: Utc::now().timestamp(),
             signature: vec![],
         };
-        
+
         // Should fail due to insufficient balance
-        let result = validator.validate_transaction(&transaction, 500_00000000, &public_key).await.unwrap();
+        let result = validator
+            .validate_transaction(&transaction, 500_00000000, &public_key)
+            .await
+            .unwrap();
         assert!(!result.is_valid);
-        assert!(result.errors.contains(&ValidationError::InsufficientBalance));
+        assert!(result
+            .errors
+            .contains(&ValidationError::InsufficientBalance));
     }
 }

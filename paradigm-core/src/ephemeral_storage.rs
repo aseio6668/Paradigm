@@ -38,13 +38,13 @@ pub struct EphemeralConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EphemeralTransaction {
     pub id: Uuid,
-    pub from_hash: String,    // Hash of sender address for privacy
-    pub to_hash: String,      // Hash of receiver address for privacy
+    pub from_hash: String, // Hash of sender address for privacy
+    pub to_hash: String,   // Hash of receiver address for privacy
     pub amount: u64,
     pub timestamp: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
     pub message_hash: Option<String>,
-    pub mixed: bool,          // Whether this transaction was mixed with others
+    pub mixed: bool, // Whether this transaction was mixed with others
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,7 +52,7 @@ pub struct BalanceState {
     pub address_hash: String,
     pub balance: u64,
     pub last_updated: DateTime<Utc>,
-    pub transaction_count: u64,  // Total transactions processed (for stats only)
+    pub transaction_count: u64, // Total transactions processed (for stats only)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,17 +67,17 @@ pub struct EphemeralStats {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PrivacyLevel {
-    Standard,  // Recent transactions visible, addresses hashed
-    Enhanced,  // Transactions mixed, minimal history
-    Maximum,   // Ultra-short memory, full anonymization
+    Standard, // Recent transactions visible, addresses hashed
+    Enhanced, // Transactions mixed, minimal history
+    Maximum,  // Ultra-short memory, full anonymization
 }
 
 impl Default for EphemeralConfig {
     fn default() -> Self {
         Self {
-            transaction_memory_minutes: 30,  // Keep transactions for 30 minutes
-            max_recent_transactions: 1000,   // Max 1000 recent transactions
-            cleanup_interval_seconds: 300,   // Clean up every 5 minutes
+            transaction_memory_minutes: 30, // Keep transactions for 30 minutes
+            max_recent_transactions: 1000,  // Max 1000 recent transactions
+            cleanup_interval_seconds: 300,  // Clean up every 5 minutes
             enable_mixing: true,
         }
     }
@@ -105,19 +105,26 @@ impl EphemeralStorage {
             if from_address_bytes.len() >= 32 {
                 let mut key_bytes = [0u8; 32];
                 key_bytes.copy_from_slice(&from_address_bytes[..32]);
-                
+
                 if let Ok(public_key) = ed25519_dalek::VerifyingKey::from_bytes(&key_bytes) {
                     if let Err(e) = transaction.validate(&public_key) {
                         tracing::warn!("Ephemeral storage: Transaction validation failed: {}", e);
-                        return Err(anyhow::anyhow!("Transaction signature validation failed: {}", e));
+                        return Err(anyhow::anyhow!(
+                            "Transaction signature validation failed: {}",
+                            e
+                        ));
                     }
-                    tracing::debug!("✅ Ephemeral transaction {} signature validated", transaction.id);
+                    tracing::debug!(
+                        "✅ Ephemeral transaction {} signature validated",
+                        transaction.id
+                    );
                 }
             }
         }
-        
-        let expires_at = Utc::now() + ChronoDuration::minutes(self.config.transaction_memory_minutes);
-        
+
+        let expires_at =
+            Utc::now() + ChronoDuration::minutes(self.config.transaction_memory_minutes);
+
         let ephemeral_tx = EphemeralTransaction {
             id: transaction.id,
             from_hash: self.hash_address(&transaction.from),
@@ -130,7 +137,8 @@ impl EphemeralStorage {
         };
 
         // Update balances
-        self.update_balances(&transaction.from, &transaction.to, transaction.amount).await?;
+        self.update_balances(&transaction.from, &transaction.to, transaction.amount)
+            .await?;
 
         // Store recent transaction
         let mut recent_txs = self.recent_transactions.write().await;
@@ -148,8 +156,11 @@ impl EphemeralStorage {
         recent_txs.push_back(ephemeral_tx);
         tx_index.insert(transaction.id, tx_position);
 
-        tracing::debug!("Stored ephemeral transaction {} (expires: {})", 
-                       transaction.id, expires_at);
+        tracing::debug!(
+            "Stored ephemeral transaction {} (expires: {})",
+            transaction.id,
+            expires_at
+        );
 
         Ok(())
     }
@@ -158,15 +169,18 @@ impl EphemeralStorage {
     pub async fn get_balance(&self, address: &Address) -> Result<u64> {
         let address_hash = self.hash_address(address);
         let balances = self.current_balances.read().await;
-        
+
         Ok(balances.get(&address_hash).copied().unwrap_or(0))
     }
 
     /// Get recent transactions (limited and hashed for privacy)
-    pub async fn get_recent_transactions(&self, limit: Option<usize>) -> Result<Vec<EphemeralTransaction>> {
+    pub async fn get_recent_transactions(
+        &self,
+        limit: Option<usize>,
+    ) -> Result<Vec<EphemeralTransaction>> {
         let recent_txs = self.recent_transactions.read().await;
         let max_return = limit.unwrap_or(50).min(100); // Cap at 100 for performance
-        
+
         let transactions: Vec<EphemeralTransaction> = recent_txs
             .iter()
             .rev() // Most recent first
@@ -179,7 +193,11 @@ impl EphemeralStorage {
     }
 
     /// Get transactions for a specific address (hashed for privacy)
-    pub async fn get_address_transactions(&self, address: &Address, limit: Option<usize>) -> Result<Vec<EphemeralTransaction>> {
+    pub async fn get_address_transactions(
+        &self,
+        address: &Address,
+        limit: Option<usize>,
+    ) -> Result<Vec<EphemeralTransaction>> {
         let address_hash = self.hash_address(address);
         let recent_txs = self.recent_transactions.read().await;
         let max_return = limit.unwrap_or(20).min(50); // Lower limit for address-specific queries
@@ -187,8 +205,8 @@ impl EphemeralStorage {
         let transactions: Vec<EphemeralTransaction> = recent_txs
             .iter()
             .filter(|tx| {
-                tx.expires_at > Utc::now() && 
-                (tx.from_hash == address_hash || tx.to_hash == address_hash)
+                tx.expires_at > Utc::now()
+                    && (tx.from_hash == address_hash || tx.to_hash == address_hash)
             })
             .rev() // Most recent first
             .take(max_return)
@@ -236,13 +254,12 @@ impl EphemeralStorage {
         let cleanup_interval = self.config.cleanup_interval_seconds;
 
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(
-                tokio::time::Duration::from_secs(cleanup_interval)
-            );
+            let mut interval =
+                tokio::time::interval(tokio::time::Duration::from_secs(cleanup_interval));
 
             loop {
                 interval.tick().await;
-                
+
                 let now = Utc::now();
                 let mut recent = recent_txs.write().await;
                 let mut index = tx_index.write().await;
@@ -265,12 +282,18 @@ impl EphemeralStorage {
                     for (pos, tx) in recent.iter().enumerate() {
                         index.insert(tx.id, pos);
                     }
-                    tracing::debug!("Auto-cleanup removed {} expired transactions", removed_count);
+                    tracing::debug!(
+                        "Auto-cleanup removed {} expired transactions",
+                        removed_count
+                    );
                 }
             }
         });
 
-        tracing::info!("Started ephemeral storage auto-cleanup (interval: {}s)", cleanup_interval);
+        tracing::info!(
+            "Started ephemeral storage auto-cleanup (interval: {}s)",
+            cleanup_interval
+        );
         Ok(())
     }
 
@@ -318,7 +341,7 @@ impl EphemeralStorage {
     async fn update_balances(&self, from: &Address, to: &Address, amount: u64) -> Result<()> {
         let from_hash = self.hash_address(from);
         let to_hash = self.hash_address(to);
-        
+
         let mut balances = self.current_balances.write().await;
 
         // Update sender balance
@@ -366,13 +389,13 @@ impl Default for EphemeralStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Address, AddressExt, transaction::Transaction};
+    use crate::{transaction::Transaction, Address, AddressExt};
     use ed25519_dalek::SigningKey;
 
     #[tokio::test]
     async fn test_ephemeral_storage_basic() {
         let storage = EphemeralStorage::new();
-        
+
         // Create test addresses
         let keypair1 = SigningKey::generate(&mut rand::rngs::OsRng);
         let keypair2 = SigningKey::generate(&mut rand::rngs::OsRng);
@@ -392,9 +415,9 @@ mod tests {
             transaction_memory_minutes: 1, // Very short memory for testing
             ..Default::default()
         };
-        
+
         let storage = EphemeralStorage::with_config(config);
-        
+
         // Store a transaction
         let tx = Transaction {
             id: Uuid::new_v4(),

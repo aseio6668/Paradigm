@@ -49,11 +49,15 @@ impl Transaction {
         // Validate message length (10 characters max)
         if let Some(ref msg) = message {
             if msg.len() > 10 {
-                return Err(anyhow::anyhow!("Transaction message cannot exceed 10 characters"));
+                return Err(anyhow::anyhow!(
+                    "Transaction message cannot exceed 10 characters"
+                ));
             }
             // Ensure message contains only printable ASCII characters
             if !msg.chars().all(|c| c.is_ascii() && !c.is_control()) {
-                return Err(anyhow::anyhow!("Transaction message must contain only printable ASCII characters"));
+                return Err(anyhow::anyhow!(
+                    "Transaction message must contain only printable ASCII characters"
+                ));
             }
         }
 
@@ -116,12 +120,12 @@ impl Transaction {
                 .to_le_bytes(),
         );
         hasher.update(&self.nonce.to_le_bytes());
-        
+
         // Include message in signing data
         if let Some(ref message) = self.message {
             hasher.update(message.as_bytes());
         }
-        
+
         hasher.finalize().as_bytes().to_vec()
     }
 
