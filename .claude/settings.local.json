@@ -64,7 +64,13 @@
       "Bash(target/release/paradigm-contributor.exe --help)",
       "Bash(target/release/paradigm-contributor.exe --node-address 127.0.0.1:8080 --verbose)",
       "Bash(curl:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Read(C:\\Users\\aseio\\Documents\\.source\\Paradigm[CC]\\paradigm-core\\src/**)",
+      "Read(C:\\Users\\aseio\\Documents\\.source\\Paradigm[CC]\\paradigm-core\\src/**)",
+      "Bash(find:*)",
+      "Read(C:\\c\\Users\\aseio\\Documents\\.source/**)",
+      "Read(C:\\c\\Users\\aseio\\Documents\\.source/**)",
+      "Bash(sed:*)"
     ],
     "deny": [],
     "ask": [],

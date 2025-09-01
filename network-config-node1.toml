@@ -1,0 +1,34 @@
+[node]
+node_id = "genesis-node-001"
+listen_addr = "127.0.0.1:8080"
+data_dir = "./data/node1"
+log_level = "info"
+
+[network]
+bootstrap_nodes = []
+max_connections = 50
+connection_timeout = 30
+
+[api]
+enabled = true
+port = 8080
+cors_origins = ["*"]
+
+[storage]
+max_capacity = "10GB"
+reward_rate_per_gb = 100_000_000  # 1 PAR per GB per month
+
+[snt]
+enabled = true
+auto_mint_keeper_identity = true
+auto_mint_contribution_rewards = true
+
+[genesis]
+is_genesis = true
+initial_supply = 1000000_000000000  # 1M PAR
+foundation_address = "paradigm1foundation000000000000000000"
+
+[consensus]
+algorithm = "practical_bft"
+block_time = 5
+validators = ["genesis-node-001"]

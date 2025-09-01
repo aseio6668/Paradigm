@@ -1,0 +1,31 @@
+[node]
+node_id = "keeper-node-003"
+listen_addr = "127.0.0.1:8082"
+data_dir = "./data/node3"
+log_level = "info"
+
+[network]
+bootstrap_nodes = ["127.0.0.1:8080", "127.0.0.1:8081"]
+max_connections = 50
+connection_timeout = 30
+
+[api]
+enabled = true
+port = 8082
+cors_origins = ["*"]
+
+[storage]
+max_capacity = "5GB"
+reward_rate_per_gb = 100_000_000  # 1 PAR per GB per month
+
+[snt]
+enabled = true
+auto_mint_keeper_identity = true
+auto_mint_contribution_rewards = true
+
+[genesis]
+is_genesis = false
+
+[consensus]
+algorithm = "practical_bft"
+block_time = 5

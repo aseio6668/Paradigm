@@ -27,6 +27,7 @@ pub mod privacy_blockchain;
 pub mod proof_of_work;
 pub mod secure_networking;
 pub mod storage;
+pub mod metaspace;
 pub mod tokenomics;
 pub mod transaction;
 pub mod transaction_tester;
@@ -134,6 +135,7 @@ pub struct ParadigmNode {
     pub network: Arc<RwLock<network::P2PNetwork>>,
     pub consensus: Arc<RwLock<consensus::ConsensusEngine>>,
     pub storage: Arc<RwLock<storage::ParadigmStorage>>,
+    pub metaspace: Arc<RwLock<metaspace::MetaspaceEngine>>,
     pub governance: Arc<RwLock<governance::AIGovernance>>,
     pub tokenomics: Arc<RwLock<tokenomics::TokenomicsSystem>>,
     pub network_sync: Arc<RwLock<network_sync::NetworkSynchronizer>>,
@@ -200,6 +202,10 @@ impl ParadigmNode {
         let db_url = format!("sqlite://{}", db_path.to_string_lossy().replace('\\', "/"));
 
         let storage = Arc::new(RwLock::new(storage::ParadigmStorage::new(&db_url).await?));
+
+        // Initialize decentralized storage system (Metaspace)
+        let metaspace_config = metaspace::MetaspaceConfig::default();
+        let metaspace = Arc::new(RwLock::new(metaspace::MetaspaceEngine::new(metaspace_config)));
 
         let network = Arc::new(RwLock::new(network::P2PNetwork::new(node_id).await?));
 
@@ -285,6 +291,7 @@ impl ParadigmNode {
             network,
             consensus,
             storage,
+            metaspace,
             governance,
             tokenomics,
             network_sync,
