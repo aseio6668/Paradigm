@@ -1,12 +1,11 @@
 use anyhow::Result;
-use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 /// Memory optimization and management for Paradigm
 use std::alloc::{GlobalAlloc, Layout, System};
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::{Mutex, RwLock};
 
 /// Custom allocator wrapper for tracking memory usage

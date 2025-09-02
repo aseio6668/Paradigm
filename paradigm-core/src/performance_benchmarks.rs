@@ -5,14 +5,14 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use sysinfo::{Pid, System};
+use sysinfo::System;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::consensus::{MLTask, MLTaskType, TaskCapabilities};
 use crate::crypto_optimization::{BenchmarkResults as CryptoBenchmarks, CryptoEngine};
 use crate::parallel_ml::{ParallelMLProcessor, TaskPriority, WorkerNode};
-use crate::storage::{ParadigmStorage, StorageConfig};
+use crate::storage::ParadigmStorage;
 use crate::transaction::Transaction;
 use crate::Address;
 
@@ -851,7 +851,7 @@ mod tests {
     use super::*;
     use crate::crypto_optimization::CryptoEngine;
     use crate::parallel_ml::ParallelMLProcessor;
-    use crate::storage::{ParadigmStorage, StorageConfig};
+    use crate::storage::ParadigmStorage;
 
     #[tokio::test]
     async fn test_performance_benchmarker() {

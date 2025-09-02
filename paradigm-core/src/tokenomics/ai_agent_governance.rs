@@ -8,7 +8,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-use super::{ContributionType, GovernanceProposalStatus, NetworkState};
+use super::NetworkState;
 use crate::{Address, ParadigmError};
 
 pub type Result<T> = std::result::Result<T, ParadigmError>;

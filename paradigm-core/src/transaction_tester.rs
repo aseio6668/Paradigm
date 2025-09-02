@@ -1,11 +1,11 @@
-use crate::{wallet_manager::WalletManager, Address, AddressExt, Keypair, Transaction};
+use crate::{wallet_manager::WalletManager, Address, Transaction};
 use anyhow::Result;
 use chrono::Utc;
 use ed25519_dalek::SigningKey;
 use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
-use tracing::{error, info, warn};
+use tracing::{error, info};
 use uuid::Uuid;
 
 /// Transaction test results
@@ -245,7 +245,7 @@ impl TransactionTester {
 
         if concurrent {
             // Run concurrent transactions
-            let mut handles: Vec<tokio::task::JoinHandle<Result<TransactionTestResult>>> =
+            let handles: Vec<tokio::task::JoinHandle<Result<TransactionTestResult>>> =
                 Vec::new();
 
             for i in 0..num_transactions {

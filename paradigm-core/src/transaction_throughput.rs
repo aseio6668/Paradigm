@@ -3,10 +3,10 @@ use dashmap::DashMap;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 /// High-throughput transaction processing optimization for Paradigm
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{mpsc, oneshot, RwLock, Semaphore};
+use tokio::sync::{mpsc, RwLock, Semaphore};
 use tokio::time::timeout;
 use uuid::Uuid;
 
@@ -96,7 +96,7 @@ impl TransactionPool {
 
         // Check for duplicate nonce (replace-by-fee logic)
         let should_replace =
-            if let Some(mut account_nonces) = self.by_nonce.get_mut(&transaction.from) {
+            if let Some(account_nonces) = self.by_nonce.get_mut(&transaction.from) {
                 if let Some(existing_tx_id) = account_nonces.get(&transaction.nonce) {
                     // Check if new transaction has higher gas price
                     if let Some(existing_tx) = self.pending.get(existing_tx_id) {
@@ -693,7 +693,7 @@ impl ParallelTransactionProcessor {
 fn get_public_key_for_address(_address: &Address) -> ed25519_dalek::VerifyingKey {
     // In a real implementation, this would look up the public key
     // For now, return a dummy key
-    use rand::rngs::OsRng;
+    
     ed25519_dalek::SigningKey::from_bytes(&[0u8; 32]).verifying_key()
 }
 
@@ -701,7 +701,7 @@ fn get_public_key_for_address(_address: &Address) -> ed25519_dalek::VerifyingKey
 mod tests {
     use super::*;
     use crate::crypto_optimization::CryptoEngine;
-    use crate::storage::{ParadigmStorage, StorageConfig};
+    use crate::storage::ParadigmStorage;
 
     #[tokio::test]
     async fn test_transaction_pool() {

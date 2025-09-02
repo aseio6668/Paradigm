@@ -2,18 +2,17 @@
 // Sophisticated AI decision-making system with multi-criteria analysis
 
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use super::neural_consensus::NeuralAnalysisResult;
 use super::predictive_governance::GovernancePrediction;
 use super::{
-    AIDecision, AIModelConfig, DecisionContext, Evidence, ImplementationPlan, LearningUpdate,
+    AIDecision, AIModelConfig, DecisionContext, ImplementationPlan, LearningUpdate,
     MonitoringRequirement, PredictedOutcome, ReasoningStep, Recommendation, RiskAssessment,
 };
 

@@ -498,7 +498,6 @@ mod tests {
         trust_network.initialize().await.unwrap();
 
         use ed25519_dalek::SigningKey;
-        use rand::thread_rng;
 
         let keypair1 = SigningKey::from_bytes(&rand::random());
         let keypair2 = SigningKey::from_bytes(&rand::random());

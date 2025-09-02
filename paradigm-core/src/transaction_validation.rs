@@ -105,7 +105,7 @@ impl Default for NetworkValidationConfig {
             transaction_timeout_hours: 24,
             rate_limit_per_address_per_hour: 1000,
             require_memo_for_large_amounts: true,
-            large_amount_threshold: 10_000_00000000, // 10,000 PAR
+            large_amount_threshold: 1_000_000_000_000, // 10,000 PAR
             enable_address_whitelist: false,
             enable_address_blacklist: true,
             enable_risk_scoring: true,
@@ -737,7 +737,6 @@ mod tests {
     use super::*;
     use crate::{transaction::Transaction, AddressExt};
     use ed25519_dalek::SigningKey;
-    use rand::rngs::OsRng;
 
     #[tokio::test]
     async fn test_transaction_validator() {

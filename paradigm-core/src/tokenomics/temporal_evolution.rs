@@ -578,7 +578,7 @@ impl TemporalStakingSystem {
                 1.0
             };
 
-            let bonus_amount = (total_staked as f64 * 0.001 * average_multiplier); // Daily bonus based on staked amount
+            let bonus_amount = total_staked as f64 * 0.001 * average_multiplier; // Daily bonus based on staked amount
 
             Ok(StakingEffects {
                 total_staked,

@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{mpsc, RwLock, Semaphore};
-use tracing::{debug, error, info, warn};
+use tokio::sync::{RwLock, Semaphore};
+use tracing::{debug, info};
 use uuid::Uuid;
 
 use crate::{Address, ParadigmError, Transaction};

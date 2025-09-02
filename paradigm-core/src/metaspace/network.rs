@@ -5,7 +5,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
 use super::keeper::Keeper;
-use super::proofs::{RetrievabilityProof, StorageChallenge, StorageProof};
+use super::proofs::{StorageChallenge, StorageProof};
 use super::sigil::Sigil;
 
 /// Network protocol messages for storage operations

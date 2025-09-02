@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, RwLock, Semaphore};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 use uuid::Uuid;
 
 use crate::{Address, ParadigmError, Transaction};
@@ -265,7 +265,7 @@ impl ParallelExecutor {
     /// Create execution waves based on dependencies
     fn create_execution_waves(
         &self,
-        mut analyses: Vec<(Transaction, ConflictAnalysis)>,
+        analyses: Vec<(Transaction, ConflictAnalysis)>,
     ) -> Result<Vec<ExecutionWave>> {
         let mut waves = Vec::new();
         let mut remaining_transactions: HashMap<Uuid, (Transaction, ConflictAnalysis)> = analyses

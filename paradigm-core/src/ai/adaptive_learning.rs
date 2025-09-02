@@ -2,12 +2,8 @@
 // Continuous learning and model improvement system
 
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use uuid::Uuid;
 
 use super::{AIDecision, AIModelConfig, LearningUpdate};
 

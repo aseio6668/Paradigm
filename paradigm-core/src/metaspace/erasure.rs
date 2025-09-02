@@ -132,7 +132,7 @@ impl ErasureEncoder {
         sorted_shards.sort_by_key(|s| s.index);
 
         // Collect data shards
-        let mut data_shards: Vec<_> = sorted_shards
+        let data_shards: Vec<_> = sorted_shards
             .into_iter()
             .filter(|s| s.is_data_shard)
             .collect();
@@ -171,7 +171,6 @@ impl ErasureEncoder {
 
 /// High-level functions for the storage system
 /// These are the functions used by the main storage engine
-
 /// Create data shards using erasure coding
 pub fn create_shards(
     data: Vec<u8>,

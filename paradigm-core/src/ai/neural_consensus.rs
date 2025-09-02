@@ -2,12 +2,11 @@
 // Advanced AI-driven consensus mechanism using neural networks
 
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use super::{AIModelConfig, DecisionContext, DecisionOutcome};

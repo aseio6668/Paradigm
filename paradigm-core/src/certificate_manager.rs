@@ -2,7 +2,7 @@
 // Handles TLS certificate generation, validation, and rotation for secure communications
 
 use anyhow::Result;
-use rcgen::{Certificate, CertificateParams, DistinguishedName, DnType, KeyPair, SanType};
+use rcgen::{Certificate, CertificateParams, DistinguishedName, DnType, SanType};
 use rustls::{Certificate as RustlsCert, PrivateKey, ServerConfig};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

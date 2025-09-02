@@ -1,7 +1,6 @@
 use crate::{genesis::AIGovernanceParams, storage::ParadigmStorage, Address, Amount};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
@@ -158,7 +157,7 @@ impl DynamicFeeCalculator {
                 contributor_load: reward_system.active_contributors as f64
                     / reward_system.total_contributors as f64,
                 reward_pool_health: (reward_system.reward_pool_balance as f64)
-                    / (100_000_00000000.0), // Health as % of 100k PAR
+                    / (10_000_000_000_000.0), // Health as % of 100k PAR
                 governance_multiplier: governance_params.fee_sensitivity,
             },
         };

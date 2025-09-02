@@ -1,7 +1,7 @@
 use crate::{Address, Keypair};
 use blake3::Hasher;
 use chrono::{DateTime, Utc};
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature, Signer, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -248,8 +248,7 @@ impl TransactionPool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Keypair;
-    use rand::thread_rng;
+    use ed25519_dalek::SigningKey;
 
     #[test]
     fn test_transaction_creation() {

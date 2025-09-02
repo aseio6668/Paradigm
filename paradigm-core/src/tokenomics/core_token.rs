@@ -344,7 +344,6 @@ pub struct ComputeCredits {
 mod tests {
     use super::*;
     use ed25519_dalek::SigningKey;
-    use rand::thread_rng;
 
     #[tokio::test]
     async fn test_core_token_basic_operations() {

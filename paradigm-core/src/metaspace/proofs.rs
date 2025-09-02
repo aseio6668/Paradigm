@@ -1,6 +1,4 @@
-use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -220,7 +218,7 @@ impl ProofEngine {
                 let hash_seed = sigil_hash
                     .chars()
                     .fold(0u32, |acc, c| acc.wrapping_mul(31).wrapping_add(c as u32));
-                let start = ((hash_seed.wrapping_add(i as u32 * 17) as usize) % (data_size - 100));
+                let start = (hash_seed.wrapping_add(i as u32 * 17) as usize) % (data_size - 100);
                 let end = std::cmp::min(start + 100, data_size); // 100 byte samples
                 ranges.push((start, end));
             }

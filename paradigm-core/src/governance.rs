@@ -120,7 +120,7 @@ impl AIGovernance {
     /// Calculate available rewards for this distribution cycle
     async fn calculate_available_rewards(&self) -> Result<u64> {
         // Use ML model to determine optimal reward amount
-        let base_reward = 1_000_000_00000000u64; // 10 PAR base
+        let base_reward = 1_000_000_000_000_000u64; // 10 PAR base
 
         // Adjust based on network activity
         let activity_multiplier = self.network_metrics.get_activity_multiplier();

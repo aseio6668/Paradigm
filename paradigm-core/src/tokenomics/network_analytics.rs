@@ -3,12 +3,12 @@ use serde::{Deserialize, Serialize};
 /// Real-time Network Analytics Dashboard
 /// Provides comprehensive monitoring, metrics collection, and visualization
 /// for the Paradigm tokenomics network
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-use super::{ContributionType, EconomicParameters, NetworkState};
+use super::{ContributionType, NetworkState};
 use crate::{Address, ParadigmError};
 
 pub type Result<T> = std::result::Result<T, ParadigmError>;

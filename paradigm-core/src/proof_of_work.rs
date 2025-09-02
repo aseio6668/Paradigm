@@ -335,7 +335,7 @@ impl Block {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Address, AddressExt, Keypair};
+    use crate::AddressExt;
     use ed25519_dalek::SigningKey;
 
     #[tokio::test]

@@ -452,7 +452,7 @@ impl CryptoEngine {
         results.hash_ops_per_sec = iterations as f64 / start.elapsed().as_secs_f64();
 
         // Signature benchmarks
-        let mut csprng = OsRng;
+        let csprng = OsRng;
         let signing_key = SigningKey::from_bytes(&[0u8; 32]);
         let verifying_key = signing_key.verifying_key();
 

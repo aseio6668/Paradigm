@@ -8,10 +8,10 @@ use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, RwLock};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
-use crate::{Address, ParadigmError, Transaction};
+use crate::Address;
 
 /// Database optimization configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

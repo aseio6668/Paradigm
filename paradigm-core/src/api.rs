@@ -1,6 +1,6 @@
 use crate::{
     autonomous_tasks::AutonomousTaskGenerator, peer_manager::PeerManager, storage::ParadigmStorage,
-    Address, AddressExt, Amount, Transaction,
+    Address, Transaction,
 };
 use axum::{
     extract::State,

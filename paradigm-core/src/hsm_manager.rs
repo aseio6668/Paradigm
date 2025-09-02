@@ -6,14 +6,13 @@ use anyhow::Result;
 use ring::rand::SecureRandom;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::Path;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 use uuid::Uuid;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::Zeroize;
 
-use crate::{Address, AddressExt, Hash, PublicKey};
+use crate::{Address, AddressExt, PublicKey};
 
 /// HSM configuration and connection parameters
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,8 +69,8 @@ pub enum CryptoAlgorithm {
     Ed25519,
     RSA2048,
     RSA4096,
-    ECDSA_P256,
-    ECDSA_P384,
+    EcdsaP256,
+    EcdsaP384,
     AES256,
     ChaCha20Poly1305,
 }
@@ -523,7 +522,7 @@ impl HSMManager {
         match self.config.hsm_type {
             HSMType::Software => Ok(()), // Software HSM supports all algorithms
             HSMType::YubiKey => match algorithm {
-                CryptoAlgorithm::RSA2048 | CryptoAlgorithm::ECDSA_P256 => Ok(()),
+                CryptoAlgorithm::RSA2048 | CryptoAlgorithm::EcdsaP256 => Ok(()),
                 _ => Err(anyhow::anyhow!("YubiKey does not support {:?}", algorithm)),
             },
             _ => Ok(()), // Other HSMs generally support all algorithms

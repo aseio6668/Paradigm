@@ -14,7 +14,6 @@ use uuid::Uuid;
 
 use crate::certificate_manager::CertificateManager;
 use crate::transaction::Transaction;
-use rand::Rng;
 
 /// Secure message types for P2P communication
 #[derive(Debug, Clone, Serialize, Deserialize)]

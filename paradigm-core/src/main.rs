@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::{Arg, Command};
-use paradigm_core::api::{generate_sample_tasks, start_api_server, ApiState};
+use paradigm_core::api::{start_api_server, ApiState};
 use paradigm_core::genesis::{GenesisConfig, GenesisManager};
 use paradigm_core::{NodeConfig, ParadigmNode, PARADIGM_VERSION};
 use std::path::PathBuf;

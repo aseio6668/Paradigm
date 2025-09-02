@@ -72,7 +72,7 @@ pub struct GenesisFeatures {
 impl Default for GenesisConfig {
     fn default() -> Self {
         Self {
-            initial_supply: 21_000_000_00000000, // 21M PAR with 8 decimals
+            initial_supply: 2_100_000_000_000_000, // 21M PAR with 8 decimals
             genesis_time: Utc::now(),
             ai_governance_params: AIGovernanceParams::default(),
             network_config: NetworkGenesisConfig::default(),

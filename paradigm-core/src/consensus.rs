@@ -249,7 +249,7 @@ impl ConsensusEngine {
 
     /// Process pending rewards and create reward transactions
     pub async fn process_pending_rewards(&mut self) -> Vec<Transaction> {
-        let mut reward_transactions = Vec::new();
+        let reward_transactions = Vec::new();
 
         for (contributor, reward) in self.pending_rewards.drain() {
             // Create a reward transaction from the network treasury
@@ -312,7 +312,6 @@ pub struct NetworkStats {
 mod tests {
     use super::*;
     use ed25519_dalek::SigningKey;
-    use rand::thread_rng;
 
     #[tokio::test]
     async fn test_consensus_engine() {

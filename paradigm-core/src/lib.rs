@@ -119,14 +119,14 @@ pub const DEFAULT_PORT: u16 = 8080;
 pub const MAX_PEERS: usize = 50;
 
 /// Economic constants
-pub const TOTAL_SUPPLY: u64 = 8_000_000_000_00000000; // 8 billion PAR with 8 decimal places
+pub const TOTAL_SUPPLY: u64 = 800_000_000_000_000_000; // 8 billion PAR with 8 decimal places
 pub const DECIMALS: u8 = 8;
-pub const FIRST_YEAR_DISTRIBUTION: u64 = 100_000_000_00000000; // 100 million PAR in first year
+pub const FIRST_YEAR_DISTRIBUTION: u64 = 10_000_000_000_000_000; // 100 million PAR in first year
 
 /// ML Task and Consensus Constants
 pub const MIN_TASK_DIFFICULTY: u32 = 1;
 pub const MAX_TASK_DIFFICULTY: u32 = 10;
-pub const BASE_REWARD: u64 = 100_00000000; // 100 PAR base reward
+pub const BASE_REWARD: u64 = 10_000_000_000; // 100 PAR base reward
 pub const CONSENSUS_TIMEOUT_SECS: u64 = 30;
 
 /// Core Paradigm Node
@@ -365,7 +365,7 @@ impl ParadigmNode {
 
         // Graceful shutdown
         {
-            let mut network = self.network.write().await;
+            let network = self.network.write().await;
             // network.stop().await?; // TODO: implement stop method
         }
 
@@ -452,7 +452,7 @@ impl ParadigmNode {
         );
 
         // Store the validated transaction in storage
-        let mut storage = self.storage.write().await;
+        let storage = self.storage.write().await;
         storage.store_transaction(&transaction).await?;
 
         // Broadcast to network
@@ -688,7 +688,7 @@ mod tests {
 
     #[test]
     fn test_constants() {
-        assert_eq!(TOTAL_SUPPLY, 8_000_000_000_00000000);
+        assert_eq!(TOTAL_SUPPLY, 800_000_000_000_000_000);
         assert_eq!(DECIMALS, 8);
         assert_eq!(DEFAULT_PORT, 8080);
     }

@@ -3,11 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use uuid::Uuid;
 
 use crate::storage::ParadigmStorage;
-use crate::transaction::Transaction;
-use crate::Address;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NetworkSyncData {

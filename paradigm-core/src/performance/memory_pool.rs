@@ -6,11 +6,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-use crate::{Address, ParadigmError, Transaction};
+use crate::{Address, Transaction};
 
 /// Memory pool configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

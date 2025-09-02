@@ -1,6 +1,5 @@
 use crate::Address;
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -640,7 +639,6 @@ mod tests {
         privacy_system.initialize().await.unwrap();
 
         use ed25519_dalek::SigningKey;
-        use rand::thread_rng;
 
         let keypair = SigningKey::from_bytes(&rand::random());
         let contributor = Address::from_public_key(&keypair.verifying_key());

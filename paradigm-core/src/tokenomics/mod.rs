@@ -20,29 +20,44 @@ pub mod staking_module;
 pub mod temporal_evolution;
 pub mod treasury_manager;
 
+#[allow(ambiguous_glob_reexports)]
 pub use advanced_governance::*;
+#[allow(ambiguous_glob_reexports)]
 pub use ai_agent_governance::*;
+#[allow(ambiguous_glob_reexports)]
 pub use ai_optimizer::*;
+#[allow(ambiguous_glob_reexports)]
 pub use analytics_api::*;
+#[allow(ambiguous_glob_reexports)]
 pub use bridge_adapter::*;
+#[allow(ambiguous_glob_reexports)]
 pub use contribution_validator::*;
+#[allow(ambiguous_glob_reexports)]
 pub use core_token::*;
+#[allow(ambiguous_glob_reexports)]
 pub use decay_mechanism::*;
+#[allow(ambiguous_glob_reexports)]
 pub use governance_module::*;
+#[allow(ambiguous_glob_reexports)]
 pub use model_hosting::*;
+#[allow(ambiguous_glob_reexports)]
 pub use network_analytics::*;
+#[allow(ambiguous_glob_reexports)]
 pub use privacy_preserving::*;
+#[allow(ambiguous_glob_reexports)]
 pub use quantum_resistant::*;
 pub use reputation_ledger::{ReputationLedger, ReputationMetrics as LedgerReputationMetrics};
 pub use reward_engine::{NetworkConditions, RewardEngine, RewardStats};
+#[allow(ambiguous_glob_reexports)]
 pub use staking_module::*;
+#[allow(ambiguous_glob_reexports)]
 pub use temporal_evolution::*;
+#[allow(ambiguous_glob_reexports)]
 pub use treasury_manager::*;
 
 use crate::Address;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use uuid::Uuid;
 
 /// Central tokenomics coordinator that manages all modules

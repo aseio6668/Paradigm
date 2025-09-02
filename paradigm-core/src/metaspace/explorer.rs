@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use super::ui::{SigilDisplayData, UIFilters};
+use super::ui::SigilDisplayData;
 use super::{DataCategory, Element, Glyph, Importance, Sigil};
 
 /// Sigil Explorer - Browse and discover sigils by symbolic meaning

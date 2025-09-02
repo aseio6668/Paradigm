@@ -4,7 +4,6 @@ use blake3::{Hash, Hasher};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use uuid::Uuid;
 
 /// Validates AI work and mints tokens using ZK proofs and attestations
 #[derive(Debug)]
@@ -457,7 +456,7 @@ impl WorkloadValidator for DataValidator {
 mod tests {
     use super::*;
     use ed25519_dalek::SigningKey;
-    use rand::thread_rng;
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn test_contribution_validation() {

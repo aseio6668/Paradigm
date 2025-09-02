@@ -9,7 +9,6 @@ use rand::rngs::OsRng;
 use rand::RngCore;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use std::{fs, path::PathBuf, time::Duration};
 use tracing::{error, info, warn};
 use uuid::Uuid;
@@ -18,7 +17,6 @@ mod gpu_compute;
 mod performance_monitor;
 mod task_manager;
 
-use gpu_compute::{GpuBackend, GpuComputeEngine};
 use performance_monitor::PerformanceMonitor;
 use task_manager::TaskManager;
 

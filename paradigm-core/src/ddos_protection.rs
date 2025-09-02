@@ -8,7 +8,6 @@ use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use uuid::Uuid;
 
 /// Request types for rate limiting
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

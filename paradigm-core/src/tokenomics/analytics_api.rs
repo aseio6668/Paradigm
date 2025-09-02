@@ -7,8 +7,8 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-use super::{AlertSeverity, AnalyticsReport, DashboardData, TimeFrame, TokenomicsSystem};
-use crate::{Address, ParadigmError};
+use super::{AlertSeverity, DashboardData, TimeFrame, TokenomicsSystem};
+use crate::ParadigmError;
 
 pub type Result<T> = std::result::Result<T, ParadigmError>;
 

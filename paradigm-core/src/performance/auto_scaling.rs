@@ -6,11 +6,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-use crate::{Address, ParadigmError};
 
 /// Auto-scaling configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

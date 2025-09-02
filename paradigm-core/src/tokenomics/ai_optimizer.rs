@@ -1,7 +1,5 @@
-use crate::Address;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// AI-driven tokenomics optimization engine
 /// Uses reinforcement learning and evolutionary algorithms to continuously optimize

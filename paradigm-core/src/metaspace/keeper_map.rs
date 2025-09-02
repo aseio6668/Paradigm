@@ -2,7 +2,6 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use super::ui::KeeperDisplayData;
 use super::{Keeper, KeeperStatus};
 
 /// Keeper Map - Visualize the keeper network as a living constellation

@@ -1,4 +1,4 @@
-use crate::metaspace::{DataCategory, Element, Glyph, Importance, Keeper, KeeperStatus};
+use crate::metaspace::{DataCategory, Element, Glyph, Importance};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

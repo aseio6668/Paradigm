@@ -6,12 +6,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{Mutex, RwLock, Semaphore};
+use tokio::sync::{RwLock, Semaphore};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-use super::PerformanceMetrics;
-use crate::{Address, ParadigmError, Transaction};
+use crate::{ParadigmError, Transaction};
 
 /// Transaction batch for optimized processing
 #[derive(Debug, Clone)]

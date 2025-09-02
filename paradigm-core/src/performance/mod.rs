@@ -11,18 +11,27 @@ pub mod network_scaling;
 pub mod parallel_processing;
 pub mod transaction_batching;
 
+#[allow(ambiguous_glob_reexports)]
 pub use auto_scaling::*;
+#[allow(ambiguous_glob_reexports)]
 pub use cache_manager::*;
+#[allow(ambiguous_glob_reexports)]
 pub use consensus_optimization::*;
+#[allow(ambiguous_glob_reexports)]
 pub use database_optimization::*;
+#[allow(ambiguous_glob_reexports)]
 pub use memory_pool::*;
+#[allow(ambiguous_glob_reexports)]
 pub use metrics_collector::*;
+#[allow(ambiguous_glob_reexports)]
 pub use network_scaling::*;
+#[allow(ambiguous_glob_reexports)]
 pub use parallel_processing::*;
+#[allow(ambiguous_glob_reexports)]
 pub use transaction_batching::*;
 
 use serde::{Deserialize, Serialize};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// Performance metrics and monitoring
 #[derive(Debug, Clone, Serialize, Deserialize)]

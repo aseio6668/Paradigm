@@ -1,8 +1,7 @@
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use super::{Glyph, Keeper, MetaspaceStats, RewardStatistics, Sigil};
+use super::{Keeper, MetaspaceStats, Sigil};
 use crate::Amount;
 
 /// Main UI state and controller for the Mythic Metaspace Dashboard

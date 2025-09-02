@@ -788,7 +788,7 @@ impl KeyPair {
         match key_type {
             KeyType::Ed25519 => {
                 use ed25519_dalek::{SigningKey, VerifyingKey};
-                use rand::rngs::OsRng;
+                
 
                 let signing_key = SigningKey::from_bytes(&rand::random());
                 let verifying_key = VerifyingKey::from(&signing_key);
@@ -817,7 +817,7 @@ impl KeyPair {
     pub fn sign(&self, data: &[u8]) -> Result<Signature> {
         match self.key_type {
             KeyType::Ed25519 => {
-                use ed25519_dalek::{Signature as Ed25519Signature, Signer, SigningKey};
+                use ed25519_dalek::{Signer, SigningKey};
 
                 let signing_key =
                     SigningKey::from_bytes(&self.private_key.clone().try_into().map_err(|_| {

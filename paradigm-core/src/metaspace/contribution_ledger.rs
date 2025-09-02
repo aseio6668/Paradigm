@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use super::rewards::{RewardStatistics, RewardTransaction, RewardType};
+use super::rewards::{RewardTransaction, RewardType};
 use super::{Keeper, Sigil};
 use crate::Amount;
 

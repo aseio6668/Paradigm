@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 /// Implements post-quantum cryptographic primitives to future-proof against quantum attacks
 /// Uses lattice-based and hash-based signature schemes for long-term security
 use std::collections::HashMap;
-use uuid::Uuid;
 
 /// Quantum-resistant cryptography manager
 #[derive(Debug)]

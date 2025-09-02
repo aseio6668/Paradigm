@@ -4,7 +4,7 @@ use libp2p::{
     gossipsub,
     identity::Keypair as LibP2PKeypair,
     kad, mdns, noise,
-    swarm::{NetworkBehaviour, Swarm, SwarmEvent},
+    swarm::{NetworkBehaviour, Swarm},
     tcp, yamux, PeerId, Transport,
 };
 use serde::{Deserialize, Serialize};

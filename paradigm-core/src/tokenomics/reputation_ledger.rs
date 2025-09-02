@@ -1,9 +1,8 @@
-use super::{ContributionType, ValidationResult};
+use super::ValidationResult;
 use crate::Address;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use uuid::Uuid;
 
 /// Reputation ledger that tracks contributor trust and history
 /// Implements Sybil-resistant, decay-based, peer validation system
@@ -502,7 +501,6 @@ pub struct ReputationStats {
 mod tests {
     use super::*;
     use ed25519_dalek::SigningKey;
-    use rand::thread_rng;
 
     #[tokio::test]
     async fn test_reputation_initialization() {

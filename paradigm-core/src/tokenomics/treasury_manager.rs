@@ -1,4 +1,4 @@
-use super::{ContributionType, ValidationResult};
+use super::ValidationResult;
 use crate::Address;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -177,7 +177,7 @@ impl TreasuryManager {
         for proposal_id in proposal_ids_to_process {
             // Get proposal clone for decision calculation
             let proposal_clone = if let Some(proposal) = self.active_proposals.get(&proposal_id) {
-                proposal.clone()
+                proposal
             } else {
                 continue;
             };
@@ -609,7 +609,6 @@ pub struct TreasuryStats {
 mod tests {
     use super::*;
     use ed25519_dalek::SigningKey;
-    use rand::thread_rng;
 
     #[tokio::test]
     async fn test_treasury_proposal_flow() {

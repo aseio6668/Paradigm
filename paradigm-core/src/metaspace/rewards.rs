@@ -1,13 +1,12 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use super::glyph::Glyph;
 use super::keeper::Keeper;
 use super::proofs::ProofVerificationResult;
 use super::sigil::Sigil;
-use crate::{Address, Amount};
+use crate::Amount;
 
 /// Reward calculation and distribution system for storage contributors
 pub struct StorageRewardEngine {
@@ -479,7 +478,6 @@ pub struct RewardStatistics {
 #[cfg(test)]
 mod tests {
     use super::super::glyph::{DataCategory, Element, Importance};
-    use super::super::keeper::KeeperStatus;
     use super::*;
 
     #[test]

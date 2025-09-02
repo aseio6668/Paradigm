@@ -1,8 +1,7 @@
 use crate::{transaction::Transaction, Address, AddressExt, Keypair, PublicKey};
 use anyhow::Result;
 use blake3::Hasher;
-use ed25519_dalek::{SecretKey, SigningKey, VerifyingKey};
-use rand::thread_rng;
+use ed25519_dalek::SigningKey;
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
