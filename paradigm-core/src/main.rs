@@ -149,9 +149,10 @@ async fn main() -> Result<()> {
         tracing::info!("Initializing genesis blockchain...");
 
         // Create genesis manager
+        let db_path = data_dir.join("paradigm.db");
         let storage = paradigm_core::storage::ParadigmStorage::new(&format!(
-            "sqlite://{}/paradigm.db",
-            data_dir.to_string_lossy().replace('\\', "/")
+            "sqlite://{}",
+            db_path.display()
         ))
         .await?;
 

@@ -199,7 +199,7 @@ impl ParadigmNode {
         std::fs::create_dir_all(&absolute_data_path)?;
 
         let db_path = absolute_data_path.join("paradigm.db");
-        let db_url = format!("sqlite://{}", db_path.to_string_lossy().replace('\\', "/"));
+        let db_url = format!("sqlite://{}", db_path.display());
 
         let storage = Arc::new(RwLock::new(storage::ParadigmStorage::new(&db_url).await?));
 
