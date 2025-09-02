@@ -15,7 +15,7 @@ use std::time::Instant;
 use tokio::sync::RwLock;
 
 /// High-performance signature cache for avoiding redundant verifications
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SignatureCache {
     cache: DashMap<Vec<u8>, (bool, Instant)>,
     ttl_seconds: u64,
@@ -97,6 +97,15 @@ pub struct HashPool {
     thread_pool: rayon::ThreadPool,
 }
 
+impl Clone for HashPool {
+    fn clone(&self) -> Self {
+        // Create a new thread pool with the same configuration
+        Self::new(self.thread_pool.current_num_threads()).unwrap_or_else(|_| {
+            Self::new(4).unwrap() // fallback to 4 threads
+        })
+    }
+}
+
 impl HashPool {
     pub fn new(num_threads: usize) -> Result<Self> {
         let thread_pool = rayon::ThreadPoolBuilder::new()
@@ -171,7 +180,7 @@ impl HashPool {
 }
 
 /// Optimized signature operations with batching and caching
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OptimizedSignatureEngine {
     cache: SignatureCache,
     hash_pool: HashPool,

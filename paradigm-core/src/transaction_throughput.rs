@@ -781,6 +781,7 @@ mod tests {
             timestamp: chrono::Utc::now(),
             signature: vec![index as u8; 64],
             nonce: index,
+            message: None,
         }
     }
 
@@ -794,6 +795,7 @@ mod tests {
             timestamp: chrono::Utc::now(),
             signature: vec![nonce as u8; 64],
             nonce,
+            message: None,
         }
     }
 }

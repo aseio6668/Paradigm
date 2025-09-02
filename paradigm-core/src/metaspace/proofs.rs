@@ -419,7 +419,7 @@ mod tests {
 
     #[test]
     fn test_retrievability_proof() {
-        let engine = ProofEngine::new();
+        let mut engine = ProofEngine::new();
         let test_data = b"Hello, World! This is test data for retrievability proof.";
 
         // Issue retrievability challenge

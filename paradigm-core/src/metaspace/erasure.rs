@@ -268,7 +268,7 @@ mod tests {
 
         // Should fail due to checksum mismatch
         let result = encoder.decode(shards);
-        assert!(result.is_err());
+        assert!(result.is_err(), "Checksum mismatch should produce an error");
     }
 
     #[test]

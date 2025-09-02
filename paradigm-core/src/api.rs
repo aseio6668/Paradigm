@@ -669,14 +669,15 @@ async fn create_payout_transaction(recipient_address: &str, amount: u64, tx_id: 
 
     // Create the transaction
     let mut transaction = Transaction {
-        id: tx_id.to_string(),
+        id: tx_id,
         from: from_address,
         to: to_address,
-        amount: Amount::from_sat(amount),
-        timestamp: chrono::Utc::now().timestamp() as u64,
-        signature: None,
+        amount: amount,
+        timestamp: chrono::Utc::now(),
+        signature: vec![],
         nonce: 0, // This would normally be managed by the wallet
-        fee: Amount::from_sat(1000), // Small fee (0.00001 PAR)
+        fee: 1000, // Small fee (0.00001 PAR)
+        message: None,
     };
 
     // In a real implementation, we would sign with the treasury's private key

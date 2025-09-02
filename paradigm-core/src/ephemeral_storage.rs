@@ -426,7 +426,9 @@ mod tests {
             amount: 100,
             fee: 1,
             message: Some("test".to_string()),
-            timestamp: chrono::Utc::now().timestamp(),
+            timestamp: chrono::Utc::now(),
+            signature: vec![],
+            nonce: 0,
         };
 
         storage.store_transaction(&tx).await.unwrap();
