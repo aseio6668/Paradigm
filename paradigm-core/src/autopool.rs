@@ -7,7 +7,6 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
-
 /// Minimum PAR amount that can be distributed (1 satoshi = 0.00000001 PAR)
 pub const MIN_PAR_AMOUNT: u64 = 1;
 

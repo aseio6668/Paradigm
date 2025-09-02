@@ -95,21 +95,21 @@ impl TransactionPool {
         }
 
         // Check for duplicate nonce (replace-by-fee logic)
-        let should_replace =
-            if let Some(account_nonces) = self.by_nonce.get_mut(&transaction.from) {
-                if let Some(existing_tx_id) = account_nonces.get(&transaction.nonce) {
-                    // Check if new transaction has higher gas price
-                    if let Some(existing_tx) = self.pending.get(existing_tx_id) {
-                        transaction.fee > existing_tx.gas_price
-                    } else {
-                        true
-                    }
+        let should_replace = if let Some(account_nonces) = self.by_nonce.get_mut(&transaction.from)
+        {
+            if let Some(existing_tx_id) = account_nonces.get(&transaction.nonce) {
+                // Check if new transaction has higher gas price
+                if let Some(existing_tx) = self.pending.get(existing_tx_id) {
+                    transaction.fee > existing_tx.gas_price
                 } else {
-                    false
+                    true
                 }
             } else {
                 false
-            };
+            }
+        } else {
+            false
+        };
 
         if should_replace {
             // Remove existing transaction
@@ -693,7 +693,7 @@ impl ParallelTransactionProcessor {
 fn get_public_key_for_address(_address: &Address) -> ed25519_dalek::VerifyingKey {
     // In a real implementation, this would look up the public key
     // For now, return a dummy key
-    
+
     ed25519_dalek::SigningKey::from_bytes(&[0u8; 32]).verifying_key()
 }
 

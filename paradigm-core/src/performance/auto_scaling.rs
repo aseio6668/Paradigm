@@ -10,7 +10,6 @@ use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-
 /// Auto-scaling configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutoScalingConfig {

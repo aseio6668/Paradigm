@@ -788,7 +788,6 @@ impl KeyPair {
         match key_type {
             KeyType::Ed25519 => {
                 use ed25519_dalek::{SigningKey, VerifyingKey};
-                
 
                 let signing_key = SigningKey::from_bytes(&rand::random());
                 let verifying_key = VerifyingKey::from(&signing_key);

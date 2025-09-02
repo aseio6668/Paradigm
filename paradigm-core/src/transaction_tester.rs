@@ -245,8 +245,7 @@ impl TransactionTester {
 
         if concurrent {
             // Run concurrent transactions
-            let handles: Vec<tokio::task::JoinHandle<Result<TransactionTestResult>>> =
-                Vec::new();
+            let handles: Vec<tokio::task::JoinHandle<Result<TransactionTestResult>>> = Vec::new();
 
             for i in 0..num_transactions {
                 let test_message = format!("test-{}", i);
