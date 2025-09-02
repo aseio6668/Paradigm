@@ -10,7 +10,7 @@ interface SNTCardProps {
   compact?: boolean;
 }
 
-const CardContainer = styled(motion.div)<{ $elementColor: string; $importanceColor: string; $compact?: boolean }>`
+const CardContainer = styled(motion.div)<{ $elementColor: string; $importanceColor: string; $compact?: boolean; onClick?: () => void }>`
   background: linear-gradient(135deg, 
     rgba(${props => hexToRgb(props.$elementColor)}, 0.2) 0%,
     rgba(${props => hexToRgb(props.$importanceColor)}, 0.1) 100%);

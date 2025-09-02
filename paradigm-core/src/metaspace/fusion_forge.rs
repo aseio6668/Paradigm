@@ -197,17 +197,22 @@ impl FusionForge {
     }
 
     fn update_workbench_preview(&mut self, fusion_id: &str, sigils: &HashMap<String, Sigil>) -> Result<()> {
-        let workbench = self.active_fusions.get_mut(fusion_id)
-            .ok_or_else(|| anyhow!("Workbench not found"))?;
+        // Extract data first to avoid borrowing conflicts
+        let (selected_sigil_hashes, fusion_mode, creator) = {
+            let workbench = self.active_fusions.get(fusion_id)
+                .ok_or_else(|| anyhow!("Workbench not found"))?;
+            (workbench.selected_sigils.clone(), workbench.fusion_mode.clone(), workbench.creator.clone())
+        };
 
-        if workbench.selected_sigils.is_empty() {
+        if selected_sigil_hashes.is_empty() {
+            let workbench = self.active_fusions.get_mut(fusion_id).unwrap();
             workbench.preview_tome = None;
             workbench.energy_cost = 0;
             workbench.success_probability = 0.0;
             return Ok(());
         }
 
-        let selected_sigils: Vec<&Sigil> = workbench.selected_sigils
+        let selected_sigils: Vec<&Sigil> = selected_sigil_hashes
             .iter()
             .filter_map(|hash| sigils.get(hash))
             .collect();
@@ -216,16 +221,14 @@ impl FusionForge {
             return Err(anyhow!("No valid sigils selected"));
         }
 
-        // Extract fusion mode to avoid borrowing conflicts
-        let fusion_mode = workbench.fusion_mode.clone();
         let fusion_glyph = self.calculate_fusion_glyph(&selected_sigils, &fusion_mode);
         let (energy_cost, success_probability) = self.calculate_fusion_metrics(&selected_sigils, &fusion_mode);
 
         let preview_tome = Tome {
             tome_hash: format!("preview_{}", fusion_id),
-            sigil_hashes: workbench.selected_sigils.clone(),
+            sigil_hashes: selected_sigil_hashes.clone(),
             glyph: fusion_glyph.clone(),
-            originator: workbench.creator.clone(),
+            originator: creator.clone(),
             filename: Some(format!("Fused_{}", selected_sigils.len())),
             mime_type: Some("application/paradigm-tome".to_string()),
             total_size: selected_sigils.iter().map(|s| s.size as usize).sum(),
@@ -235,13 +238,15 @@ impl FusionForge {
                 .as_secs(),
             access_policy: crate::metaspace::AccessPolicy::Open,
             fusion_metadata: Some(FusionMetadata {
-                fusion_mode: workbench.fusion_mode.clone(),
+                fusion_mode: fusion_mode.clone(),
                 component_count: selected_sigils.len(),
                 elemental_signature: Self::calculate_elemental_signature_static(&selected_sigils),
                 fusion_quality: Self::predict_fusion_quality_static(success_probability),
             }),
         };
 
+        // Update the workbench with results
+        let workbench = self.active_fusions.get_mut(fusion_id).unwrap();
         workbench.target_glyph = Some(fusion_glyph);
         workbench.energy_cost = energy_cost;
         workbench.success_probability = success_probability;
@@ -449,7 +454,7 @@ impl FusionForge {
         let tome = workbench.preview_tome
             .ok_or_else(|| anyhow!("No preview tome available"))?;
 
-        let fusion_quality = self.predict_fusion_quality(workbench.success_probability);
+        let fusion_quality = Self::predict_fusion_quality_static(workbench.success_probability);
 
         for sigil_hash in &workbench.selected_sigils {
             sigils.remove(sigil_hash);

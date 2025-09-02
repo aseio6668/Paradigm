@@ -29,7 +29,7 @@ impl NetworkClient {
     pub async fn connect(&mut self) -> Result<()> {
         // Try to ping the node
         let response = self.client
-            .get(&format!("{}/api/v1/health", self.node_url))
+            .get(&format!("{}/health", self.node_url))
             .send()
             .await?;
 
@@ -112,7 +112,8 @@ impl NetworkClient {
             let result: serde_json::Value = response.json().await?;
             Ok(result["transaction_id"].as_str().unwrap_or("unknown").to_string())
         } else {
-            Err(anyhow::anyhow!("Failed to broadcast transaction"))
+            let error_text = response.text().await.unwrap_or_default();
+            Err(anyhow::anyhow!("Failed to broadcast transaction: {}", error_text))
         }
     }
 
@@ -131,5 +132,60 @@ impl NetworkClient {
         } else {
             Err(anyhow::anyhow!("Failed to get network stats"))
         }
+    }
+
+    pub async fn get_comprehensive_network_status(&self) -> Result<serde_json::Value> {
+        if !self.connected {
+            return Err(anyhow::anyhow!("Not connected to network"));
+        }
+
+        // Get health status
+        let health_response = self.client
+            .get(&format!("{}/health", self.node_url))
+            .send()
+            .await?;
+
+        let health_data: serde_json::Value = if health_response.status().is_success() {
+            health_response.json().await?
+        } else {
+            serde_json::json!({"status": "unhealthy", "error": "Health check failed"})
+        };
+
+        // Try to get additional network information
+        let tasks_response = self.client
+            .get(&format!("{}/api/tasks/available", self.node_url))
+            .send()
+            .await;
+
+        let network_active = tasks_response.is_ok();
+        
+        let tasks_data = if let Ok(response) = tasks_response {
+            if response.status().is_success() {
+                response.json().await.unwrap_or(serde_json::json!({}))
+            } else {
+                serde_json::json!({"error": "Tasks endpoint unavailable"})
+            }
+        } else {
+            serde_json::json!({"error": "Cannot reach tasks endpoint"})
+        };
+
+        // Compile comprehensive status
+        Ok(serde_json::json!({
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+            "node_url": self.node_url,
+            "health": health_data,
+            "network_active": network_active,
+            "tasks": {
+                "available_count": tasks_data.get("available_tasks").and_then(|t| t.as_array()).map(|a| a.len()).unwrap_or(0),
+                "queue_size": tasks_data.get("queue_size").and_then(|v| v.as_u64()).unwrap_or(0),
+                "estimated_reward": tasks_data.get("estimated_reward").and_then(|v| v.as_u64()).unwrap_or(0)
+            },
+            "peer_info": {
+                "peer_count": health_data.get("peers_count").and_then(|v| v.as_u64()).unwrap_or(0),
+                "block_height": health_data.get("block_height").and_then(|v| v.as_u64()).unwrap_or(0),
+                "network_status": health_data.get("network_status").and_then(|v| v.as_str()).unwrap_or("unknown"),
+                "is_synchronized": health_data.get("peers_count").and_then(|v| v.as_u64()).unwrap_or(0) > 0
+            }
+        }))
     }
 }

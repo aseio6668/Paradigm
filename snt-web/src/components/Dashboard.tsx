@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import styled from 'styled-components';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { SNT, Keeper, NetworkStats } from '../types/snt';
+import { SNT, Keeper, NetworkStats, Element } from '../types/snt';
 import { SNTCard } from './SNTCard';
-import { NetworkVisualization } from './NetworkVisualization';
+import { SimpleNetworkVisualization } from './SimpleNetworkVisualization';
 import { mockKeepers, mockSNTs, mockEvents } from '../data/mockData';
+import { paradigmAPI } from '../services/api';
 import { getSNTTypeName, formatFileSize, getElementColor } from '../utils/sntHelpers';
 
 const DashboardContainer = styled.div`
@@ -49,7 +50,7 @@ const TabContainer = styled.div`
   gap: 8px;
 `;
 
-const Tab = styled(motion.button)<{ $active: boolean }>`
+const Tab = styled(motion.button)<{ $active: boolean; onClick?: () => void }>`
   background: ${props => props.$active 
     ? 'linear-gradient(45deg, #4facfe, #00f2fe)' 
     : 'rgba(255, 255, 255, 0.1)'};
@@ -172,35 +173,88 @@ function hexToRgb(hex: string): string {
 
 export const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'snts' | 'network' | 'analytics'>('overview');
+  const [networkStats, setNetworkStats] = useState<NetworkStats | null>(null);
+  const [keepers, setKeepers] = useState<Keeper[]>(mockKeepers);
+  const [snts, setSNTs] = useState<SNT[]>(mockSNTs);
+  const [events, setEvents] = useState(mockEvents);
+  const [apiStatus, setApiStatus] = useState<'loading' | 'online' | 'mock'>('loading');
 
-  // Calculate network stats
-  const networkStats: NetworkStats = {
-    total_snts: mockSNTs.length,
-    type_distribution: mockSNTs.reduce((acc, snt) => {
-      const typeName = getSNTTypeName(snt.token_type);
-      acc[typeName] = (acc[typeName] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>),
-    average_evolution_level: mockSNTs.reduce((sum, snt) => sum + snt.evolution_level, 0) / mockSNTs.length,
-    unique_holders: new Set(mockSNTs.map(snt => snt.holder)).size,
-    active_keepers: mockKeepers.length,
-    total_sigils: mockKeepers.reduce((sum, keeper) => sum + keeper.sigils_hosted.length, 0),
-    total_storage_used: mockKeepers.reduce((sum, keeper) => sum + keeper.used_storage, 0),
-    network_utilization: mockKeepers.reduce((sum, keeper) => sum + (keeper.used_storage / keeper.capacity), 0) / mockKeepers.length * 100,
-    recent_events: mockEvents.length
-  };
+  // Load data from API or fallback to mock data
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const health = await paradigmAPI.checkHealth();
+        setApiStatus(health.status === 'online' ? 'online' : 'mock');
+        
+        if (health.status === 'online') {
+          // Load real data from API
+          const [statsData, keepersData, sntsData, eventsData] = await Promise.all([
+            paradigmAPI.getNetworkStats(),
+            paradigmAPI.getKeepers(),
+            paradigmAPI.getSNTs(),
+            paradigmAPI.getNetworkEvents()
+          ]);
+          
+          setNetworkStats(statsData);
+          setKeepers(keepersData);
+          setSNTs(sntsData);
+          setEvents(eventsData);
+        } else {
+          // Use mock data and calculate stats
+          const mockNetworkStats: NetworkStats = {
+            total_snts: mockSNTs.length,
+            type_distribution: mockSNTs.reduce((acc, snt) => {
+              const typeName = getSNTTypeName(snt.token_type);
+              acc[typeName] = (acc[typeName] || 0) + 1;
+              return acc;
+            }, {} as Record<string, number>),
+            average_evolution_level: mockSNTs.reduce((sum, snt) => sum + snt.evolution_level, 0) / mockSNTs.length,
+            unique_holders: new Set(mockSNTs.map(snt => snt.holder)).size,
+            active_keepers: mockKeepers.length,
+            total_sigils: mockKeepers.reduce((sum, keeper) => sum + keeper.sigils_hosted.length, 0),
+            total_storage_used: mockKeepers.reduce((sum, keeper) => sum + keeper.used_storage, 0),
+            network_utilization: mockKeepers.reduce((sum, keeper) => sum + (keeper.used_storage / keeper.capacity), 0) / mockKeepers.length * 100,
+            recent_events: mockEvents.length
+          };
+          setNetworkStats(mockNetworkStats);
+        }
+      } catch (error) {
+        console.error('Failed to load data:', error);
+        setApiStatus('mock');
+      }
+    };
+
+    loadData();
+    
+    // Refresh data every 30 seconds
+    const interval = setInterval(loadData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!networkStats) {
+    return (
+      <DashboardContainer>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '20px' }}>🔮</div>
+            <div style={{ fontSize: '1.5rem', color: '#ffffff' }}>Loading SNT Network...</div>
+          </div>
+        </div>
+      </DashboardContainer>
+    );
+  }
 
   // Prepare chart data
   const typeDistributionData = Object.entries(networkStats.type_distribution).map(([type, count]) => ({
     type: type.replace(/[🛡️📦📜⚗️🎨🤝]/g, '').trim(),
     count,
-    color: getElementColor('Fire') // Could map to actual element colors
+    color: getElementColor(Element.Fire) // Could map to actual element colors
   }));
 
-  const keeperStatsData = mockKeepers.map(keeper => ({
+  const keeperStatsData = keepers.map(keeper => ({
     name: keeper.name,
     reputation: keeper.reputation,
-    snts: mockSNTs.filter(snt => snt.holder === keeper.keeper_id).length,
+    snts: snts.filter(snt => snt.holder === keeper.keeper_id).length,
     storage: keeper.used_storage / (1024 * 1024)
   }));
 
@@ -223,7 +277,14 @@ export const Dashboard: React.FC = () => {
         transition={{ duration: 0.5 }}
       >
         <Title>🔮 Paradigm SNT Network</Title>
-        <Subtitle>Revolutionary Symbolic Network Tokens - Living Functionality, Not Dead Commodities</Subtitle>
+        <Subtitle>
+          Revolutionary Symbolic Network Tokens - Living Functionality, Not Dead Commodities
+          <div style={{ fontSize: '0.8rem', marginTop: '8px', opacity: 0.8 }}>
+            {apiStatus === 'online' && <span style={{ color: '#4facfe' }}>🌐 Connected to Live Network</span>}
+            {apiStatus === 'mock' && <span style={{ color: '#ffaa00' }}>📱 Demo Mode (Mock Data)</span>}
+            {apiStatus === 'loading' && <span style={{ color: '#888888' }}>⏳ Connecting...</span>}
+          </div>
+        </Subtitle>
       </Header>
 
       <TabContainer>
@@ -282,7 +343,7 @@ export const Dashboard: React.FC = () => {
 
               <SectionTitle>⚡ Recent Network Activity</SectionTitle>
               <EventsContainer>
-                {mockEvents.slice(0, 10).map((event, index) => (
+                {events.slice(0, 10).map((event, index) => (
                   <EventItem
                     key={`${event.timestamp}-${index}`}
                     initial={{ opacity: 0, x: -20 }}
@@ -309,7 +370,7 @@ export const Dashboard: React.FC = () => {
             >
               <SectionTitle>🎯 Active SNT Collection</SectionTitle>
               <SNTGrid>
-                {mockSNTs.map((snt) => (
+                {snts.map((snt) => (
                   <SNTCard key={snt.snt_id} snt={snt} />
                 ))}
               </SNTGrid>
@@ -325,7 +386,7 @@ export const Dashboard: React.FC = () => {
               transition={{ duration: 0.3 }}
             >
               <SectionTitle>🌐 Living Network Visualization</SectionTitle>
-              <NetworkVisualization keepers={mockKeepers} snts={mockSNTs} />
+              <SimpleNetworkVisualization keepers={keepers} snts={snts} />
             </motion.div>
           )}
 

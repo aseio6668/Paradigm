@@ -663,7 +663,11 @@ async fn main() -> Result<()> {
                     if mock_task_count % 10 == 0 {
                         info!("🔍 [MOCK] Checking if Paradigm network is back online...");
                         if network_connection.test_connection(2).await {
-                            info!("🎉 Network detected! Will switch to real tasks on next cycle.");
+                            info!("🎉 Network connection restored! Exiting mock mode immediately.");
+                            in_mock_mode = false;
+                            connection_retry_count = 0;
+                            // Skip the sleep to immediately start processing real tasks
+                            continue;
                         }
                     }
 

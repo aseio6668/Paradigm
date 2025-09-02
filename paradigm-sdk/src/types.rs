@@ -182,6 +182,11 @@ impl Signature {
         }
     }
 
+    /// Create signature from fixed-size bytes array 
+    pub fn from_bytes(bytes: [u8; 64]) -> Self {
+        Self::new(bytes.to_vec(), SignatureType::Ed25519)
+    }
+
     /// Get signature bytes
     pub fn as_bytes(&self) -> &[u8] {
         &self.bytes
@@ -552,9 +557,9 @@ impl Transaction {
     }
 
     /// Convert transaction to bytes for signing/transmission
-    pub fn to_bytes(&self) -> Result<Vec<u8>, crate::error::ParadigmError> {
+    pub fn to_bytes(&self) -> crate::error::Result<Vec<u8>> {
         serde_json::to_vec(self)
-            .map_err(|e| crate::error::ParadigmError::Serialization(e.to_string()))
+            .map_err(|e| crate::error::ParadigmError::Transaction(e.to_string()))
     }
 }
 
@@ -746,6 +751,7 @@ pub enum NetworkType {
     Devnet,
     Private,
 }
+
 
 /// Key pair for cryptographic operations
 #[derive(Debug, Clone)]

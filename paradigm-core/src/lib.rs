@@ -673,7 +673,11 @@ mod tests {
 
     #[test]
     fn test_address_generation() {
-        let keypair = ed25519_dalek::SigningKey::generate(&mut rand::rngs::OsRng);
+        use rand::rngs::OsRng;
+        let mut csprng = OsRng;
+        let secret_bytes = (0..32).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
+        let secret_key: [u8; 32] = secret_bytes.try_into().unwrap();
+        let keypair = ed25519_dalek::SigningKey::from_bytes(&secret_key);
         let address = Address::from_public_key(&keypair.verifying_key());
         let address_str = address.to_string();
         assert!(address_str.starts_with("PAR"));

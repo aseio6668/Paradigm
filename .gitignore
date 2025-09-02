@@ -2,6 +2,10 @@
 /target/
 /*/target/
 /.old/
+target/
+.claude/
+.misc/
+.notes/
 
 # Rust specific
 Cargo.lock

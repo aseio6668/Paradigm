@@ -1,0 +1,31 @@
+{
+  "version": "1.0.0",
+  "updated_at": "2025-09-02T20:11:38.283296700Z",
+  "known_peers": {
+    "127.0.0.1:8080": {
+      "address": "127.0.0.1:8080",
+      "first_seen": "2025-09-02T20:06:38.275138600Z",
+      "last_successful_connection": null,
+      "connection_attempts": 0,
+      "successful_connections": 0,
+      "reputation_score": 10.0,
+      "average_latency": 0.0,
+      "last_version": null,
+      "features": [],
+      "is_bootstrap": true,
+      "quality_metrics": {
+        "reliability_score": 0.0,
+        "task_success_rate": 0.0,
+        "average_response_time": 0.0,
+        "uptime_percentage": 0.0,
+        "data_quality_score": 0.0,
+        "bandwidth_score": 0.0,
+        "consistency_score": 0.0
+      },
+      "reputation_history": []
+    }
+  },
+  "bootstrap_peers": [
+    "127.0.0.1:8080"
+  ]
+}

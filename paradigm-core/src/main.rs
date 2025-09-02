@@ -211,8 +211,9 @@ async fn main() -> Result<()> {
     if enable_api {
         tracing::info!("Starting HTTP API server on port {}", api_port);
 
-        // Create API state with autonomous task integration
+        // Create API state with storage, autonomous task integration, and peer manager
         let api_state = ApiState::new()
+            .with_storage(node.storage.clone())
             .with_autonomous_tasks(node.autonomous_tasks.clone())
             .with_peer_manager(node.peer_manager.clone());
 

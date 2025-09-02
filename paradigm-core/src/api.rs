@@ -371,11 +371,216 @@ pub async fn task_submit_handler(State(state): State<ApiState>, Json(submission)
 }
 */
 
+#[derive(Deserialize)]
+pub struct TransactionSubmissionRequest {
+    pub from: String,
+    pub to: String,
+    pub amount: u64,
+    pub fee: u64,
+    pub signature: String,
+    pub nonce: u64,
+}
+
+#[derive(Serialize)]
+pub struct TransactionResponse {
+    pub success: bool,
+    pub transaction_id: String,
+    pub message: String,
+}
+
+pub async fn transaction_submit_handler(
+    State(state): State<ApiState>,
+    Json(tx_request): Json<TransactionSubmissionRequest>,
+) -> Result<Json<TransactionResponse>, StatusCode> {
+    use tracing::{info, warn, error};
+    
+    info!("📥 Received transaction submission: {} → {} ({} PAR)", tx_request.from, tx_request.to, tx_request.amount as f64 / 100_000_000.0);
+    
+    // Parse addresses
+    let from_addr = match Address::from_string(&tx_request.from) {
+        Ok(addr) => addr,
+        Err(e) => {
+            warn!("❌ Invalid from address: {}", e);
+            return Ok(Json(TransactionResponse {
+                success: false,
+                transaction_id: "".to_string(),
+                message: format!("Invalid from address: {}", e),
+            }));
+        }
+    };
+    
+    let to_addr = match Address::from_string(&tx_request.to) {
+        Ok(addr) => addr,
+        Err(e) => {
+            warn!("❌ Invalid to address: {}", e);
+            return Ok(Json(TransactionResponse {
+                success: false,
+                transaction_id: "".to_string(),
+                message: format!("Invalid to address: {}", e),
+            }));
+        }
+    };
+    
+    // Create transaction object
+    let transaction_id = uuid::Uuid::new_v4().to_string();
+    let signature_bytes = match hex::decode(&tx_request.signature) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            warn!("❌ Invalid signature format: {}", e);
+            return Ok(Json(TransactionResponse {
+                success: false,
+                transaction_id: "".to_string(),
+                message: format!("Invalid signature format: {}", e),
+            }));
+        }
+    };
+    
+    let tx_uuid = match uuid::Uuid::parse_str(&transaction_id) {
+        Ok(id) => id,
+        Err(e) => {
+            warn!("❌ Failed to parse transaction ID: {}", e);
+            return Ok(Json(TransactionResponse {
+                success: false,
+                transaction_id: "".to_string(),
+                message: "Invalid transaction ID format".to_string(),
+            }));
+        }
+    };
+    
+    let transaction = Transaction {
+        id: tx_uuid,
+        from: from_addr.clone(),
+        to: to_addr.clone(),
+        amount: tx_request.amount,
+        fee: tx_request.fee,
+        signature: signature_bytes,
+        timestamp: chrono::Utc::now(),
+        nonce: tx_request.nonce,
+        message: None,
+    };
+    
+    // Validate sender balance and execute transfer
+    if let Some(ref storage) = state.storage {
+        let storage_lock = storage.read().await;
+        
+        // Step 1: Check sender balance (including fee)
+        let total_amount = tx_request.amount + tx_request.fee;
+        match storage_lock.get_balance(&from_addr).await {
+            Ok(sender_balance) => {
+                if sender_balance < total_amount {
+                    warn!("❌ Insufficient balance: sender has {} PAR, needs {} PAR", 
+                          sender_balance as f64 / 100_000_000.0, 
+                          total_amount as f64 / 100_000_000.0);
+                    return Ok(Json(TransactionResponse {
+                        success: false,
+                        transaction_id: "".to_string(),
+                        message: format!("Insufficient balance. Available: {:.8} PAR, Required: {:.8} PAR", 
+                                        sender_balance as f64 / 100_000_000.0,
+                                        total_amount as f64 / 100_000_000.0),
+                    }));
+                }
+            }
+            Err(e) => {
+                error!("❌ Failed to get sender balance: {}", e);
+                return Ok(Json(TransactionResponse {
+                    success: false,
+                    transaction_id: "".to_string(),
+                    message: "Failed to validate sender balance".to_string(),
+                }));
+            }
+        }
+        
+        // Step 2: Execute balance transfer
+        // Get current balances
+        let sender_balance = match storage_lock.get_balance(&from_addr).await {
+            Ok(balance) => balance,
+            Err(e) => {
+                error!("❌ Failed to get sender balance: {}", e);
+                return Ok(Json(TransactionResponse {
+                    success: false,
+                    transaction_id: "".to_string(),
+                    message: "Failed to get sender balance".to_string(),
+                }));
+            }
+        };
+
+        let recipient_balance = match storage_lock.get_balance(&to_addr).await {
+            Ok(balance) => balance,
+            Err(e) => {
+                warn!("Could not get recipient balance, assuming 0: {}", e);
+                0
+            }
+        };
+
+        // Calculate new balances
+        let new_sender_balance = sender_balance - total_amount;
+        let new_recipient_balance = recipient_balance + tx_request.amount;
+
+        // Update sender balance
+        if let Err(e) = storage_lock.update_balance(&from_addr, new_sender_balance).await {
+            error!("❌ Failed to update sender balance: {}", e);
+            return Ok(Json(TransactionResponse {
+                success: false,
+                transaction_id: "".to_string(),
+                message: format!("Failed to update sender balance: {}", e),
+            }));
+        }
+
+        // Update recipient balance
+        if let Err(e) = storage_lock.update_balance(&to_addr, new_recipient_balance).await {
+            error!("❌ Failed to update recipient balance: {}", e);
+            // Try to revert sender balance
+            if let Err(revert_e) = storage_lock.update_balance(&from_addr, sender_balance).await {
+                error!("❌ Failed to revert sender balance: {}", revert_e);
+            }
+            return Ok(Json(TransactionResponse {
+                success: false,
+                transaction_id: "".to_string(),
+                message: format!("Failed to update recipient balance: {}", e),
+            }));
+        }
+
+        info!("💰 Balance transfer completed: {} PAR from {} to {} (fee: {} PAR)", 
+              tx_request.amount as f64 / 100_000_000.0, 
+              from_addr.to_string(), 
+              to_addr.to_string(),
+              tx_request.fee as f64 / 100_000_000.0);
+        
+        // Step 3: Store transaction record  
+        match storage_lock.store_transaction(&transaction).await {
+            Ok(()) => {
+                info!("✅ Transaction {} completed and stored successfully", transaction_id);
+                Ok(Json(TransactionResponse {
+                    success: true,
+                    transaction_id,
+                    message: "Transaction completed successfully".to_string(),
+                }))
+            }
+            Err(e) => {
+                error!("❌ Failed to store transaction: {}", e);
+                Ok(Json(TransactionResponse {
+                    success: false,
+                    transaction_id: "".to_string(),
+                    message: format!("Transaction executed but storage failed: {}", e),
+                }))
+            }
+        }
+    } else {
+        warn!("⚠️ No storage available for transaction");
+        Ok(Json(TransactionResponse {
+            success: false,
+            transaction_id: "".to_string(),
+            message: "Storage not available".to_string(),
+        }))
+    }
+}
+
 pub fn create_api_router(state: ApiState) -> Router {
     Router::new()
         .route("/health", get(health_handler))
         .route("/api/tasks/available", get(tasks_handler))
         .route("/api/tasks/submit", post(simple_task_submit_handler))
+        .route("/api/v1/transaction", post(transaction_submit_handler))
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())

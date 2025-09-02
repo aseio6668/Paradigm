@@ -853,7 +853,7 @@ async fn test_comprehensive_governance_workflow() {
     // 6. Place bets in market
     governance
         .place_futarchy_bet(
-            voter1,
+            voter1.clone(),
             market_id,
             FutarchyMarketType::Implement,
             OutcomeBet {
@@ -886,12 +886,12 @@ async fn test_comprehensive_governance_workflow() {
 
     // 8. Signal conviction
     governance
-        .signal_conviction(voter1, funding_proposal_id, 25000)
+        .signal_conviction(voter1.clone(), funding_proposal_id, 25000)
         .await
         .expect("Conviction signaling should succeed");
 
     governance
-        .signal_conviction(voter2, funding_proposal_id, 15000)
+        .signal_conviction(voter2.clone(), funding_proposal_id, 15000)
         .await
         .expect("Second conviction signal should succeed");
 

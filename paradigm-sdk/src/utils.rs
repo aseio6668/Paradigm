@@ -375,12 +375,18 @@ pub mod crypto {
 
     /// Generate random hash
     pub fn random_hash() -> Hash {
-        Hash::from_bytes(&random_bytes(32)).unwrap()
+        let bytes = random_bytes(32);
+        let mut array = [0u8; 32];
+        array.copy_from_slice(&bytes);
+        Hash::from_bytes(array)
     }
 
     /// Generate random address
     pub fn random_address() -> Address {
-        Address::from_bytes(random_bytes(20).try_into().unwrap())
+        let bytes = random_bytes(20);
+        let mut array = [0u8; 20];
+        array.copy_from_slice(&bytes);
+        Address::from_bytes(array)
     }
 
     /// Verify ECDSA signature (simplified)
@@ -567,35 +573,42 @@ pub mod debug {
     /// Create debug transaction
     pub fn create_debug_transaction() -> Transaction {
         Transaction {
-            hash: crypto::random_hash(),
-            from: crypto::random_address(),
-            to: Some(crypto::random_address()),
-            value: Amount::from_paradigm(100),
+            hash: random_hash(),
+            from: random_address(),
+            to: Some(random_address()),
+            value: Amount::from_paradigm(100.0),
+            data: vec![],
+            input: vec![],
+            gas_limit: 21000,
             gas: 21000,
             gas_price: Amount::from_wei(20_000_000_000),
             nonce: 1,
-            input: vec![],
-            signature: Some(vec![0; 65]),
-            block_hash: Some(crypto::random_hash()),
-            block_number: 1000,
+            chain_id: 1,
+            signature: Some(Signature::from_bytes([0; 64])),
+            block_number: Some(1000),
+            block_hash: Some(random_hash()),
             transaction_index: Some(0),
+            status: TransactionStatus::Confirmed { confirmations: 1 },
         }
     }
 
     /// Create debug block
     pub fn create_debug_block() -> Block {
         Block {
-            hash: crypto::random_hash(),
-            parent_hash: crypto::random_hash(),
+            hash: random_hash(),
+            parent_hash: random_hash(),
             number: 1000,
             timestamp: time::now(),
+            author: random_address(),
+            miner: random_address(),
+            transactions: vec![random_hash()],
+            receipts: vec![],
+            state_root: random_hash(),
+            transactions_root: random_hash(),
+            transaction_root: random_hash(),
+            receipts_root: random_hash(),
             gas_limit: 15_000_000,
             gas_used: 10_000_000,
-            miner: crypto::random_address(),
-            transactions: vec![create_debug_transaction()],
-            state_root: crypto::random_hash(),
-            transaction_root: crypto::random_hash(),
-            receipts_root: crypto::random_hash(),
             difficulty: 1000000,
             total_difficulty: 1000000000,
             size: 1024,
@@ -606,7 +619,7 @@ pub mod debug {
 
     /// Create debug account
     pub fn create_debug_account() -> (Address, Amount) {
-        (crypto::random_address(), Amount::from_paradigm(1000))
+        (random_address(), Amount::from_paradigm(1000.0))
     }
 
     /// Pretty print transaction

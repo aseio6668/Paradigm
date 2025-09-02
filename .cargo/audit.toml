@@ -1,0 +1,6 @@
+[advisories]
+# Ignoring RSA vulnerability as no fix is currently available
+# This is a dependency from SQLx MySQL connector
+ignore = [
+    "RUSTSEC-2023-0071",  # RSA Marvin Attack - no fix available
+]

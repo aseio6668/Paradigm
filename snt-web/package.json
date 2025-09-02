@@ -6,16 +6,16 @@
     "@emotion/react": "^11.11.1",
     "@emotion/styled": "^11.11.0",
     "@mui/material": "^5.14.20",
+    "@react-three/drei": "^9.88.17",
+    "@react-three/fiber": "^8.15.11",
+    "framer-motion": "^10.16.16",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1",
-    "three": "^0.158.0",
-    "@react-three/fiber": "^8.15.11",
-    "@react-three/drei": "^9.88.17",
-    "framer-motion": "^10.16.16",
     "recharts": "^2.8.0",
-    "uuid": "^9.0.1",
-    "styled-components": "^6.1.1"
+    "styled-components": "^6.1.1",
+    "three": "^0.158.0",
+    "uuid": "^9.0.1"
   },
   "scripts": {
     "start": "react-scripts start",
@@ -40,5 +40,9 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@types/react-dom": "^19.1.9",
+    "@types/three": "^0.179.0"
   }
 }
