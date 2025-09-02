@@ -52,7 +52,7 @@ hyper = "1.0"
 clap = { version = "4.0", features = ["derive"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
-config = "0.13"
+config = "0.14"
 dotenvy = "0.15"
 
 # Development tools
