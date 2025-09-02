@@ -17,6 +17,7 @@ pub mod fee_calculation;
 pub mod genesis;
 pub mod governance;
 pub mod hsm_manager;
+pub mod metaspace;
 pub mod ml_tasks;
 pub mod multisig_treasury;
 pub mod network;
@@ -27,7 +28,6 @@ pub mod privacy_blockchain;
 pub mod proof_of_work;
 pub mod secure_networking;
 pub mod storage;
-pub mod metaspace;
 pub mod tokenomics;
 pub mod transaction;
 pub mod transaction_tester;
@@ -205,7 +205,9 @@ impl ParadigmNode {
 
         // Initialize decentralized storage system (Metaspace)
         let metaspace_config = metaspace::MetaspaceConfig::default();
-        let metaspace = Arc::new(RwLock::new(metaspace::MetaspaceEngine::new(metaspace_config)));
+        let metaspace = Arc::new(RwLock::new(metaspace::MetaspaceEngine::new(
+            metaspace_config,
+        )));
 
         let network = Arc::new(RwLock::new(network::P2PNetwork::new(node_id).await?));
 

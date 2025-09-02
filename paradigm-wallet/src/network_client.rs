@@ -1,5 +1,5 @@
-use paradigm_core::{Address, transaction::Transaction};
 use anyhow::Result;
+use paradigm_core::{transaction::Transaction, Address};
 use reqwest::Client;
 use serde_json::json;
 
@@ -28,7 +28,8 @@ impl NetworkClient {
 
     pub async fn connect(&mut self) -> Result<()> {
         // Try to ping the node
-        let response = self.client
+        let response = self
+            .client
             .get(&format!("{}/health", self.node_url))
             .send()
             .await?;
@@ -55,8 +56,13 @@ impl NetworkClient {
             return Err(anyhow::anyhow!("Not connected to network"));
         }
 
-        let response = self.client
-            .get(&format!("{}/api/v1/balance/{}", self.node_url, address.to_string()))
+        let response = self
+            .client
+            .get(&format!(
+                "{}/api/v1/balance/{}",
+                self.node_url,
+                address.to_string()
+            ))
             .send()
             .await?;
 
@@ -73,8 +79,13 @@ impl NetworkClient {
             return Err(anyhow::anyhow!("Not connected to network"));
         }
 
-        let response = self.client
-            .get(&format!("{}/api/v1/transactions/{}", self.node_url, address.to_string()))
+        let response = self
+            .client
+            .get(&format!(
+                "{}/api/v1/transactions/{}",
+                self.node_url,
+                address.to_string()
+            ))
             .send()
             .await?;
 
@@ -102,7 +113,8 @@ impl NetworkClient {
             "nonce": transaction.nonce
         });
 
-        let response = self.client
+        let response = self
+            .client
             .post(&format!("{}/api/v1/transaction", self.node_url))
             .json(&tx_data)
             .send()
@@ -110,10 +122,16 @@ impl NetworkClient {
 
         if response.status().is_success() {
             let result: serde_json::Value = response.json().await?;
-            Ok(result["transaction_id"].as_str().unwrap_or("unknown").to_string())
+            Ok(result["transaction_id"]
+                .as_str()
+                .unwrap_or("unknown")
+                .to_string())
         } else {
             let error_text = response.text().await.unwrap_or_default();
-            Err(anyhow::anyhow!("Failed to broadcast transaction: {}", error_text))
+            Err(anyhow::anyhow!(
+                "Failed to broadcast transaction: {}",
+                error_text
+            ))
         }
     }
 
@@ -122,7 +140,8 @@ impl NetworkClient {
             return Err(anyhow::anyhow!("Not connected to network"));
         }
 
-        let response = self.client
+        let response = self
+            .client
             .get(&format!("{}/api/v1/stats", self.node_url))
             .send()
             .await?;
@@ -140,7 +159,8 @@ impl NetworkClient {
         }
 
         // Get health status
-        let health_response = self.client
+        let health_response = self
+            .client
             .get(&format!("{}/health", self.node_url))
             .send()
             .await?;
@@ -152,13 +172,14 @@ impl NetworkClient {
         };
 
         // Try to get additional network information
-        let tasks_response = self.client
+        let tasks_response = self
+            .client
             .get(&format!("{}/api/tasks/available", self.node_url))
             .send()
             .await;
 
         let network_active = tasks_response.is_ok();
-        
+
         let tasks_data = if let Ok(response) = tasks_response {
             if response.status().is_success() {
                 response.json().await.unwrap_or(serde_json::json!({}))

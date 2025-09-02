@@ -217,7 +217,7 @@ impl NetworkAnimator {
 
     pub fn start_keeper_heartbeat(&mut self, keeper_id: String, position: Position3D) -> String {
         let animation_id = format!("heartbeat_{}", keeper_id);
-        
+
         let animation = Animation {
             animation_id: animation_id.clone(),
             animation_type: AnimationType::KeeperHeartbeat,
@@ -237,28 +237,40 @@ impl NetworkAnimator {
                 custom_properties: [
                     ("pulse_strength".to_string(), 1.0),
                     ("beat_frequency".to_string(), 0.5),
-                ].iter().cloned().collect(),
+                ]
+                .iter()
+                .cloned()
+                .collect(),
             },
         };
 
-        self.active_animations.insert(animation_id.clone(), animation);
+        self.active_animations
+            .insert(animation_id.clone(), animation);
 
         // Start keeper heartbeat tracking
-        self.heartbeat_tracker.keeper_heartbeats.insert(keeper_id.clone(), HeartbeatData {
-            keeper_id,
-            last_beat: self.current_timestamp(),
-            beat_interval: 2.0,
-            health_status: HealthStatus::Healthy,
-            pulse_strength: 1.0,
-            rhythm_pattern: RhythmPattern::Steady,
-        });
+        self.heartbeat_tracker.keeper_heartbeats.insert(
+            keeper_id.clone(),
+            HeartbeatData {
+                keeper_id,
+                last_beat: self.current_timestamp(),
+                beat_interval: 2.0,
+                health_status: HealthStatus::Healthy,
+                pulse_strength: 1.0,
+                rhythm_pattern: RhythmPattern::Steady,
+            },
+        );
 
         animation_id
     }
 
-    pub fn animate_sigil_flow(&mut self, from_position: Position3D, to_position: Position3D, sigil_id: String) -> String {
+    pub fn animate_sigil_flow(
+        &mut self,
+        from_position: Position3D,
+        to_position: Position3D,
+        sigil_id: String,
+    ) -> String {
         let animation_id = format!("flow_{}", sigil_id);
-        
+
         let animation = Animation {
             animation_id: animation_id.clone(),
             animation_type: AnimationType::SigilFlow,
@@ -280,11 +292,15 @@ impl NetworkAnimator {
                     ("target_y".to_string(), to_position.y),
                     ("target_z".to_string(), to_position.z),
                     ("trail_length".to_string(), 10.0),
-                ].iter().cloned().collect(),
+                ]
+                .iter()
+                .cloned()
+                .collect(),
             },
         };
 
-        self.active_animations.insert(animation_id.clone(), animation);
+        self.active_animations
+            .insert(animation_id.clone(), animation);
 
         // Create particle trail
         self.create_sigil_trail_particles(from_position, to_position);
@@ -292,9 +308,14 @@ impl NetworkAnimator {
         animation_id
     }
 
-    pub fn animate_token_transfer(&mut self, from_keeper: String, to_keeper: String, amount: u64) -> String {
+    pub fn animate_token_transfer(
+        &mut self,
+        from_keeper: String,
+        to_keeper: String,
+        amount: u64,
+    ) -> String {
         let animation_id = format!("token_{}_{}", from_keeper, self.current_timestamp());
-        
+
         let animation = Animation {
             animation_id: animation_id.clone(),
             animation_type: AnimationType::TokenTransfer,
@@ -313,18 +334,25 @@ impl NetworkAnimator {
                 glow_intensity: Some(0.8),
                 custom_properties: [
                     ("token_amount".to_string(), amount as f32),
-                    ("beam_intensity".to_string(), (amount as f32).log10().max(1.0)),
-                ].iter().cloned().collect(),
+                    (
+                        "beam_intensity".to_string(),
+                        (amount as f32).log10().max(1.0),
+                    ),
+                ]
+                .iter()
+                .cloned()
+                .collect(),
             },
         };
 
-        self.active_animations.insert(animation_id.clone(), animation);
+        self.active_animations
+            .insert(animation_id.clone(), animation);
         animation_id
     }
 
     pub fn animate_proof_challenge(&mut self, challenger_id: String, keeper_id: String) -> String {
         let animation_id = format!("proof_{}_{}", challenger_id, keeper_id);
-        
+
         let animation = Animation {
             animation_id: animation_id.clone(),
             animation_type: AnimationType::ProofChallenge,
@@ -344,11 +372,15 @@ impl NetworkAnimator {
                 custom_properties: [
                     ("challenge_intensity".to_string(), 1.5),
                     ("scanning_speed".to_string(), 2.0),
-                ].iter().cloned().collect(),
+                ]
+                .iter()
+                .cloned()
+                .collect(),
             },
         };
 
-        self.active_animations.insert(animation_id.clone(), animation);
+        self.active_animations
+            .insert(animation_id.clone(), animation);
 
         // Create scanning visual effect
         self.create_proof_scanning_effect(keeper_id);
@@ -358,7 +390,7 @@ impl NetworkAnimator {
 
     pub fn animate_network_pulse(&mut self) -> String {
         let animation_id = format!("network_pulse_{}", self.current_timestamp());
-        
+
         let animation = Animation {
             animation_id: animation_id.clone(),
             animation_type: AnimationType::NetworkPulse,
@@ -379,11 +411,15 @@ impl NetworkAnimator {
                     ("pulse_radius".to_string(), 0.0),
                     ("max_radius".to_string(), 1000.0),
                     ("wave_speed".to_string(), 250.0),
-                ].iter().cloned().collect(),
+                ]
+                .iter()
+                .cloned()
+                .collect(),
             },
         };
 
-        self.active_animations.insert(animation_id.clone(), animation);
+        self.active_animations
+            .insert(animation_id.clone(), animation);
 
         // Update heartbeat tracker
         self.heartbeat_tracker.last_network_pulse = self.current_timestamp();
@@ -391,9 +427,13 @@ impl NetworkAnimator {
         animation_id
     }
 
-    pub fn animate_fusion_ritual(&mut self, sigil_positions: Vec<Position3D>, fusion_center: Position3D) -> String {
+    pub fn animate_fusion_ritual(
+        &mut self,
+        sigil_positions: Vec<Position3D>,
+        fusion_center: Position3D,
+    ) -> String {
         let animation_id = format!("fusion_{}", self.current_timestamp());
-        
+
         let animation = Animation {
             animation_id: animation_id.clone(),
             animation_type: AnimationType::FusionSpiral,
@@ -414,11 +454,15 @@ impl NetworkAnimator {
                     ("spiral_speed".to_string(), 2.0),
                     ("energy_buildup".to_string(), 0.0),
                     ("sigil_count".to_string(), sigil_positions.len() as f32),
-                ].iter().cloned().collect(),
+                ]
+                .iter()
+                .cloned()
+                .collect(),
             },
         };
 
-        self.active_animations.insert(animation_id.clone(), animation);
+        self.active_animations
+            .insert(animation_id.clone(), animation);
 
         // Create multiple particle systems for the fusion
         self.create_fusion_particle_systems(sigil_positions, fusion_center);
@@ -428,7 +472,7 @@ impl NetworkAnimator {
 
     pub fn animate_glyph_resonance(&mut self, glyph_id: String, resonance_strength: f32) -> String {
         let animation_id = format!("resonance_{}", glyph_id);
-        
+
         let animation = Animation {
             animation_id: animation_id.clone(),
             animation_type: AnimationType::GlyphResonance,
@@ -447,12 +491,19 @@ impl NetworkAnimator {
                 glow_intensity: Some(resonance_strength),
                 custom_properties: [
                     ("resonance_frequency".to_string(), resonance_strength * 2.0),
-                    ("harmonic_waves".to_string(), (resonance_strength * 5.0).ceil()),
-                ].iter().cloned().collect(),
+                    (
+                        "harmonic_waves".to_string(),
+                        (resonance_strength * 5.0).ceil(),
+                    ),
+                ]
+                .iter()
+                .cloned()
+                .collect(),
             },
         };
 
-        self.active_animations.insert(animation_id.clone(), animation);
+        self.active_animations
+            .insert(animation_id.clone(), animation);
         animation_id
     }
 
@@ -474,18 +525,39 @@ impl NetworkAnimator {
                 start_color: "#2196F3".to_string(),
                 end_color: "#03DAC6".to_string(),
                 keyframes: vec![
-                    ColorKeyframe { time: 0.0, color: "#2196F3".to_string(), alpha: 1.0 },
-                    ColorKeyframe { time: 0.5, color: "#00BCD4".to_string(), alpha: 0.8 },
-                    ColorKeyframe { time: 1.0, color: "#03DAC6".to_string(), alpha: 0.0 },
+                    ColorKeyframe {
+                        time: 0.0,
+                        color: "#2196F3".to_string(),
+                        alpha: 1.0,
+                    },
+                    ColorKeyframe {
+                        time: 0.5,
+                        color: "#00BCD4".to_string(),
+                        alpha: 0.8,
+                    },
+                    ColorKeyframe {
+                        time: 1.0,
+                        color: "#03DAC6".to_string(),
+                        alpha: 0.0,
+                    },
                 ],
             },
             size_curve: SizeCurve {
                 start_size: 2.0,
                 end_size: 0.1,
                 curve_points: vec![
-                    CurvePoint { time: 0.0, value: 2.0 },
-                    CurvePoint { time: 0.3, value: 3.0 },
-                    CurvePoint { time: 1.0, value: 0.1 },
+                    CurvePoint {
+                        time: 0.0,
+                        value: 2.0,
+                    },
+                    CurvePoint {
+                        time: 0.3,
+                        value: 3.0,
+                    },
+                    CurvePoint {
+                        time: 1.0,
+                        value: 0.1,
+                    },
                 ],
             },
             is_active: true,
@@ -508,13 +580,20 @@ impl NetworkAnimator {
                 ("scan_color_r".to_string(), 1.0),
                 ("scan_color_g".to_string(), 0.2),
                 ("scan_color_b".to_string(), 0.0),
-            ].iter().cloned().collect(),
+            ]
+            .iter()
+            .cloned()
+            .collect(),
         };
 
         self.visual_effects.push(effect);
     }
 
-    fn create_fusion_particle_systems(&mut self, sigil_positions: Vec<Position3D>, center: Position3D) {
+    fn create_fusion_particle_systems(
+        &mut self,
+        sigil_positions: Vec<Position3D>,
+        center: Position3D,
+    ) {
         // Energy convergence particles from each sigil to center
         for (i, pos) in sigil_positions.iter().enumerate() {
             let system = ParticleSystem {
@@ -534,18 +613,39 @@ impl NetworkAnimator {
                     start_color: "#E91E63".to_string(),
                     end_color: "#FF9800".to_string(),
                     keyframes: vec![
-                        ColorKeyframe { time: 0.0, color: "#E91E63".to_string(), alpha: 0.8 },
-                        ColorKeyframe { time: 0.7, color: "#FF5722".to_string(), alpha: 1.0 },
-                        ColorKeyframe { time: 1.0, color: "#FF9800".to_string(), alpha: 0.3 },
+                        ColorKeyframe {
+                            time: 0.0,
+                            color: "#E91E63".to_string(),
+                            alpha: 0.8,
+                        },
+                        ColorKeyframe {
+                            time: 0.7,
+                            color: "#FF5722".to_string(),
+                            alpha: 1.0,
+                        },
+                        ColorKeyframe {
+                            time: 1.0,
+                            color: "#FF9800".to_string(),
+                            alpha: 0.3,
+                        },
                     ],
                 },
                 size_curve: SizeCurve {
                     start_size: 1.5,
                     end_size: 4.0,
                     curve_points: vec![
-                        CurvePoint { time: 0.0, value: 1.5 },
-                        CurvePoint { time: 0.8, value: 3.0 },
-                        CurvePoint { time: 1.0, value: 4.0 },
+                        CurvePoint {
+                            time: 0.0,
+                            value: 1.5,
+                        },
+                        CurvePoint {
+                            time: 0.8,
+                            value: 3.0,
+                        },
+                        CurvePoint {
+                            time: 1.0,
+                            value: 4.0,
+                        },
                     ],
                 },
                 is_active: true,
@@ -572,20 +672,48 @@ impl NetworkAnimator {
                 start_color: "#FFFFFF".to_string(),
                 end_color: "#9C27B0".to_string(),
                 keyframes: vec![
-                    ColorKeyframe { time: 0.0, color: "#FFFFFF".to_string(), alpha: 1.0 },
-                    ColorKeyframe { time: 0.2, color: "#FF9800".to_string(), alpha: 0.9 },
-                    ColorKeyframe { time: 0.6, color: "#E91E63".to_string(), alpha: 0.7 },
-                    ColorKeyframe { time: 1.0, color: "#9C27B0".to_string(), alpha: 0.0 },
+                    ColorKeyframe {
+                        time: 0.0,
+                        color: "#FFFFFF".to_string(),
+                        alpha: 1.0,
+                    },
+                    ColorKeyframe {
+                        time: 0.2,
+                        color: "#FF9800".to_string(),
+                        alpha: 0.9,
+                    },
+                    ColorKeyframe {
+                        time: 0.6,
+                        color: "#E91E63".to_string(),
+                        alpha: 0.7,
+                    },
+                    ColorKeyframe {
+                        time: 1.0,
+                        color: "#9C27B0".to_string(),
+                        alpha: 0.0,
+                    },
                 ],
             },
             size_curve: SizeCurve {
                 start_size: 0.5,
                 end_size: 8.0,
                 curve_points: vec![
-                    CurvePoint { time: 0.0, value: 0.5 },
-                    CurvePoint { time: 0.1, value: 6.0 },
-                    CurvePoint { time: 0.4, value: 8.0 },
-                    CurvePoint { time: 1.0, value: 2.0 },
+                    CurvePoint {
+                        time: 0.0,
+                        value: 0.5,
+                    },
+                    CurvePoint {
+                        time: 0.1,
+                        value: 6.0,
+                    },
+                    CurvePoint {
+                        time: 0.4,
+                        value: 8.0,
+                    },
+                    CurvePoint {
+                        time: 1.0,
+                        value: 2.0,
+                    },
                 ],
             },
             is_active: true,
@@ -604,7 +732,10 @@ impl NetworkAnimator {
             animation.progress = (elapsed_time / animation.duration).min(1.0);
 
             // Apply easing
-            let eased_progress = NetworkAnimator::apply_easing_static(animation.progress, &animation.easing_function);
+            let eased_progress = NetworkAnimator::apply_easing_static(
+                animation.progress,
+                &animation.easing_function,
+            );
 
             // Update animation properties based on progress
             NetworkAnimator::update_animation_properties_static(animation, eased_progress);
@@ -654,7 +785,7 @@ impl NetworkAnimator {
                 } else {
                     1.0 - 2.0 * (1.0 - progress) * (1.0 - progress)
                 }
-            },
+            }
             EasingFunction::Bounce => {
                 if progress < 0.36364 {
                     7.5625 * progress * progress
@@ -668,64 +799,97 @@ impl NetworkAnimator {
                     let p = progress - 0.95454;
                     7.5625 * p * p + 0.984375
                 }
-            },
+            }
             EasingFunction::Elastic => {
-                if progress <= 0.0 { return 0.0; }
-                if progress >= 1.0 { return 1.0; }
+                if progress <= 0.0 {
+                    return 0.0;
+                }
+                if progress >= 1.0 {
+                    return 1.0;
+                }
                 let p = 0.3;
                 let s = p / 4.0;
-                (2.0_f32).powf(-10.0 * progress) * ((progress - s) * (2.0 * std::f32::consts::PI) / p).sin() + 1.0
-            },
+                (2.0_f32).powf(-10.0 * progress)
+                    * ((progress - s) * (2.0 * std::f32::consts::PI) / p).sin()
+                    + 1.0
+            }
             EasingFunction::Back => {
                 let c1 = 1.70158;
                 let c3 = c1 + 1.0;
                 c3 * progress * progress * progress - c1 * progress * progress
-            },
+            }
         }
     }
 
     fn update_animation_properties_static(animation: &mut Animation, eased_progress: f32) {
         match animation.animation_type {
             AnimationType::KeeperHeartbeat => {
-                let pulse_strength = animation.properties.custom_properties.get("pulse_strength").unwrap_or(&1.0);
+                let pulse_strength = animation
+                    .properties
+                    .custom_properties
+                    .get("pulse_strength")
+                    .unwrap_or(&1.0);
                 let beat_cycle = (eased_progress * 2.0 * std::f32::consts::PI).sin().abs();
                 animation.properties.scale = Some(1.0 + beat_cycle * 0.1 * pulse_strength);
                 animation.properties.glow_intensity = Some(0.3 + beat_cycle * 0.4 * pulse_strength);
-            },
+            }
             AnimationType::SigilFlow => {
                 if let Some(pos) = &mut animation.properties.position {
-                    let target_x = animation.properties.custom_properties.get("target_x").unwrap_or(&pos.x);
-                    let target_y = animation.properties.custom_properties.get("target_y").unwrap_or(&pos.y);
-                    let target_z = animation.properties.custom_properties.get("target_z").unwrap_or(&pos.z);
-                    
+                    let target_x = animation
+                        .properties
+                        .custom_properties
+                        .get("target_x")
+                        .unwrap_or(&pos.x);
+                    let target_y = animation
+                        .properties
+                        .custom_properties
+                        .get("target_y")
+                        .unwrap_or(&pos.y);
+                    let target_z = animation
+                        .properties
+                        .custom_properties
+                        .get("target_z")
+                        .unwrap_or(&pos.z);
+
                     let start_x = pos.x;
                     let start_y = pos.y;
                     let start_z = pos.z;
-                    
+
                     pos.x = start_x + (target_x - start_x) * eased_progress;
                     pos.y = start_y + (target_y - start_y) * eased_progress;
                     pos.z = start_z + (target_z - start_z) * eased_progress;
                 }
                 animation.properties.rotation = Some(eased_progress * 720.0); // Two full rotations
-            },
+            }
             AnimationType::NetworkPulse => {
-                let max_radius = animation.properties.custom_properties.get("max_radius").unwrap_or(&1000.0);
-                animation.properties.custom_properties.insert("pulse_radius".to_string(), eased_progress * max_radius);
+                let max_radius = animation
+                    .properties
+                    .custom_properties
+                    .get("max_radius")
+                    .unwrap_or(&1000.0);
+                animation
+                    .properties
+                    .custom_properties
+                    .insert("pulse_radius".to_string(), eased_progress * max_radius);
                 animation.properties.opacity = Some(0.5 * (1.0 - eased_progress));
-            },
+            }
             AnimationType::FusionSpiral => {
                 animation.properties.scale = Some(0.1 + eased_progress * 2.0);
                 animation.properties.rotation = Some(eased_progress * 1440.0); // Four full rotations
                 animation.properties.glow_intensity = Some(eased_progress * 2.0);
-                animation.properties.custom_properties.insert("energy_buildup".to_string(), eased_progress);
-            },
+                animation
+                    .properties
+                    .custom_properties
+                    .insert("energy_buildup".to_string(), eased_progress);
+            }
             _ => {
                 // Default behavior for other animation types
                 if animation.properties.scale.is_some() {
                     let base_scale = 1.0;
-                    animation.properties.scale = Some(base_scale + (eased_progress - 0.5).abs() * 0.1);
+                    animation.properties.scale =
+                        Some(base_scale + (eased_progress - 0.5).abs() * 0.1);
                 }
-            },
+            }
         }
     }
 
@@ -738,7 +902,7 @@ impl NetworkAnimator {
             // Simple particle system lifecycle management
             system.particle_lifetime -= delta_time;
             system.is_active = system.particle_lifetime > 0.0;
-            
+
             system.is_active
         });
     }
@@ -751,7 +915,7 @@ impl NetworkAnimator {
 
             effect.duration -= delta_time;
             effect.is_active = effect.duration > 0.0;
-            
+
             effect.is_active
         });
     }
@@ -759,24 +923,33 @@ impl NetworkAnimator {
     fn update_heartbeats(&mut self, current_time: u64, events: &mut Vec<AnimationEvent>) {
         for (keeper_id, heartbeat) in &mut self.heartbeat_tracker.keeper_heartbeats {
             let time_since_beat = (current_time - heartbeat.last_beat) as f32 / 1000.0;
-            
+
             if time_since_beat >= heartbeat.beat_interval {
                 heartbeat.last_beat = current_time;
-                
+
                 events.push(AnimationEvent {
                     event_type: AnimationEventType::KeeperHeartbeat,
                     animation_id: format!("heartbeat_{}", keeper_id),
                     target_id: keeper_id.clone(),
                     data: [
                         ("pulse_strength".to_string(), heartbeat.pulse_strength),
-                        ("health_score".to_string(), NetworkAnimator::health_status_to_score_static(&heartbeat.health_status)),
-                    ].iter().cloned().collect(),
+                        (
+                            "health_score".to_string(),
+                            NetworkAnimator::health_status_to_score_static(
+                                &heartbeat.health_status,
+                            ),
+                        ),
+                    ]
+                    .iter()
+                    .cloned()
+                    .collect(),
                 });
             }
         }
 
         // Network synchronization pulse
-        let time_since_network_pulse = (current_time - self.heartbeat_tracker.last_network_pulse) as f32 / 1000.0;
+        let time_since_network_pulse =
+            (current_time - self.heartbeat_tracker.last_network_pulse) as f32 / 1000.0;
         if time_since_network_pulse >= self.heartbeat_tracker.network_pulse_interval {
             self.animate_network_pulse();
             events.push(AnimationEvent {

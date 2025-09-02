@@ -2,23 +2,23 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use super::{Sigil, Keeper, Glyph, MetaspaceStats, RewardStatistics};
+use super::{Glyph, Keeper, MetaspaceStats, RewardStatistics, Sigil};
 use crate::Amount;
 
 /// Main UI state and controller for the Mythic Metaspace Dashboard
 pub struct MetaspaceUI {
     /// Current view mode
     pub view_mode: ViewMode,
-    
+
     /// Selected filters
     pub filters: UIFilters,
-    
+
     /// Animation settings
     pub animations: AnimationSettings,
-    
+
     /// Theme configuration
     pub theme: UITheme,
-    
+
     /// Real-time data cache for performance
     pub data_cache: UIDataCache,
 }
@@ -27,22 +27,22 @@ pub struct MetaspaceUI {
 pub enum ViewMode {
     /// Main dashboard overview
     Overview,
-    
+
     /// Browse sigils by glyph, type, contributor
     SigilExplorer,
-    
+
     /// Visualize keeper network as living map
     KeeperMap,
-    
+
     /// View earnings, hosted sigils, retrieval logs
     ContributionLedger,
-    
+
     /// Combine sigils into bundles/vaults
     FusionForge,
-    
+
     /// Create custom glyphs and symbolic tags
     GlyphDesigner,
-    
+
     /// Network health and activity monitoring
     NetworkPulse,
 }
@@ -51,19 +51,19 @@ pub enum ViewMode {
 pub struct UIFilters {
     /// Filter by glyph elements (Fire, Water, Earth, etc.)
     pub elements: Vec<String>,
-    
+
     /// Filter by data categories
     pub categories: Vec<String>,
-    
+
     /// Filter by importance levels
     pub importance_levels: Vec<String>,
-    
+
     /// Filter by keeper status
     pub keeper_status: Vec<String>,
-    
+
     /// Search text
     pub search_query: String,
-    
+
     /// Date range filter
     pub date_range: Option<(chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>)>,
 }
@@ -72,16 +72,16 @@ pub struct UIFilters {
 pub struct AnimationSettings {
     /// Enable flowing particle effects for token transfers
     pub token_flow_animation: bool,
-    
+
     /// Enable keeper heartbeat pulsing
     pub keeper_heartbeats: bool,
-    
+
     /// Enable sigil fusion animations
     pub sigil_fusion_effects: bool,
-    
+
     /// Enable network pulse visualization
     pub network_pulse: bool,
-    
+
     /// Animation speed multiplier (0.5 = slow, 2.0 = fast)
     pub animation_speed: f32,
 }
@@ -90,16 +90,16 @@ pub struct AnimationSettings {
 pub enum UITheme {
     /// Mystical dark theme with glowing elements
     MythicDark,
-    
+
     /// Arcane terminal theme
     ArcaneTerminal,
-    
+
     /// Crystal interface theme
     CrystalInterface,
-    
+
     /// Classic clean theme
     Classic,
-    
+
     /// High contrast accessibility theme
     HighContrast,
 }
@@ -108,16 +108,16 @@ pub enum UITheme {
 pub struct UIDataCache {
     /// Cached metaspace statistics
     pub metaspace_stats: Option<MetaspaceStats>,
-    
+
     /// Last update timestamp
     pub last_update: chrono::DateTime<chrono::Utc>,
-    
+
     /// Cache TTL in seconds
     pub ttl_seconds: u64,
-    
+
     /// Cached sigil data for explorer
     pub sigil_cache: HashMap<String, SigilDisplayData>,
-    
+
     /// Cached keeper data for map
     pub keeper_cache: HashMap<String, KeeperDisplayData>,
 }
@@ -170,19 +170,19 @@ impl MetaspaceUI {
             data_cache: UIDataCache::new(),
         }
     }
-    
+
     /// Switch to a different view mode
     pub fn set_view_mode(&mut self, mode: ViewMode) {
         self.view_mode = mode;
     }
-    
+
     /// Update filters and refresh data
     pub fn update_filters(&mut self, filters: UIFilters) {
         self.filters = filters;
         // Trigger data refresh
         self.invalidate_cache();
     }
-    
+
     /// Convert raw sigil data to display format
     pub fn format_sigil_for_display(&self, sigil: &Sigil) -> SigilDisplayData {
         SigilDisplayData {
@@ -198,7 +198,7 @@ impl MetaspaceUI {
             dna_string: sigil.get_dna_string(),
         }
     }
-    
+
     /// Convert raw keeper data to display format
     pub fn format_keeper_for_display(&self, keeper: &Keeper) -> KeeperDisplayData {
         KeeperDisplayData {
@@ -215,7 +215,7 @@ impl MetaspaceUI {
             location_estimate: Self::estimate_location(&keeper.network_address),
         }
     }
-    
+
     /// Generate dashboard overview data
     pub fn generate_overview_data(&self, stats: &MetaspaceStats) -> OverviewData {
         OverviewData {
@@ -230,7 +230,7 @@ impl MetaspaceUI {
             glyph_distribution: self.generate_glyph_distribution(),
         }
     }
-    
+
     /// Generate activity feed for dashboard
     fn generate_activity_feed(&self) -> Vec<ActivityItem> {
         // In a real implementation, this would query recent events
@@ -255,7 +255,7 @@ impl MetaspaceUI {
             },
         ]
     }
-    
+
     /// Generate top keepers leaderboard
     fn generate_top_keepers_list(&self) -> Vec<TopKeeperEntry> {
         // Mock data - in reality this would query actual keeper stats
@@ -283,38 +283,73 @@ impl MetaspaceUI {
             },
         ]
     }
-    
+
     /// Generate glyph distribution chart data
     fn generate_glyph_distribution(&self) -> Vec<GlyphDistributionEntry> {
         vec![
-            GlyphDistributionEntry { element: "Fire".to_string(), symbol: "🔥".to_string(), count: 450, percentage: 30 },
-            GlyphDistributionEntry { element: "Earth".to_string(), symbol: "🌍".to_string(), count: 380, percentage: 25 },
-            GlyphDistributionEntry { element: "Water".to_string(), symbol: "💧".to_string(), count: 290, percentage: 19 },
-            GlyphDistributionEntry { element: "Air".to_string(), symbol: "💨".to_string(), count: 220, percentage: 15 },
-            GlyphDistributionEntry { element: "Lightning".to_string(), symbol: "⚡".to_string(), count: 105, percentage: 7 },
-            GlyphDistributionEntry { element: "Void".to_string(), symbol: "🌙".to_string(), count: 45, percentage: 3 },
-            GlyphDistributionEntry { element: "Aether".to_string(), symbol: "🔮".to_string(), count: 15, percentage: 1 },
+            GlyphDistributionEntry {
+                element: "Fire".to_string(),
+                symbol: "🔥".to_string(),
+                count: 450,
+                percentage: 30,
+            },
+            GlyphDistributionEntry {
+                element: "Earth".to_string(),
+                symbol: "🌍".to_string(),
+                count: 380,
+                percentage: 25,
+            },
+            GlyphDistributionEntry {
+                element: "Water".to_string(),
+                symbol: "💧".to_string(),
+                count: 290,
+                percentage: 19,
+            },
+            GlyphDistributionEntry {
+                element: "Air".to_string(),
+                symbol: "💨".to_string(),
+                count: 220,
+                percentage: 15,
+            },
+            GlyphDistributionEntry {
+                element: "Lightning".to_string(),
+                symbol: "⚡".to_string(),
+                count: 105,
+                percentage: 7,
+            },
+            GlyphDistributionEntry {
+                element: "Void".to_string(),
+                symbol: "🌙".to_string(),
+                count: 45,
+                percentage: 3,
+            },
+            GlyphDistributionEntry {
+                element: "Aether".to_string(),
+                symbol: "🔮".to_string(),
+                count: 15,
+                percentage: 1,
+            },
         ]
     }
-    
+
     // Utility formatting functions
     fn format_bytes(bytes: usize) -> String {
         const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
         let mut size = bytes as f64;
         let mut unit_index = 0;
-        
+
         while size >= 1024.0 && unit_index < UNITS.len() - 1 {
             size /= 1024.0;
             unit_index += 1;
         }
-        
+
         if size < 10.0 && unit_index > 0 {
             format!("{:.1} {}", size, UNITS[unit_index])
         } else {
             format!("{:.0} {}", size, UNITS[unit_index])
         }
     }
-    
+
     fn format_par_amount(amount: Amount) -> String {
         let par = amount as f64 / 1_00000000.0;
         if par >= 1000000.0 {
@@ -327,12 +362,12 @@ impl MetaspaceUI {
             format!("{:.4} PAR", par)
         }
     }
-    
+
     fn format_duration_since(timestamp: chrono::DateTime<chrono::Utc>) -> String {
         let duration = chrono::Utc::now().signed_duration_since(timestamp);
         Self::format_duration_chrono(duration)
     }
-    
+
     fn format_duration(hours: f64) -> String {
         if hours >= 24.0 {
             format!("{:.1} days", hours / 24.0)
@@ -342,7 +377,7 @@ impl MetaspaceUI {
             format!("{:.0} minutes", hours * 60.0)
         }
     }
-    
+
     fn format_duration_chrono(duration: chrono::Duration) -> String {
         if duration.num_days() > 0 {
             format!("{} days ago", duration.num_days())
@@ -354,15 +389,15 @@ impl MetaspaceUI {
             "Just now".to_string()
         }
     }
-    
+
     fn shorten_id(id: &str) -> String {
         if id.len() > 12 {
-            format!("{}...{}", &id[0..6], &id[id.len()-4..])
+            format!("{}...{}", &id[0..6], &id[id.len() - 4..])
         } else {
             id.to_string()
         }
     }
-    
+
     fn importance_to_color(importance: &super::glyph::Importance) -> String {
         match importance {
             super::glyph::Importance::Critical => "#ff4444".to_string(),
@@ -373,7 +408,7 @@ impl MetaspaceUI {
             super::glyph::Importance::Legendary => "#ff00ff".to_string(),
         }
     }
-    
+
     fn calculate_network_health(stats: &MetaspaceStats) -> u8 {
         // Simple health calculation - in reality this would be more sophisticated
         let base_score = if stats.total_keepers > 0 {
@@ -381,13 +416,21 @@ impl MetaspaceUI {
         } else {
             0
         };
-        
-        let sigil_factor = if stats.total_sigils > 100 { 100 } else { stats.total_sigils } as u8;
-        let proof_factor = if stats.total_proofs > 50 { 100 } else { (stats.total_proofs * 2) as u8 };
-        
+
+        let sigil_factor = if stats.total_sigils > 100 {
+            100
+        } else {
+            stats.total_sigils
+        } as u8;
+        let proof_factor = if stats.total_proofs > 50 {
+            100
+        } else {
+            (stats.total_proofs * 2) as u8
+        };
+
         ((base_score + sigil_factor + proof_factor) / 3).min(100)
     }
-    
+
     fn estimate_location(address: &str) -> Option<NetworkLocation> {
         // In a real implementation, this would use GeoIP or network topology
         // For now, return mock data
@@ -397,9 +440,10 @@ impl MetaspaceUI {
             estimated_lng: 0.0,
         })
     }
-    
+
     fn invalidate_cache(&mut self) {
-        self.data_cache.last_update = chrono::Utc::now() - chrono::Duration::seconds(self.data_cache.ttl_seconds as i64 + 1);
+        self.data_cache.last_update =
+            chrono::Utc::now() - chrono::Duration::seconds(self.data_cache.ttl_seconds as i64 + 1);
     }
 }
 
@@ -491,12 +535,12 @@ impl UIDataCache {
             keeper_cache: HashMap::new(),
         }
     }
-    
+
     pub fn is_expired(&self) -> bool {
         let now = chrono::Utc::now();
         now.signed_duration_since(self.last_update).num_seconds() > self.ttl_seconds as i64
     }
-    
+
     pub fn update(&mut self, stats: MetaspaceStats) {
         self.metaspace_stats = Some(stats);
         self.last_update = chrono::Utc::now();

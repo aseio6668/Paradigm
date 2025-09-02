@@ -518,20 +518,26 @@ pub use uuid::Uuid;
 pub mod prelude {
     pub use crate::{
         // address, hash, paradigm, wei,  // TODO: Enable macros after fixes
-        Address, Amount, Balance, Block, 
+        Address,
+        Amount,
+        Balance,
+        Block,
         // ClientConfig,                  // TODO: Enable after fixes
         // ComplianceMonitor, Contract, ContractBuilder, ContractCall, EnterpriseApiManager,  // TODO: Enable after fixes
         // EnterpriseWalletManager,       // TODO: Enable after fixes
-        Fee, Hash, 
+        Fee,
+        Hash,
         // NetworkConfig, NetworkStatus,  // TODO: Enable after fixes
         // ParadigmClient,                // TODO: Enable after fixes
-        Signature, TokenInfo, Transaction, 
+        Signature,
+        TokenInfo,
+        Transaction,
         // Wallet, WalletManager,         // TODO: Enable after fixes
     };
 
     pub use crate::constants::*;
-    pub use crate::error::{ParadigmError, Result};  // Add error types to prelude
-    // pub use crate::helpers::*;        // TODO: Enable after fixes
+    pub use crate::error::{ParadigmError, Result}; // Add error types to prelude
+                                                   // pub use crate::helpers::*;        // TODO: Enable after fixes
 
     // Common external types
     pub use serde_json::Value as JsonValue;

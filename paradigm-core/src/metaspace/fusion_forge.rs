@@ -1,5 +1,5 @@
-use crate::metaspace::{Sigil, Glyph, Element, DataCategory, Importance, Tome};
-use anyhow::{Result, anyhow};
+use crate::metaspace::{DataCategory, Element, Glyph, Importance, Sigil, Tome};
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -74,7 +74,7 @@ impl FusionForge {
             fusion_templates: Vec::new(),
             completed_fusions: Vec::new(),
         };
-        
+
         forge.initialize_templates();
         forge
     }
@@ -97,7 +97,12 @@ impl FusionForge {
                 template_id: "elemental_archive".to_string(),
                 name: "🌟 Elemental Archive".to_string(),
                 description: "Archive all elemental variants of similar data".to_string(),
-                required_elements: vec![Element::Fire, Element::Water, Element::Earth, Element::Air],
+                required_elements: vec![
+                    Element::Fire,
+                    Element::Water,
+                    Element::Earth,
+                    Element::Air,
+                ],
                 required_categories: vec![],
                 min_sigils: 4,
                 max_sigils: 7,
@@ -156,13 +161,20 @@ impl FusionForge {
             preview_tome: None,
             creator,
         };
-        
+
         self.active_fusions.insert(fusion_id.clone(), workbench);
         fusion_id
     }
 
-    pub fn add_sigil_to_workbench(&mut self, fusion_id: &str, sigil_hash: String, sigils: &HashMap<String, Sigil>) -> Result<()> {
-        let workbench = self.active_fusions.get_mut(fusion_id)
+    pub fn add_sigil_to_workbench(
+        &mut self,
+        fusion_id: &str,
+        sigil_hash: String,
+        sigils: &HashMap<String, Sigil>,
+    ) -> Result<()> {
+        let workbench = self
+            .active_fusions
+            .get_mut(fusion_id)
             .ok_or_else(|| anyhow!("Workbench not found"))?;
 
         if workbench.selected_sigils.len() >= 10 {
@@ -178,8 +190,15 @@ impl FusionForge {
         Ok(())
     }
 
-    pub fn remove_sigil_from_workbench(&mut self, fusion_id: &str, sigil_hash: &str, sigils: &HashMap<String, Sigil>) -> Result<()> {
-        let workbench = self.active_fusions.get_mut(fusion_id)
+    pub fn remove_sigil_from_workbench(
+        &mut self,
+        fusion_id: &str,
+        sigil_hash: &str,
+        sigils: &HashMap<String, Sigil>,
+    ) -> Result<()> {
+        let workbench = self
+            .active_fusions
+            .get_mut(fusion_id)
             .ok_or_else(|| anyhow!("Workbench not found"))?;
 
         workbench.selected_sigils.retain(|s| s != sigil_hash);
@@ -187,8 +206,15 @@ impl FusionForge {
         Ok(())
     }
 
-    pub fn set_fusion_mode(&mut self, fusion_id: &str, mode: FusionMode, sigils: &HashMap<String, Sigil>) -> Result<()> {
-        let workbench = self.active_fusions.get_mut(fusion_id)
+    pub fn set_fusion_mode(
+        &mut self,
+        fusion_id: &str,
+        mode: FusionMode,
+        sigils: &HashMap<String, Sigil>,
+    ) -> Result<()> {
+        let workbench = self
+            .active_fusions
+            .get_mut(fusion_id)
             .ok_or_else(|| anyhow!("Workbench not found"))?;
 
         workbench.fusion_mode = mode;
@@ -196,12 +222,22 @@ impl FusionForge {
         Ok(())
     }
 
-    fn update_workbench_preview(&mut self, fusion_id: &str, sigils: &HashMap<String, Sigil>) -> Result<()> {
+    fn update_workbench_preview(
+        &mut self,
+        fusion_id: &str,
+        sigils: &HashMap<String, Sigil>,
+    ) -> Result<()> {
         // Extract data first to avoid borrowing conflicts
         let (selected_sigil_hashes, fusion_mode, creator) = {
-            let workbench = self.active_fusions.get(fusion_id)
+            let workbench = self
+                .active_fusions
+                .get(fusion_id)
                 .ok_or_else(|| anyhow!("Workbench not found"))?;
-            (workbench.selected_sigils.clone(), workbench.fusion_mode.clone(), workbench.creator.clone())
+            (
+                workbench.selected_sigils.clone(),
+                workbench.fusion_mode.clone(),
+                workbench.creator.clone(),
+            )
         };
 
         if selected_sigil_hashes.is_empty() {
@@ -222,7 +258,8 @@ impl FusionForge {
         }
 
         let fusion_glyph = self.calculate_fusion_glyph(&selected_sigils, &fusion_mode);
-        let (energy_cost, success_probability) = self.calculate_fusion_metrics(&selected_sigils, &fusion_mode);
+        let (energy_cost, success_probability) =
+            self.calculate_fusion_metrics(&selected_sigils, &fusion_mode);
 
         let preview_tome = Tome {
             tome_hash: format!("preview_{}", fusion_id),
@@ -258,7 +295,7 @@ impl FusionForge {
     fn calculate_fusion_glyph(&self, sigils: &[&Sigil], mode: &FusionMode) -> Glyph {
         let elements: Vec<&Element> = sigils.iter().map(|s| &s.glyph.element).collect();
         let categories: Vec<&DataCategory> = sigils.iter().map(|s| &s.glyph.category).collect();
-        
+
         let dominant_element = match mode {
             FusionMode::Synthesis => self.find_complementary_element(&elements),
             FusionMode::Transmutation => Element::Void,
@@ -287,9 +324,13 @@ impl FusionForge {
         match element_counts.len() {
             1 => elements[0].clone(),
             2 => {
-                if element_counts.contains_key(&Element::Fire) && element_counts.contains_key(&Element::Water) {
+                if element_counts.contains_key(&Element::Fire)
+                    && element_counts.contains_key(&Element::Water)
+                {
                     Element::Aether
-                } else if element_counts.contains_key(&Element::Earth) && element_counts.contains_key(&Element::Air) {
+                } else if element_counts.contains_key(&Element::Earth)
+                    && element_counts.contains_key(&Element::Air)
+                {
                     Element::Lightning
                 } else {
                     Element::Void
@@ -300,7 +341,8 @@ impl FusionForge {
     }
 
     fn find_most_common_element(&self, elements: &[&Element]) -> Element {
-        elements.iter()
+        elements
+            .iter()
             .fold(HashMap::new(), |mut acc, &elem| {
                 *acc.entry(elem).or_insert(0) += 1;
                 acc
@@ -312,7 +354,8 @@ impl FusionForge {
     }
 
     fn find_most_common_category(&self, categories: &[&DataCategory]) -> DataCategory {
-        categories.iter()
+        categories
+            .iter()
             .fold(HashMap::new(), |mut acc, &cat| {
                 *acc.entry(cat).or_insert(0) += 1;
                 acc
@@ -324,16 +367,20 @@ impl FusionForge {
     }
 
     fn calculate_fusion_importance(&self, sigils: &[&Sigil], mode: &FusionMode) -> Importance {
-        let importance_values: Vec<u32> = sigils.iter().map(|s| match s.glyph.importance {
-            Importance::Trivial => 1,
-            Importance::Minor => 2,
-            Importance::Standard => 3,
-            Importance::Major => 4,
-            Importance::Critical => 5,
-            Importance::Legendary => 6,
-        }).collect();
+        let importance_values: Vec<u32> = sigils
+            .iter()
+            .map(|s| match s.glyph.importance {
+                Importance::Trivial => 1,
+                Importance::Minor => 2,
+                Importance::Standard => 3,
+                Importance::Major => 4,
+                Importance::Critical => 5,
+                Importance::Legendary => 6,
+            })
+            .collect();
 
-        let avg_importance = importance_values.iter().sum::<u32>() as f64 / importance_values.len() as f64;
+        let avg_importance =
+            importance_values.iter().sum::<u32>() as f64 / importance_values.len() as f64;
         let mode_bonus = match mode {
             FusionMode::Synthesis => 0.2,
             FusionMode::Archive => 0.5,
@@ -343,7 +390,7 @@ impl FusionForge {
         };
 
         let final_value = avg_importance + mode_bonus;
-        
+
         match final_value as u32 {
             1 => Importance::Trivial,
             2 => Importance::Minor,
@@ -357,7 +404,7 @@ impl FusionForge {
     fn calculate_fusion_metrics(&self, sigils: &[&Sigil], mode: &FusionMode) -> (u64, f64) {
         let base_energy = sigils.len() as u64 * 100;
         let size_factor = sigils.iter().map(|s| s.size as usize).sum::<usize>() as u64 / 1024;
-        
+
         let mode_multiplier = match mode {
             FusionMode::Synthesis => 1.0,
             FusionMode::Archive => 2.0,
@@ -367,7 +414,7 @@ impl FusionForge {
         };
 
         let energy_cost = ((base_energy + size_factor) as f64 * mode_multiplier) as u64;
-        
+
         let base_success = 0.95 - (sigils.len() as f64 * 0.05);
         let compatibility_bonus = self.calculate_compatibility_bonus(sigils);
         let success_probability = (base_success + compatibility_bonus).min(0.99).max(0.1);
@@ -376,13 +423,18 @@ impl FusionForge {
     }
 
     fn calculate_compatibility_bonus(&self, sigils: &[&Sigil]) -> f64 {
-        if sigils.len() < 2 { return 0.0; }
+        if sigils.len() < 2 {
+            return 0.0;
+        }
 
         let mut element_diversity = 0.0;
         let mut category_harmony = 0.0;
 
         let elements: Vec<&Element> = sigils.iter().map(|s| &s.glyph.element).collect();
-        let unique_elements = elements.iter().collect::<std::collections::HashSet<_>>().len();
+        let unique_elements = elements
+            .iter()
+            .collect::<std::collections::HashSet<_>>()
+            .len();
         element_diversity = match unique_elements {
             1 => 0.1,
             2 => 0.2,
@@ -391,7 +443,10 @@ impl FusionForge {
         };
 
         let categories: Vec<&DataCategory> = sigils.iter().map(|s| &s.glyph.category).collect();
-        let unique_categories = categories.iter().collect::<std::collections::HashSet<_>>().len();
+        let unique_categories = categories
+            .iter()
+            .collect::<std::collections::HashSet<_>>()
+            .len();
         category_harmony = if unique_categories <= 2 { 0.1 } else { -0.05 };
 
         element_diversity + category_harmony
@@ -399,7 +454,13 @@ impl FusionForge {
 
     fn calculate_elemental_signature_static(sigils: &[&Sigil]) -> ElementalSignature {
         let mut signature = ElementalSignature {
-            fire: 0, water: 0, earth: 0, air: 0, lightning: 0, void: 0, aether: 0,
+            fire: 0,
+            water: 0,
+            earth: 0,
+            air: 0,
+            lightning: 0,
+            void: 0,
+            aether: 0,
         };
 
         for sigil in sigils {
@@ -427,8 +488,15 @@ impl FusionForge {
         }
     }
 
-    pub fn execute_fusion(&mut self, fusion_id: &str, creator_energy: u64, sigils: &mut HashMap<String, Sigil>) -> Result<CompletedFusion> {
-        let workbench = self.active_fusions.remove(fusion_id)
+    pub fn execute_fusion(
+        &mut self,
+        fusion_id: &str,
+        creator_energy: u64,
+        sigils: &mut HashMap<String, Sigil>,
+    ) -> Result<CompletedFusion> {
+        let workbench = self
+            .active_fusions
+            .remove(fusion_id)
             .ok_or_else(|| anyhow!("Workbench not found"))?;
 
         if creator_energy < workbench.energy_cost {
@@ -451,7 +519,8 @@ impl FusionForge {
             return Err(anyhow!("Fusion failed - sigils remain intact"));
         }
 
-        let tome = workbench.preview_tome
+        let tome = workbench
+            .preview_tome
             .ok_or_else(|| anyhow!("No preview tome available"))?;
 
         let fusion_quality = Self::predict_fusion_quality_static(workbench.success_probability);
@@ -480,7 +549,8 @@ impl FusionForge {
     }
 
     pub fn get_available_templates(&self, selected_sigils: &[&Sigil]) -> Vec<&FusionTemplate> {
-        self.fusion_templates.iter()
+        self.fusion_templates
+            .iter()
             .filter(|template| self.template_matches_selection(template, selected_sigils))
             .collect()
     }
@@ -491,24 +561,28 @@ impl FusionForge {
         }
 
         if !template.required_elements.is_empty() {
-            let sigil_elements: std::collections::HashSet<_> = 
+            let sigil_elements: std::collections::HashSet<_> =
                 sigils.iter().map(|s| &s.glyph.element).collect();
-            
-            let has_required_elements = template.required_elements.iter()
+
+            let has_required_elements = template
+                .required_elements
+                .iter()
                 .all(|req_elem| sigil_elements.contains(&req_elem));
-            
+
             if !has_required_elements {
                 return false;
             }
         }
 
         if !template.required_categories.is_empty() {
-            let sigil_categories: std::collections::HashSet<_> = 
+            let sigil_categories: std::collections::HashSet<_> =
                 sigils.iter().map(|s| &s.glyph.category).collect();
-            
-            let has_required_categories = template.required_categories.iter()
+
+            let has_required_categories = template
+                .required_categories
+                .iter()
                 .any(|req_cat| sigil_categories.contains(&req_cat));
-            
+
             if !has_required_categories {
                 return false;
             }
@@ -518,7 +592,8 @@ impl FusionForge {
     }
 
     pub fn get_fusion_history(&self, creator: Option<&str>) -> Vec<&CompletedFusion> {
-        self.completed_fusions.iter()
+        self.completed_fusions
+            .iter()
             .filter(|fusion| creator.map_or(true, |c| fusion.creator == c))
             .collect()
     }
@@ -527,14 +602,16 @@ impl FusionForge {
         FusionForgeStats {
             active_workbenches: self.active_fusions.len(),
             completed_fusions: self.completed_fusions.len(),
-            total_energy_consumed: self.completed_fusions.iter()
+            total_energy_consumed: self
+                .completed_fusions
+                .iter()
                 .map(|f| f.energy_consumed)
                 .sum(),
             success_rate: if self.completed_fusions.is_empty() {
                 0.0
             } else {
-                self.completed_fusions.len() as f64 / 
-                (self.completed_fusions.len() + self.active_fusions.len()) as f64
+                self.completed_fusions.len() as f64
+                    / (self.completed_fusions.len() + self.active_fusions.len()) as f64
             },
             quality_distribution: self.calculate_quality_distribution(),
         }
@@ -545,7 +622,7 @@ impl FusionForge {
         for fusion in &self.completed_fusions {
             let quality_str = match fusion.fusion_quality {
                 FusionQuality::Flawed => "Flawed",
-                FusionQuality::Standard => "Standard", 
+                FusionQuality::Standard => "Standard",
                 FusionQuality::Refined => "Refined",
                 FusionQuality::Perfect => "Perfect",
                 FusionQuality::Transcendent => "Transcendent",
@@ -590,7 +667,7 @@ impl FusionMode {
             FusionMode::Synthesis => "Harmoniously combine complementary sigils",
             FusionMode::Transmutation => "Transform sigils through void essence",
             FusionMode::Crystallization => "Rapidly fuse similar elements",
-            FusionMode::Sublimation => "Elevate rare sigils to transcendent form", 
+            FusionMode::Sublimation => "Elevate rare sigils to transcendent form",
             FusionMode::Archive => "Create comprehensive collections",
         }
     }
@@ -620,7 +697,7 @@ impl FusionQuality {
     pub fn color(&self) -> &'static str {
         match self {
             FusionQuality::Flawed => "#8B4513",
-            FusionQuality::Standard => "#C0C0C0", 
+            FusionQuality::Standard => "#C0C0C0",
             FusionQuality::Refined => "#4169E1",
             FusionQuality::Perfect => "#9370DB",
             FusionQuality::Transcendent => "#FFD700",

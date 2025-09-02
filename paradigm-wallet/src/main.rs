@@ -390,75 +390,104 @@ fn show_address_info(wallet_manager: &WalletManager, address: &str) -> Result<()
 async fn check_network_status() -> Result<()> {
     println!("🌐 Paradigm Network Status Check");
     println!("================================");
-    
+
     // Try different common ports
     let ports_to_check = vec![8080, 8081, 8082, 8083];
     let mut found_any = false;
-    
+
     for port in ports_to_check {
         let node_url = format!("http://127.0.0.1:{}", port);
         println!("\n🔍 Checking node at {}...", node_url);
-        
+
         match NetworkClient::new(&node_url).await {
-            Ok(mut client) => {
-                match client.connect().await {
-                    Ok(()) => {
-                        found_any = true;
-                        println!("✅ Connected to node on port {}", port);
-                        
-                        match client.get_comprehensive_network_status().await {
-                            Ok(status) => {
-                                println!("📊 Network Status:");
-                                println!("   Node URL: {}", status["node_url"].as_str().unwrap_or("unknown"));
-                                println!("   Health: {}", status["health"]["status"].as_str().unwrap_or("unknown"));
-                                println!("   Network Active: {}", if status["network_active"].as_bool().unwrap_or(false) { "✅ Yes" } else { "❌ No" });
-                                
-                                let peer_count = status["peer_info"]["peer_count"].as_u64().unwrap_or(0);
-                                let block_height = status["peer_info"]["block_height"].as_u64().unwrap_or(0);
-                                let is_synchronized = status["peer_info"]["is_synchronized"].as_bool().unwrap_or(false);
-                                
-                                println!("   Connected Peers: {}", peer_count);
-                                println!("   Block Height: {}", block_height);
-                                println!("   Synchronized: {}", if is_synchronized { "✅ Yes" } else { "⚠️ No peers (isolated node)" });
-                                
-                                let available_tasks = status["tasks"]["available_count"].as_u64().unwrap_or(0);
-                                let queue_size = status["tasks"]["queue_size"].as_u64().unwrap_or(0);
-                                let estimated_reward = status["tasks"]["estimated_reward"].as_u64().unwrap_or(0);
-                                
-                                println!("   Available Tasks: {}", available_tasks);
-                                println!("   Task Queue Size: {}", queue_size);
-                                println!("   Total Rewards: {:.8} PAR", estimated_reward as f64 / 100_000_000.0);
-                                
-                                if peer_count == 0 {
-                                    println!("⚠️  WARNING: This node has no peer connections!");
-                                    println!("   It's running in isolation. For a proper network:");
-                                    println!("   1. Start multiple nodes on different ports");
-                                    println!("   2. Configure peer discovery between nodes");
+            Ok(mut client) => match client.connect().await {
+                Ok(()) => {
+                    found_any = true;
+                    println!("✅ Connected to node on port {}", port);
+
+                    match client.get_comprehensive_network_status().await {
+                        Ok(status) => {
+                            println!("📊 Network Status:");
+                            println!(
+                                "   Node URL: {}",
+                                status["node_url"].as_str().unwrap_or("unknown")
+                            );
+                            println!(
+                                "   Health: {}",
+                                status["health"]["status"].as_str().unwrap_or("unknown")
+                            );
+                            println!(
+                                "   Network Active: {}",
+                                if status["network_active"].as_bool().unwrap_or(false) {
+                                    "✅ Yes"
+                                } else {
+                                    "❌ No"
                                 }
-                            }
-                            Err(e) => {
-                                println!("⚠️  Could not get detailed status: {}", e);
+                            );
+
+                            let peer_count =
+                                status["peer_info"]["peer_count"].as_u64().unwrap_or(0);
+                            let block_height =
+                                status["peer_info"]["block_height"].as_u64().unwrap_or(0);
+                            let is_synchronized = status["peer_info"]["is_synchronized"]
+                                .as_bool()
+                                .unwrap_or(false);
+
+                            println!("   Connected Peers: {}", peer_count);
+                            println!("   Block Height: {}", block_height);
+                            println!(
+                                "   Synchronized: {}",
+                                if is_synchronized {
+                                    "✅ Yes"
+                                } else {
+                                    "⚠️ No peers (isolated node)"
+                                }
+                            );
+
+                            let available_tasks =
+                                status["tasks"]["available_count"].as_u64().unwrap_or(0);
+                            let queue_size = status["tasks"]["queue_size"].as_u64().unwrap_or(0);
+                            let estimated_reward =
+                                status["tasks"]["estimated_reward"].as_u64().unwrap_or(0);
+
+                            println!("   Available Tasks: {}", available_tasks);
+                            println!("   Task Queue Size: {}", queue_size);
+                            println!(
+                                "   Total Rewards: {:.8} PAR",
+                                estimated_reward as f64 / 100_000_000.0
+                            );
+
+                            if peer_count == 0 {
+                                println!("⚠️  WARNING: This node has no peer connections!");
+                                println!("   It's running in isolation. For a proper network:");
+                                println!("   1. Start multiple nodes on different ports");
+                                println!("   2. Configure peer discovery between nodes");
                             }
                         }
-                    }
-                    Err(e) => {
-                        println!("❌ Connection failed: {}", e);
+                        Err(e) => {
+                            println!("⚠️  Could not get detailed status: {}", e);
+                        }
                     }
                 }
-            }
+                Err(e) => {
+                    println!("❌ Connection failed: {}", e);
+                }
+            },
             Err(e) => {
                 println!("❌ Could not create client: {}", e);
             }
         }
     }
-    
+
     if !found_any {
         println!("\n❌ No Paradigm nodes found!");
-        println!("💡 Start a node with: target/release/paradigm-core.exe --enable-api --api-port 8080");
+        println!(
+            "💡 Start a node with: target/release/paradigm-core.exe --enable-api --api-port 8080"
+        );
     } else {
         println!("\n✅ Network status check complete");
     }
-    
+
     Ok(())
 }
 
@@ -601,21 +630,24 @@ async fn send_transaction(
 
     // Submit transaction to network
     println!("🌐 Connecting to network...");
-    
+
     match NetworkClient::new("127.0.0.1:8080").await {
         Ok(mut client) => {
             match client.connect().await {
                 Ok(()) => {
                     println!("✅ Connected to network");
                     println!("📡 Broadcasting transaction...");
-                    
+
                     match client.broadcast_transaction(&transaction).await {
                         Ok(tx_id) => {
                             println!("🎉 Transaction broadcast successful!");
                             println!("📝 Network Transaction ID: {}", tx_id);
-                            
+
                             // Update sender balance in wallet
-                            wallet_manager.update_address_balance(from_address, sender_info.balance - amount - estimated_fee)?;
+                            wallet_manager.update_address_balance(
+                                from_address,
+                                sender_info.balance - amount - estimated_fee,
+                            )?;
                             println!("💰 Wallet balance updated");
                         }
                         Err(e) => {
@@ -635,7 +667,7 @@ async fn send_transaction(
             println!("💾 Transaction created and signed locally");
         }
     }
-    
+
     println!("✅ Transaction created and signed successfully!");
     println!("🔐 Signature: {}", hex::encode(&transaction.signature));
 

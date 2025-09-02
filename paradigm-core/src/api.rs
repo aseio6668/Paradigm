@@ -392,10 +392,15 @@ pub async fn transaction_submit_handler(
     State(state): State<ApiState>,
     Json(tx_request): Json<TransactionSubmissionRequest>,
 ) -> Result<Json<TransactionResponse>, StatusCode> {
-    use tracing::{info, warn, error};
-    
-    info!("📥 Received transaction submission: {} → {} ({} PAR)", tx_request.from, tx_request.to, tx_request.amount as f64 / 100_000_000.0);
-    
+    use tracing::{error, info, warn};
+
+    info!(
+        "📥 Received transaction submission: {} → {} ({} PAR)",
+        tx_request.from,
+        tx_request.to,
+        tx_request.amount as f64 / 100_000_000.0
+    );
+
     // Parse addresses
     let from_addr = match Address::from_string(&tx_request.from) {
         Ok(addr) => addr,
@@ -408,7 +413,7 @@ pub async fn transaction_submit_handler(
             }));
         }
     };
-    
+
     let to_addr = match Address::from_string(&tx_request.to) {
         Ok(addr) => addr,
         Err(e) => {
@@ -420,7 +425,7 @@ pub async fn transaction_submit_handler(
             }));
         }
     };
-    
+
     // Create transaction object
     let transaction_id = uuid::Uuid::new_v4().to_string();
     let signature_bytes = match hex::decode(&tx_request.signature) {
@@ -434,7 +439,7 @@ pub async fn transaction_submit_handler(
             }));
         }
     };
-    
+
     let tx_uuid = match uuid::Uuid::parse_str(&transaction_id) {
         Ok(id) => id,
         Err(e) => {
@@ -446,7 +451,7 @@ pub async fn transaction_submit_handler(
             }));
         }
     };
-    
+
     let transaction = Transaction {
         id: tx_uuid,
         from: from_addr.clone(),
@@ -458,25 +463,29 @@ pub async fn transaction_submit_handler(
         nonce: tx_request.nonce,
         message: None,
     };
-    
+
     // Validate sender balance and execute transfer
     if let Some(ref storage) = state.storage {
         let storage_lock = storage.read().await;
-        
+
         // Step 1: Check sender balance (including fee)
         let total_amount = tx_request.amount + tx_request.fee;
         match storage_lock.get_balance(&from_addr).await {
             Ok(sender_balance) => {
                 if sender_balance < total_amount {
-                    warn!("❌ Insufficient balance: sender has {} PAR, needs {} PAR", 
-                          sender_balance as f64 / 100_000_000.0, 
-                          total_amount as f64 / 100_000_000.0);
+                    warn!(
+                        "❌ Insufficient balance: sender has {} PAR, needs {} PAR",
+                        sender_balance as f64 / 100_000_000.0,
+                        total_amount as f64 / 100_000_000.0
+                    );
                     return Ok(Json(TransactionResponse {
                         success: false,
                         transaction_id: "".to_string(),
-                        message: format!("Insufficient balance. Available: {:.8} PAR, Required: {:.8} PAR", 
-                                        sender_balance as f64 / 100_000_000.0,
-                                        total_amount as f64 / 100_000_000.0),
+                        message: format!(
+                            "Insufficient balance. Available: {:.8} PAR, Required: {:.8} PAR",
+                            sender_balance as f64 / 100_000_000.0,
+                            total_amount as f64 / 100_000_000.0
+                        ),
                     }));
                 }
             }
@@ -489,7 +498,7 @@ pub async fn transaction_submit_handler(
                 }));
             }
         }
-        
+
         // Step 2: Execute balance transfer
         // Get current balances
         let sender_balance = match storage_lock.get_balance(&from_addr).await {
@@ -517,7 +526,10 @@ pub async fn transaction_submit_handler(
         let new_recipient_balance = recipient_balance + tx_request.amount;
 
         // Update sender balance
-        if let Err(e) = storage_lock.update_balance(&from_addr, new_sender_balance).await {
+        if let Err(e) = storage_lock
+            .update_balance(&from_addr, new_sender_balance)
+            .await
+        {
             error!("❌ Failed to update sender balance: {}", e);
             return Ok(Json(TransactionResponse {
                 success: false,
@@ -527,10 +539,16 @@ pub async fn transaction_submit_handler(
         }
 
         // Update recipient balance
-        if let Err(e) = storage_lock.update_balance(&to_addr, new_recipient_balance).await {
+        if let Err(e) = storage_lock
+            .update_balance(&to_addr, new_recipient_balance)
+            .await
+        {
             error!("❌ Failed to update recipient balance: {}", e);
             // Try to revert sender balance
-            if let Err(revert_e) = storage_lock.update_balance(&from_addr, sender_balance).await {
+            if let Err(revert_e) = storage_lock
+                .update_balance(&from_addr, sender_balance)
+                .await
+            {
                 error!("❌ Failed to revert sender balance: {}", revert_e);
             }
             return Ok(Json(TransactionResponse {
@@ -540,16 +558,21 @@ pub async fn transaction_submit_handler(
             }));
         }
 
-        info!("💰 Balance transfer completed: {} PAR from {} to {} (fee: {} PAR)", 
-              tx_request.amount as f64 / 100_000_000.0, 
-              from_addr.to_string(), 
-              to_addr.to_string(),
-              tx_request.fee as f64 / 100_000_000.0);
-        
-        // Step 3: Store transaction record  
+        info!(
+            "💰 Balance transfer completed: {} PAR from {} to {} (fee: {} PAR)",
+            tx_request.amount as f64 / 100_000_000.0,
+            from_addr.to_string(),
+            to_addr.to_string(),
+            tx_request.fee as f64 / 100_000_000.0
+        );
+
+        // Step 3: Store transaction record
         match storage_lock.store_transaction(&transaction).await {
             Ok(()) => {
-                info!("✅ Transaction {} completed and stored successfully", transaction_id);
+                info!(
+                    "✅ Transaction {} completed and stored successfully",
+                    transaction_id
+                );
                 Ok(Json(TransactionResponse {
                     success: true,
                     transaction_id,

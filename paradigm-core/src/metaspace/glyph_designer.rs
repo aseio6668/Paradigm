@@ -1,5 +1,5 @@
-use crate::metaspace::{Glyph, Element, DataCategory, Importance};
-use anyhow::{Result, anyhow};
+use crate::metaspace::{DataCategory, Element, Glyph, Importance};
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -172,7 +172,7 @@ impl GlyphDesigner {
             element_combinations: HashMap::new(),
             saved_designs: Vec::new(),
         };
-        
+
         designer.initialize_default_templates();
         designer.initialize_element_combinations();
         designer
@@ -189,7 +189,10 @@ impl GlyphDesigner {
                 suggested_properties: [
                     ("durability".to_string(), "high".to_string()),
                     ("access_speed".to_string(), "medium".to_string()),
-                ].iter().cloned().collect(),
+                ]
+                .iter()
+                .cloned()
+                .collect(),
                 icon: "🧊".to_string(),
                 rarity: TemplateRarity::Common,
             },
@@ -202,7 +205,10 @@ impl GlyphDesigner {
                 suggested_properties: [
                     ("processing_power".to_string(), "extreme".to_string()),
                     ("energy_consumption".to_string(), "high".to_string()),
-                ].iter().cloned().collect(),
+                ]
+                .iter()
+                .cloned()
+                .collect(),
                 icon: "🔥".to_string(),
                 rarity: TemplateRarity::Rare,
             },
@@ -215,7 +221,10 @@ impl GlyphDesigner {
                 suggested_properties: [
                     ("encryption_strength".to_string(), "military".to_string()),
                     ("visibility".to_string(), "hidden".to_string()),
-                ].iter().cloned().collect(),
+                ]
+                .iter()
+                .cloned()
+                .collect(),
                 icon: "🌙".to_string(),
                 rarity: TemplateRarity::Epic,
             },
@@ -224,11 +233,18 @@ impl GlyphDesigner {
                 name: "🔮 Aether Nexus".to_string(),
                 description: "Meta-data and system integration glyph".to_string(),
                 category: TemplateCategory::Analytics,
-                element_pattern: ElementPattern::Triad(Element::Aether, Element::Air, Element::Lightning),
+                element_pattern: ElementPattern::Triad(
+                    Element::Aether,
+                    Element::Air,
+                    Element::Lightning,
+                ),
                 suggested_properties: [
                     ("connectivity".to_string(), "universal".to_string()),
                     ("insight_level".to_string(), "transcendent".to_string()),
-                ].iter().cloned().collect(),
+                ]
+                .iter()
+                .cloned()
+                .collect(),
                 icon: "🔮".to_string(),
                 rarity: TemplateRarity::Legendary,
             },
@@ -241,7 +257,10 @@ impl GlyphDesigner {
                 suggested_properties: [
                     ("flow_rate".to_string(), "adaptive".to_string()),
                     ("latency".to_string(), "minimal".to_string()),
-                ].iter().cloned().collect(),
+                ]
+                .iter()
+                .cloned()
+                .collect(),
                 icon: "💧".to_string(),
                 rarity: TemplateRarity::Uncommon,
             },
@@ -254,7 +273,10 @@ impl GlyphDesigner {
                 suggested_properties: [
                     ("creativity_boost".to_string(), "maximum".to_string()),
                     ("inspiration".to_string(), "endless".to_string()),
-                ].iter().cloned().collect(),
+                ]
+                .iter()
+                .cloned()
+                .collect(),
                 icon: "🌈".to_string(),
                 rarity: TemplateRarity::Legendary,
             },
@@ -282,7 +304,10 @@ impl GlyphDesigner {
                 result_element: Element::Aether,
                 fusion_requirements: FusionRequirements {
                     min_energy: 1000,
-                    required_materials: [("crystal_essence".to_string(), 3)].iter().cloned().collect(),
+                    required_materials: [("crystal_essence".to_string(), 3)]
+                        .iter()
+                        .cloned()
+                        .collect(),
                     success_rate: 0.6,
                     fusion_time: 600,
                 },
@@ -301,7 +326,10 @@ impl GlyphDesigner {
                     required_materials: [
                         ("void_essence".to_string(), 1),
                         ("aether_shard".to_string(), 2),
-                    ].iter().cloned().collect(),
+                    ]
+                    .iter()
+                    .cloned()
+                    .collect(),
                     success_rate: 0.3,
                     fusion_time: 1200,
                 },
@@ -314,7 +342,8 @@ impl GlyphDesigner {
         ];
 
         for combo in combinations {
-            self.element_combinations.insert(combo.combination_id.clone(), combo);
+            self.element_combinations
+                .insert(combo.combination_id.clone(), combo);
         }
     }
 
@@ -330,7 +359,7 @@ impl GlyphDesigner {
         is_public: bool,
     ) -> Result<String> {
         let glyph_id = format!("custom_{}", uuid::Uuid::new_v4().simple());
-        
+
         let base_glyph = Glyph {
             element: base_element,
             category,
@@ -355,7 +384,7 @@ impl GlyphDesigner {
         };
 
         self.custom_glyphs.insert(glyph_id.clone(), custom_glyph);
-        
+
         Ok(glyph_id)
     }
 
@@ -365,7 +394,9 @@ impl GlyphDesigner {
         creator: String,
         customizations: HashMap<String, String>,
     ) -> Result<String> {
-        let template = self.glyph_templates.iter()
+        let template = self
+            .glyph_templates
+            .iter()
             .find(|t| t.template_id == template_id)
             .ok_or_else(|| anyhow!("Template not found"))?;
 
@@ -393,7 +424,10 @@ impl GlyphDesigner {
         Ok(glyph_id)
     }
 
-    fn template_to_glyph_params(&self, template: &GlyphTemplate) -> (Element, DataCategory, Importance) {
+    fn template_to_glyph_params(
+        &self,
+        template: &GlyphTemplate,
+    ) -> (Element, DataCategory, Importance) {
         let element = match &template.element_pattern {
             ElementPattern::Pure(e) => e.clone(),
             ElementPattern::Dual(e1, _) => e1.clone(),
@@ -489,22 +523,18 @@ impl GlyphDesigner {
     fn get_default_particle_effects(&self, rarity: TemplateRarity) -> Vec<ParticleEffect> {
         match rarity {
             TemplateRarity::Common => vec![],
-            TemplateRarity::Uncommon => vec![
-                ParticleEffect {
-                    effect_type: ParticleType::Sparks,
-                    intensity: 0.2,
-                    color: "#4CAF50".to_string(),
-                    duration: 2.0,
-                }
-            ],
-            TemplateRarity::Rare => vec![
-                ParticleEffect {
-                    effect_type: ParticleType::Stars,
-                    intensity: 0.4,
-                    color: "#2196F3".to_string(),
-                    duration: 3.0,
-                }
-            ],
+            TemplateRarity::Uncommon => vec![ParticleEffect {
+                effect_type: ParticleType::Sparks,
+                intensity: 0.2,
+                color: "#4CAF50".to_string(),
+                duration: 2.0,
+            }],
+            TemplateRarity::Rare => vec![ParticleEffect {
+                effect_type: ParticleType::Stars,
+                intensity: 0.4,
+                color: "#2196F3".to_string(),
+                duration: 3.0,
+            }],
             TemplateRarity::Epic => vec![
                 ParticleEffect {
                     effect_type: ParticleType::Lightning,
@@ -517,7 +547,7 @@ impl GlyphDesigner {
                     intensity: 0.3,
                     color: "#AB47BC".to_string(),
                     duration: 4.0,
-                }
+                },
             ],
             TemplateRarity::Legendary => vec![
                 ParticleEffect {
@@ -537,7 +567,7 @@ impl GlyphDesigner {
                     intensity: 0.4,
                     color: "#FFB74D".to_string(),
                     duration: 1.0,
-                }
+                },
             ],
         }
     }
@@ -551,7 +581,7 @@ impl GlyphDesigner {
         creator: String,
     ) -> String {
         let design_id = format!("design_{}", uuid::Uuid::new_v4().simple());
-        
+
         let design = SavedDesign {
             design_id: design_id.clone(),
             name,
@@ -570,16 +600,27 @@ impl GlyphDesigner {
         design_id
     }
 
-    pub fn get_available_templates(&self, category: Option<TemplateCategory>) -> Vec<&GlyphTemplate> {
-        self.glyph_templates.iter()
+    pub fn get_available_templates(
+        &self,
+        category: Option<TemplateCategory>,
+    ) -> Vec<&GlyphTemplate> {
+        self.glyph_templates
+            .iter()
             .filter(|template| {
-                category.as_ref().map_or(true, |cat| &template.category == cat)
+                category
+                    .as_ref()
+                    .map_or(true, |cat| &template.category == cat)
             })
             .collect()
     }
 
-    pub fn get_unlocked_combinations(&self, user_level: u32, user_storage: u64) -> Vec<&ElementCombination> {
-        self.element_combinations.values()
+    pub fn get_unlocked_combinations(
+        &self,
+        user_level: u32,
+        user_storage: u64,
+    ) -> Vec<&ElementCombination> {
+        self.element_combinations
+            .values()
             .filter(|combo| {
                 combo.unlock_conditions.iter().all(|condition| {
                     match condition {
@@ -592,9 +633,15 @@ impl GlyphDesigner {
             .collect()
     }
 
-    pub fn combine_elements(&mut self, elements: Vec<Element>, user_energy: u64) -> Result<Element> {
+    pub fn combine_elements(
+        &mut self,
+        elements: Vec<Element>,
+        user_energy: u64,
+    ) -> Result<Element> {
         let combination_key = self.find_combination_key(&elements)?;
-        let combination = self.element_combinations.get(&combination_key)
+        let combination = self
+            .element_combinations
+            .get(&combination_key)
             .ok_or_else(|| anyhow!("No combination found for these elements"))?;
 
         if user_energy < combination.fusion_requirements.min_energy {
@@ -625,7 +672,7 @@ impl GlyphDesigner {
         for (key, combo) in &self.element_combinations {
             let mut combo_elements = combo.elements.clone();
             combo_elements.sort_by_key(|e| format!("{:?}", e));
-            
+
             if sorted_elements == combo_elements {
                 return Ok(key.clone());
             }
@@ -651,19 +698,17 @@ impl GlyphDesigner {
 
     pub fn get_designer_stats(&self) -> GlyphDesignerStats {
         let total_custom_glyphs = self.custom_glyphs.len();
-        let public_glyphs = self.custom_glyphs.values()
-            .filter(|g| g.is_public)
-            .count();
-        
-        let total_usage = self.custom_glyphs.values()
-            .map(|g| g.usage_count)
-            .sum();
+        let public_glyphs = self.custom_glyphs.values().filter(|g| g.is_public).count();
 
-        let templates_by_category = self.glyph_templates.iter()
-            .fold(HashMap::new(), |mut acc, template| {
-                *acc.entry(format!("{:?}", template.category)).or_insert(0) += 1;
-                acc
-            });
+        let total_usage = self.custom_glyphs.values().map(|g| g.usage_count).sum();
+
+        let templates_by_category =
+            self.glyph_templates
+                .iter()
+                .fold(HashMap::new(), |mut acc, template| {
+                    *acc.entry(format!("{:?}", template.category)).or_insert(0) += 1;
+                    acc
+                });
 
         let designs_count = self.saved_designs.len();
 
@@ -723,7 +768,7 @@ impl TemplateRarity {
         match self {
             TemplateRarity::Common => "#8B8B8B",
             TemplateRarity::Uncommon => "#4CAF50",
-            TemplateRarity::Rare => "#2196F3", 
+            TemplateRarity::Rare => "#2196F3",
             TemplateRarity::Epic => "#9C27B0",
             TemplateRarity::Legendary => "#FF9800",
         }

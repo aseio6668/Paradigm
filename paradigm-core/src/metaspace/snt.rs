@@ -1,5 +1,5 @@
-use crate::metaspace::{Glyph, Element, DataCategory, Importance, Keeper, KeeperStatus};
-use anyhow::{Result, anyhow};
+use crate::metaspace::{DataCategory, Element, Glyph, Importance, Keeper, KeeperStatus};
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -8,34 +8,34 @@ use std::collections::HashMap;
 pub struct SNT {
     /// Unique token identifier
     pub snt_id: String,
-    
+
     /// Symbolic representation and meaning
     pub glyph: Glyph,
-    
+
     /// Current holder of this SNT
     pub holder: String,
-    
+
     /// SNT classification type
     pub token_type: SNTType,
-    
+
     /// What this SNT unlocks or enables
     pub permissions: Vec<AccessPermission>,
-    
+
     /// Modular identity components this represents
     pub identity_facets: Vec<IdentityFacet>,
-    
+
     /// Story fragments and memory anchors
     pub narrative_fragments: Vec<NarrativeFragment>,
-    
+
     /// Executable protocol functions
     pub protocol_triggers: Vec<ProtocolTrigger>,
-    
+
     /// Community roles and ritual participation
     pub community_roles: Vec<CommunityRole>,
-    
+
     /// Dynamic properties that evolve over time
     pub evolution_state: EvolutionState,
-    
+
     /// Creation timestamp and lineage
     pub created_at: u64,
     pub parent_snt: Option<String>,
@@ -46,25 +46,25 @@ pub struct SNT {
 pub enum SNTType {
     /// Represents keeper roles and reputation
     KeeperIdentity,
-    
+
     /// Unlocks access to specific resources
     AccessKey,
-    
+
     /// Commemorates significant network events
     MemoryAnchor,
-    
+
     /// Encodes contribution history and achievements
     ContributionBadge,
-    
+
     /// Grants ritual participation rights
     CeremonialToken,
-    
+
     /// Represents modular protocol functions
     ProtocolModule,
-    
+
     /// Evolving narrative elements
     StoryFragment,
-    
+
     /// Guild membership and community roles
     CommunityBond,
 }
@@ -73,16 +73,16 @@ pub enum SNTType {
 pub struct AccessPermission {
     /// What resource this unlocks
     pub resource_type: ResourceType,
-    
+
     /// Specific resource identifiers
     pub resource_ids: Vec<String>,
-    
+
     /// URL endpoints this enables access to
     pub url_endpoints: Vec<String>,
-    
+
     /// Conditional access rules
     pub conditions: Vec<AccessCondition>,
-    
+
     /// Expiration or renewal requirements
     pub validity: ValidityRule,
 }
@@ -123,16 +123,16 @@ pub enum ValidityRule {
 pub struct IdentityFacet {
     /// What aspect of identity this represents
     pub facet_type: IdentityType,
-    
+
     /// Dynamic URL pointing to current state
     pub living_url: String,
-    
+
     /// Symbolic representation
     pub symbol: String,
-    
+
     /// Current metrics or properties
     pub properties: HashMap<String, f64>,
-    
+
     /// Evolution history
     pub evolution_log: Vec<EvolutionEvent>,
 }
@@ -153,20 +153,20 @@ pub enum IdentityType {
 pub struct NarrativeFragment {
     /// Story segment identifier
     pub fragment_id: String,
-    
+
     /// What event or moment this commemorates
     pub event_type: EventType,
-    
+
     /// Dynamic URL hosting the story content
     pub story_url: String,
-    
+
     /// Connected narrative elements
     pub linked_fragments: Vec<String>,
-    
+
     /// Timestamp and context
     pub timestamp: u64,
     pub context: HashMap<String, String>,
-    
+
     /// Community annotations
     pub annotations: Vec<CommunityAnnotation>,
 }
@@ -187,19 +187,19 @@ pub enum EventType {
 pub struct ProtocolTrigger {
     /// Function identifier
     pub trigger_id: String,
-    
+
     /// What protocol action this enables
     pub action_type: ProtocolAction,
-    
+
     /// Executable logic or API endpoint
     pub execution_url: String,
-    
+
     /// Required parameters
     pub parameters: HashMap<String, String>,
-    
+
     /// Trigger conditions
     pub conditions: Vec<TriggerCondition>,
-    
+
     /// Effect on network state
     pub effects: Vec<NetworkEffect>,
 }
@@ -230,18 +230,18 @@ pub struct CommunityRole {
     /// Role identifier and title
     pub role_id: String,
     pub title: String,
-    
+
     /// Symbolic representation
     pub symbol: String,
     pub element_affinity: Element,
-    
+
     /// Responsibilities and permissions
     pub responsibilities: Vec<String>,
     pub governance_weight: f64,
-    
+
     /// Ritual participation rights
     pub rituals: Vec<RitualParticipation>,
-    
+
     /// Community URL endpoints
     pub community_urls: Vec<String>,
 }
@@ -251,10 +251,10 @@ pub struct RitualParticipation {
     /// Ritual type and frequency
     pub ritual_type: RitualType,
     pub participation_level: ParticipationLevel,
-    
+
     /// Required other participants
     pub required_roles: Vec<String>,
-    
+
     /// Seasonal or time-based rules
     pub timing_rules: Vec<TimingRule>,
 }
@@ -284,16 +284,16 @@ pub enum ParticipationLevel {
 pub struct EvolutionState {
     /// Current evolution level
     pub level: u32,
-    
+
     /// Progress towards next evolution
     pub evolution_progress: f64,
-    
+
     /// Evolution requirements
     pub evolution_requirements: Vec<EvolutionRequirement>,
-    
+
     /// Historical evolution events
     pub evolution_history: Vec<EvolutionEvent>,
-    
+
     /// Potential evolution paths
     pub evolution_paths: Vec<EvolutionPath>,
 }
@@ -408,16 +408,16 @@ pub enum EffectType {
 pub struct SNTSystem {
     /// All active SNTs in the network
     pub active_snts: HashMap<String, SNT>,
-    
+
     /// SNT templates for common patterns
     pub snt_templates: Vec<SNTTemplate>,
-    
+
     /// Evolution rules and patterns
     pub evolution_rules: Vec<EvolutionRule>,
-    
+
     /// Community governance for SNTs
     pub governance: SNTGovernance,
-    
+
     /// Active rituals and ceremonies
     pub active_rituals: HashMap<String, ActiveRitual>,
 }
@@ -542,7 +542,7 @@ impl SNTSystem {
             },
             active_rituals: HashMap::new(),
         };
-        
+
         system.initialize_default_templates();
         system.initialize_evolution_rules();
         system
@@ -561,42 +561,42 @@ impl SNTSystem {
                     importance: Importance::Major,
                     properties: HashMap::new(),
                 },
-                base_permissions: vec![
-                    AccessPermission {
-                        resource_type: ResourceType::KeeperNetwork,
-                        resource_ids: vec!["*".to_string()],
-                        url_endpoints: vec!["/api/keeper/status".to_string()],
-                        conditions: vec![],
-                        validity: ValidityRule::Permanent,
-                    }
+                base_permissions: vec![AccessPermission {
+                    resource_type: ResourceType::KeeperNetwork,
+                    resource_ids: vec!["*".to_string()],
+                    url_endpoints: vec!["/api/keeper/status".to_string()],
+                    conditions: vec![],
+                    validity: ValidityRule::Permanent,
+                }],
+                evolution_potential: vec![EvolutionPath {
+                    path_id: "apprentice_to_guardian".to_string(),
+                    name: "Guardian Ascension".to_string(),
+                    description: "Evolve from Apprentice to Guardian keeper".to_string(),
+                    requirements: vec![EvolutionRequirement {
+                        requirement_type: RequirementType::StorageContributed,
+                        target_value: 1000.0,
+                        current_value: 0.0,
+                        description: "Store 1GB of network data".to_string(),
+                    }],
+                    resulting_changes: [
+                        ("keeper_level".to_string(), "Guardian".to_string()),
+                        ("permissions_expanded".to_string(), "true".to_string()),
+                    ]
+                    .iter()
+                    .cloned()
+                    .collect(),
+                    community_vote_required: false,
+                }],
+                ritual_eligibility: vec![
+                    RitualType::KeeperInitiation,
+                    RitualType::NetworkHarmonization,
                 ],
-                evolution_potential: vec![
-                    EvolutionPath {
-                        path_id: "apprentice_to_guardian".to_string(),
-                        name: "Guardian Ascension".to_string(),
-                        description: "Evolve from Apprentice to Guardian keeper".to_string(),
-                        requirements: vec![
-                            EvolutionRequirement {
-                                requirement_type: RequirementType::StorageContributed,
-                                target_value: 1000.0,
-                                current_value: 0.0,
-                                description: "Store 1GB of network data".to_string(),
-                            }
-                        ],
-                        resulting_changes: [
-                            ("keeper_level".to_string(), "Guardian".to_string()),
-                            ("permissions_expanded".to_string(), "true".to_string()),
-                        ].iter().cloned().collect(),
-                        community_vote_required: false,
-                    }
-                ],
-                ritual_eligibility: vec![RitualType::KeeperInitiation, RitualType::NetworkHarmonization],
             },
-            
             SNTTemplate {
                 template_id: "fusion_master".to_string(),
                 name: "⚗️ Fusion Master".to_string(),
-                description: "Unlocks advanced fusion capabilities and ritual leadership".to_string(),
+                description: "Unlocks advanced fusion capabilities and ritual leadership"
+                    .to_string(),
                 token_type: SNTType::CeremonialToken,
                 default_glyph: Glyph {
                     element: Element::Aether,
@@ -604,19 +604,16 @@ impl SNTSystem {
                     importance: Importance::Critical,
                     properties: HashMap::new(),
                 },
-                base_permissions: vec![
-                    AccessPermission {
-                        resource_type: ResourceType::FusionForge,
-                        resource_ids: vec!["advanced_rituals".to_string()],
-                        url_endpoints: vec!["/api/fusion/master".to_string()],
-                        conditions: vec![AccessCondition::FusionCompletions(10)],
-                        validity: ValidityRule::ActivityBased(30),
-                    }
-                ],
+                base_permissions: vec![AccessPermission {
+                    resource_type: ResourceType::FusionForge,
+                    resource_ids: vec!["advanced_rituals".to_string()],
+                    url_endpoints: vec!["/api/fusion/master".to_string()],
+                    conditions: vec![AccessCondition::FusionCompletions(10)],
+                    validity: ValidityRule::ActivityBased(30),
+                }],
                 evolution_potential: vec![],
                 ritual_eligibility: vec![RitualType::FusionCeremony],
             },
-
             SNTTemplate {
                 template_id: "memory_anchor".to_string(),
                 name: "📜 Memory Anchor".to_string(),
@@ -628,15 +625,13 @@ impl SNTSystem {
                     importance: Importance::Legendary,
                     properties: HashMap::new(),
                 },
-                base_permissions: vec![
-                    AccessPermission {
-                        resource_type: ResourceType::TomeArchive,
-                        resource_ids: vec!["historical_events".to_string()],
-                        url_endpoints: vec!["/api/history/events".to_string()],
-                        conditions: vec![],
-                        validity: ValidityRule::Permanent,
-                    }
-                ],
+                base_permissions: vec![AccessPermission {
+                    resource_type: ResourceType::TomeArchive,
+                    resource_ids: vec!["historical_events".to_string()],
+                    url_endpoints: vec!["/api/history/events".to_string()],
+                    conditions: vec![],
+                    validity: ValidityRule::Permanent,
+                }],
                 evolution_potential: vec![],
                 ritual_eligibility: vec![RitualType::MythicStorytelling],
             },
@@ -648,32 +643,29 @@ impl SNTSystem {
             EvolutionRule {
                 rule_id: "keeper_progression".to_string(),
                 applicable_types: vec![SNTType::KeeperIdentity],
-                trigger_conditions: vec![
-                    TriggerCondition::ThresholdReached("storage_contributed".to_string(), 1000.0),
-                ],
-                evolution_effects: vec![
-                    EvolutionEffect {
-                        effect_type: "level_increase".to_string(),
-                        magnitude: 1.0,
-                        description: "Advance keeper level".to_string(),
-                    }
-                ],
+                trigger_conditions: vec![TriggerCondition::ThresholdReached(
+                    "storage_contributed".to_string(),
+                    1000.0,
+                )],
+                evolution_effects: vec![EvolutionEffect {
+                    effect_type: "level_increase".to_string(),
+                    magnitude: 1.0,
+                    description: "Advance keeper level".to_string(),
+                }],
                 community_validation_required: false,
             },
-            
             EvolutionRule {
                 rule_id: "fusion_mastery".to_string(),
                 applicable_types: vec![SNTType::ContributionBadge],
-                trigger_conditions: vec![
-                    TriggerCondition::ThresholdReached("fusions_completed".to_string(), 25.0),
-                ],
-                evolution_effects: vec![
-                    EvolutionEffect {
-                        effect_type: "ceremonial_access".to_string(),
-                        magnitude: 1.0,
-                        description: "Grant fusion ritual leadership".to_string(),
-                    }
-                ],
+                trigger_conditions: vec![TriggerCondition::ThresholdReached(
+                    "fusions_completed".to_string(),
+                    25.0,
+                )],
+                evolution_effects: vec![EvolutionEffect {
+                    effect_type: "ceremonial_access".to_string(),
+                    magnitude: 1.0,
+                    description: "Grant fusion ritual leadership".to_string(),
+                }],
                 community_validation_required: true,
             },
         ];
@@ -687,12 +679,14 @@ impl SNTSystem {
         trigger_event: String,
         custom_properties: HashMap<String, String>,
     ) -> Result<String> {
-        let template = self.snt_templates.iter()
+        let template = self
+            .snt_templates
+            .iter()
             .find(|t| t.template_id == template_id)
             .ok_or_else(|| anyhow!("SNT template not found"))?;
 
         let snt_id = format!("snt_{}", uuid::Uuid::new_v4().simple());
-        
+
         let mut snt = SNT {
             snt_id: snt_id.clone(),
             glyph: template.default_glyph.clone(),
@@ -700,26 +694,26 @@ impl SNTSystem {
             token_type: template.token_type.clone(),
             permissions: template.base_permissions.clone(),
             identity_facets: Vec::new(),
-            narrative_fragments: vec![
-                NarrativeFragment {
-                    fragment_id: format!("origin_{}", snt_id),
-                    event_type: EventType::SystemEmergence,
-                    story_url: format!("/api/snt/{}/origin", snt_id),
-                    linked_fragments: Vec::new(),
-                    timestamp: std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs(),
-                    context: custom_properties.clone(),
-                    annotations: Vec::new(),
-                }
-            ],
+            narrative_fragments: vec![NarrativeFragment {
+                fragment_id: format!("origin_{}", snt_id),
+                event_type: EventType::SystemEmergence,
+                story_url: format!("/api/snt/{}/origin", snt_id),
+                linked_fragments: Vec::new(),
+                timestamp: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
+                context: custom_properties.clone(),
+                annotations: Vec::new(),
+            }],
             protocol_triggers: Vec::new(),
             community_roles: Vec::new(),
             evolution_state: EvolutionState {
                 level: 1,
                 evolution_progress: 0.0,
-                evolution_requirements: template.evolution_potential.first()
+                evolution_requirements: template
+                    .evolution_potential
+                    .first()
                     .map(|path| path.requirements.clone())
                     .unwrap_or_default(),
                 evolution_history: Vec::new(),
@@ -734,32 +728,41 @@ impl SNTSystem {
         };
 
         // Add trigger event to custom properties
-        snt.glyph.properties.insert("trigger_event".to_string(), trigger_event);
+        snt.glyph
+            .properties
+            .insert("trigger_event".to_string(), trigger_event);
         for (key, value) in custom_properties {
             snt.glyph.properties.insert(key, value);
         }
 
         self.active_snts.insert(snt_id.clone(), snt);
-        
+
         Ok(snt_id)
     }
 
     /// Check if holder has access to a resource via their SNTs
     pub fn check_access(&self, holder: &str, resource: &ResourceType, resource_id: &str) -> bool {
-        self.active_snts.values()
+        self.active_snts
+            .values()
             .filter(|snt| snt.holder == holder)
             .any(|snt| {
                 snt.permissions.iter().any(|perm| {
-                    perm.resource_type == *resource && 
-                    (perm.resource_ids.contains(&resource_id.to_string()) || 
-                     perm.resource_ids.contains(&"*".to_string()))
+                    perm.resource_type == *resource
+                        && (perm.resource_ids.contains(&resource_id.to_string())
+                            || perm.resource_ids.contains(&"*".to_string()))
                 })
             })
     }
 
     /// Evolve an SNT based on network activity
-    pub fn evolve_snt(&mut self, snt_id: &str, activity_data: HashMap<String, f64>) -> Result<Vec<EvolutionEvent>> {
-        let snt = self.active_snts.get_mut(snt_id)
+    pub fn evolve_snt(
+        &mut self,
+        snt_id: &str,
+        activity_data: HashMap<String, f64>,
+    ) -> Result<Vec<EvolutionEvent>> {
+        let snt = self
+            .active_snts
+            .get_mut(snt_id)
             .ok_or_else(|| anyhow!("SNT not found"))?;
 
         let mut evolution_events = Vec::new();
@@ -770,10 +773,12 @@ impl SNTSystem {
 
         // Check evolution requirements
         for requirement in &mut snt.evolution_state.evolution_requirements {
-            if let Some(&new_value) = activity_data.get(&format!("{:?}", requirement.requirement_type).to_lowercase()) {
+            if let Some(&new_value) =
+                activity_data.get(&format!("{:?}", requirement.requirement_type).to_lowercase())
+            {
                 let old_value = requirement.current_value;
                 requirement.current_value = new_value.max(old_value);
-                
+
                 if requirement.current_value >= requirement.target_value {
                     // Trigger evolution
                     evolution_events.push(EvolutionEvent {
@@ -782,8 +787,11 @@ impl SNTSystem {
                         description: format!("Completed requirement: {}", requirement.description),
                         properties_changed: [(
                             requirement.requirement_type.clone().into(),
-                            (old_value, new_value)
-                        )].iter().cloned().collect(),
+                            (old_value, new_value),
+                        )]
+                        .iter()
+                        .cloned()
+                        .collect(),
                         community_witnesses: Vec::new(),
                     });
                 }
@@ -791,14 +799,17 @@ impl SNTSystem {
         }
 
         // Add evolution events to history
-        snt.evolution_state.evolution_history.extend(evolution_events.clone());
+        snt.evolution_state
+            .evolution_history
+            .extend(evolution_events.clone());
 
         Ok(evolution_events)
     }
 
     /// Get all SNTs for a specific holder
     pub fn get_holder_snts(&self, holder: &str) -> Vec<&SNT> {
-        self.active_snts.values()
+        self.active_snts
+            .values()
             .filter(|snt| snt.holder == holder)
             .collect()
     }
@@ -811,13 +822,17 @@ impl SNTSystem {
         participants: Vec<String>,
     ) -> Result<String> {
         let ritual_id = format!("ritual_{}", uuid::Uuid::new_v4().simple());
-        
+
         let ritual = ActiveRitual {
             ritual_id: ritual_id.clone(),
             ritual_type,
-            participants: participants.into_iter()
+            participants: participants
+                .into_iter()
                 .map(|p| (p, ParticipationLevel::Participant))
-                .chain(std::iter::once((initiator, ParticipationLevel::Facilitator)))
+                .chain(std::iter::once((
+                    initiator,
+                    ParticipationLevel::Facilitator,
+                )))
                 .collect(),
             start_time: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -835,10 +850,14 @@ impl SNTSystem {
     pub fn get_snt_stats(&self) -> SNTStats {
         let mut type_distribution = HashMap::new();
         let mut evolution_levels = HashMap::new();
-        
+
         for snt in self.active_snts.values() {
-            *type_distribution.entry(format!("{:?}", snt.token_type)).or_insert(0) += 1;
-            *evolution_levels.entry(snt.evolution_state.level).or_insert(0) += 1;
+            *type_distribution
+                .entry(format!("{:?}", snt.token_type))
+                .or_insert(0) += 1;
+            *evolution_levels
+                .entry(snt.evolution_state.level)
+                .or_insert(0) += 1;
         }
 
         SNTStats {
@@ -846,7 +865,9 @@ impl SNTSystem {
             type_distribution,
             evolution_levels,
             active_rituals: self.active_rituals.len(),
-            total_holders: self.active_snts.values()
+            total_holders: self
+                .active_snts
+                .values()
                 .map(|snt| &snt.holder)
                 .collect::<std::collections::HashSet<_>>()
                 .len(),

@@ -182,7 +182,7 @@ impl Signature {
         }
     }
 
-    /// Create signature from fixed-size bytes array 
+    /// Create signature from fixed-size bytes array
     pub fn from_bytes(bytes: [u8; 64]) -> Self {
         Self::new(bytes.to_vec(), SignatureType::Ed25519)
     }
@@ -751,7 +751,6 @@ pub enum NetworkType {
     Devnet,
     Private,
 }
-
 
 /// Key pair for cryptographic operations
 #[derive(Debug, Clone)]
