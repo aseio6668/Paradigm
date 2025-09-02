@@ -790,7 +790,7 @@ impl KeyPair {
                 use ed25519_dalek::{SigningKey, VerifyingKey};
                 use rand::rngs::OsRng;
 
-                let signing_key = SigningKey::generate(&mut OsRng);
+                let signing_key = SigningKey::from_bytes(&rand::random());
                 let verifying_key = VerifyingKey::from(&signing_key);
 
                 Ok(Self::new(

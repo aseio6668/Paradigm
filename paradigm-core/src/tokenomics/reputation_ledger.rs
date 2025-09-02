@@ -501,7 +501,7 @@ pub struct ReputationStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ed25519_dalek::Keypair;
+    use ed25519_dalek::SigningKey;
     use rand::thread_rng;
 
     #[tokio::test]
@@ -509,8 +509,8 @@ mod tests {
         let mut ledger = ReputationLedger::new();
         ledger.initialize().await.unwrap();
 
-        let keypair = Keypair::generate(&mut thread_rng());
-        let contributor = Address::from_public_key(&keypair.public);
+        let keypair = SigningKey::from_bytes(&rand::random());
+        let contributor = Address::from_public_key(&keypair.verifying_key());
 
         // New contributor should have default reputation
         let reputation = ledger.get_reputation(&contributor).await.unwrap();
@@ -525,8 +525,8 @@ mod tests {
         let mut ledger = ReputationLedger::new();
         ledger.initialize().await.unwrap();
 
-        let keypair = Keypair::generate(&mut thread_rng());
-        let contributor = Address::from_public_key(&keypair.public);
+        let keypair = SigningKey::from_bytes(&rand::random());
+        let contributor = Address::from_public_key(&keypair.verifying_key());
 
         let validation_result = ValidationResult {
             valid: true,
@@ -554,10 +554,10 @@ mod tests {
         let mut ledger = ReputationLedger::new();
         ledger.initialize().await.unwrap();
 
-        let keypair1 = Keypair::generate(&mut thread_rng());
-        let keypair2 = Keypair::generate(&mut thread_rng());
-        let validator = Address::from_public_key(&keypair1.public);
-        let validated = Address::from_public_key(&keypair2.public);
+        let keypair1 = SigningKey::from_bytes(&rand::random());
+        let keypair2 = SigningKey::from_bytes(&rand::random());
+        let validator = Address::from_public_key(&keypair1.verifying_key());
+        let validated = Address::from_public_key(&keypair2.verifying_key());
 
         let peer_validation = PeerValidation {
             validator,
@@ -585,8 +585,8 @@ mod tests {
 
         // Add some test data
         for i in 0..5 {
-            let keypair = Keypair::generate(&mut thread_rng());
-            let contributor = Address::from_public_key(&keypair.public);
+            let keypair = SigningKey::from_bytes(&rand::random());
+            let contributor = Address::from_public_key(&keypair.verifying_key());
 
             let validation_result = ValidationResult {
                 valid: true,

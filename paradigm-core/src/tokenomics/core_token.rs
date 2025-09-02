@@ -343,7 +343,7 @@ pub struct ComputeCredits {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ed25519_dalek::Keypair;
+    use ed25519_dalek::SigningKey;
     use rand::thread_rng;
 
     #[tokio::test]
@@ -351,10 +351,10 @@ mod tests {
         let mut token = CoreToken::new();
         token.initialize().await.unwrap();
 
-        let keypair1 = Keypair::generate(&mut thread_rng());
-        let keypair2 = Keypair::generate(&mut thread_rng());
-        let addr1 = Address::from_public_key(&keypair1.public);
-        let addr2 = Address::from_public_key(&keypair2.public);
+        let keypair1 = SigningKey::from_bytes(&rand::random());
+        let keypair2 = SigningKey::from_bytes(&rand::random());
+        let addr1 = Address::from_public_key(&keypair1.verifying_key());
+        let addr2 = Address::from_public_key(&keypair2.verifying_key());
 
         // Mint tokens
         token.mint_tokens(&addr1, 1000000000).await.unwrap(); // 10 PAR
@@ -374,8 +374,8 @@ mod tests {
     #[tokio::test]
     async fn test_compute_credits() {
         let mut token = CoreToken::new();
-        let keypair = Keypair::generate(&mut thread_rng());
-        let addr = Address::from_public_key(&keypair.public);
+        let keypair = SigningKey::from_bytes(&rand::random());
+        let addr = Address::from_public_key(&keypair.verifying_key());
 
         token.mint_tokens(&addr, 1000000000).await.unwrap(); // 10 PAR
         let credits = token.get_compute_credits(&addr);

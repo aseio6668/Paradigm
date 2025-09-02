@@ -639,11 +639,11 @@ mod tests {
         let mut privacy_system = PrivacyPreserving::new();
         privacy_system.initialize().await.unwrap();
 
-        use ed25519_dalek::Keypair;
+        use ed25519_dalek::SigningKey;
         use rand::thread_rng;
 
-        let keypair = Keypair::generate(&mut thread_rng());
-        let contributor = Address::from_public_key(&keypair.public);
+        let keypair = SigningKey::from_bytes(&rand::random());
+        let contributor = Address::from_public_key(&keypair.verifying_key());
 
         let encrypted_contribution = EncryptedContribution {
             task_id: Uuid::new_v4(),

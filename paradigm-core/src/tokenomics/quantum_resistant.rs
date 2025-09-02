@@ -68,7 +68,7 @@ impl QuantumResistantCrypto {
 
         Ok(ContributorKeys {
             address: address.clone(),
-            lattice_public_key: lattice_keypair.public_key,
+            lattice_public_key: lattice_keypair.public_key.clone(),
             hash_tree_public_key: hash_tree.public_key,
             created_at: Utc::now(),
         })

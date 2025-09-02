@@ -336,13 +336,14 @@ impl Block {
 mod tests {
     use super::*;
     use crate::{Address, AddressExt, Keypair};
+    use ed25519_dalek::SigningKey;
 
     #[tokio::test]
     async fn test_proof_of_work_mining() {
         let miner = ProofOfWorkMiner::new(1, 30); // Low difficulty for testing
 
         // Create test transactions
-        let keypair = Keypair::generate();
+        let keypair = SigningKey::from_bytes(&rand::random());
         let from_addr = AddressExt::from_public_key(&keypair.verifying_key());
         let to_addr = AddressExt::from_public_key(&keypair.verifying_key());
 

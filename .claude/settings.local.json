@@ -101,7 +101,8 @@
       "Bash(\"target\\release\\paradigm-wallet.exe\" network-status)",
       "Bash(\"target\\release\\paradigm-wallet.exe\" balance PAR5c9c32a4cdd5d05f419601652b8468777f2150c9)",
       "Bash(\"target\\release\\paradigm-wallet.exe\" send PAR0f712155e6854680ffe2fbfe030eb8bd4bd6e087 PAR5c9c32a4cdd5d05f419601652b8468777f2150c9 10.5)",
-      "Bash(copy targetreleaseparadigm-core.exe paradigm-core-backup.exe)"
+      "Bash(copy targetreleaseparadigm-core.exe paradigm-core-backup.exe)",
+      "Read(C:\\Users\\aseio\\Documents\\.Source\\Paradigm[cc]\\paradigm-core/**)"
     ],
     "deny": [],
     "ask": [],

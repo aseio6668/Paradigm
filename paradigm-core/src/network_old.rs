@@ -77,7 +77,7 @@ impl P2PNetwork {
     /// Create a new P2P network instance
     pub async fn new(node_id: Uuid) -> Result<Self> {
         // Generate a random keypair for libp2p
-        let local_key = LibP2PKeypair::generate_ed25519();
+        let local_key = LibP2PSigningKey::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
 
         tracing::info!("Local peer id: {}", local_peer_id);

@@ -311,7 +311,7 @@ pub struct NetworkStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ed25519_dalek::Keypair;
+    use ed25519_dalek::SigningKey;
     use rand::thread_rng;
 
     #[tokio::test]
@@ -319,8 +319,8 @@ mod tests {
         let mut engine = ConsensusEngine::new();
         engine.start().await.unwrap();
 
-        let keypair = Keypair::generate(&mut thread_rng());
-        let contributor = Address::from_public_key(&keypair.public);
+        let keypair = SigningKey::from_bytes(&rand::random());
+        let contributor = Address::from_public_key(&keypair.verifying_key());
 
         // Get available tasks
         let tasks = engine.get_available_tasks(&contributor).await;

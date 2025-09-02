@@ -253,9 +253,9 @@ mod tests {
 
     #[test]
     fn test_transaction_creation() {
-        let keypair = Keypair::generate(&mut thread_rng());
-        let from = Address::from_public_key(&keypair.public);
-        let to = Address::from_public_key(&keypair.public);
+        let keypair = SigningKey::from_bytes(&rand::random());
+        let from = Address::from_public_key(&keypair.verifying_key());
+        let to = Address::from_public_key(&keypair.verifying_key());
 
         let transaction = Transaction::new(
             from,
@@ -274,23 +274,23 @@ mod tests {
 
     #[test]
     fn test_transaction_verification() {
-        let keypair = Keypair::generate(&mut thread_rng());
-        let from = Address::from_public_key(&keypair.public);
-        let to = Address::from_public_key(&keypair.public);
+        let keypair = SigningKey::from_bytes(&rand::random());
+        let from = Address::from_public_key(&keypair.verifying_key());
+        let to = Address::from_public_key(&keypair.verifying_key());
 
         let transaction =
             Transaction::new(from, to, 1000000000, 10000000, Utc::now(), &keypair).unwrap();
 
-        assert!(transaction.verify_signature(&keypair.public));
-        assert!(transaction.validate(&keypair.public).is_ok());
+        assert!(transaction.verify_signature(&keypair.verifying_key()));
+        assert!(transaction.validate(&keypair.verifying_key()).is_ok());
     }
 
     #[tokio::test]
     async fn test_transaction_pool() {
         let mut pool = TransactionPool::new();
-        let keypair = Keypair::generate(&mut thread_rng());
-        let from = Address::from_public_key(&keypair.public);
-        let to = Address::from_public_key(&keypair.public);
+        let keypair = SigningKey::from_bytes(&rand::random());
+        let from = Address::from_public_key(&keypair.verifying_key());
+        let to = Address::from_public_key(&keypair.verifying_key());
 
         let transaction =
             Transaction::new(from.clone(), to, 1000000000, 10000000, Utc::now(), &keypair).unwrap();

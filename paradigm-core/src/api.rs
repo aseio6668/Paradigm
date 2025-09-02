@@ -681,7 +681,7 @@ async fn create_payout_transaction(recipient_address: &str, amount: u64, tx_id: 
 
     // In a real implementation, we would sign with the treasury's private key
     // For now, we create a placeholder signature
-    let signing_key = SigningKey::generate(&mut OsRng);
+    let signing_key = SigningKey::from_bytes(&rand::random());
     let signature_data = format!("{}{}{}{}", transaction.from.to_string(), transaction.to.to_string(), transaction.amount.to_sat(), transaction.timestamp);
     let signature = signing_key.sign(signature_data.as_bytes());
     transaction.signature = Some(signature);

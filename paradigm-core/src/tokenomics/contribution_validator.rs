@@ -456,7 +456,7 @@ impl WorkloadValidator for DataValidator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ed25519_dalek::Keypair;
+    use ed25519_dalek::SigningKey;
     use rand::thread_rng;
 
     #[tokio::test]
@@ -464,8 +464,8 @@ mod tests {
         let mut validator = ContributionValidator::new();
         validator.initialize().await.unwrap();
 
-        let keypair = Keypair::generate(&mut thread_rng());
-        let contributor = Address::from_public_key(&keypair.public);
+        let keypair = SigningKey::from_bytes(&rand::random());
+        let contributor = Address::from_public_key(&keypair.verifying_key());
 
         let proof = ContributionProof {
             id: Uuid::new_v4(),

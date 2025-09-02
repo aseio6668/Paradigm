@@ -553,7 +553,7 @@ pub struct BridgeStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ed25519_dalek::Keypair;
+    use ed25519_dalek::SigningKey;
     use rand::thread_rng;
 
     #[tokio::test]
@@ -561,8 +561,8 @@ mod tests {
         let mut bridge = BridgeAdapter::new();
         bridge.initialize().await.unwrap();
 
-        let keypair = Keypair::generate(&mut thread_rng());
-        let user = Address::from_public_key(&keypair.public);
+        let keypair = SigningKey::from_bytes(&rand::random());
+        let user = Address::from_public_key(&keypair.verifying_key());
 
         // Convert PAR to Filecoin credits
         let credits = bridge
@@ -582,8 +582,8 @@ mod tests {
         let mut bridge = BridgeAdapter::new();
         bridge.initialize().await.unwrap();
 
-        let keypair = Keypair::generate(&mut thread_rng());
-        let user = Address::from_public_key(&keypair.public);
+        let keypair = SigningKey::from_bytes(&rand::random());
+        let user = Address::from_public_key(&keypair.verifying_key());
 
         // First convert PAR to credits
         bridge

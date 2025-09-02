@@ -847,7 +847,7 @@ pub struct MarketplaceStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ed25519_dalek::Keypair;
+    use ed25519_dalek::SigningKey;
     use rand::thread_rng;
 
     #[tokio::test]
@@ -862,8 +862,8 @@ mod tests {
         let mut model_hosting = ModelHosting::new();
         model_hosting.initialize().await.unwrap();
 
-        let keypair = Keypair::generate(&mut thread_rng());
-        let provider = Address::from_public_key(&keypair.public);
+        let keypair = SigningKey::from_bytes(&rand::random());
+        let provider = Address::from_public_key(&keypair.verifying_key());
 
         let model_spec = ModelSpec {
             model_name: "GPT-4 Chat".to_string(),
@@ -901,8 +901,8 @@ mod tests {
         model_hosting.initialize().await.unwrap();
 
         // First register a model
-        let keypair1 = Keypair::generate(&mut thread_rng());
-        let provider = Address::from_public_key(&keypair1.public);
+        let keypair1 = SigningKey::from_bytes(&rand::random());
+        let provider = Address::from_public_key(&keypair1.verifying_key());
 
         let model_spec = ModelSpec {
             model_name: "Image Classifier".to_string(),
@@ -934,8 +934,8 @@ mod tests {
         }
 
         // Now submit an inference request
-        let keypair2 = Keypair::generate(&mut thread_rng());
-        let requester = Address::from_public_key(&keypair2.public);
+        let keypair2 = SigningKey::from_bytes(&rand::random());
+        let requester = Address::from_public_key(&keypair2.verifying_key());
 
         let request_spec = InferenceRequestSpec {
             model_type: ModelType::ImageClassification,

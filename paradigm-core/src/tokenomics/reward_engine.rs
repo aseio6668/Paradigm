@@ -497,13 +497,13 @@ mod tests {
         let mut trust_network = TrustNetwork::new();
         trust_network.initialize().await.unwrap();
 
-        use ed25519_dalek::Keypair;
+        use ed25519_dalek::SigningKey;
         use rand::thread_rng;
 
-        let keypair1 = Keypair::generate(&mut thread_rng());
-        let keypair2 = Keypair::generate(&mut thread_rng());
-        let addr1 = Address::from_public_key(&keypair1.public);
-        let addr2 = Address::from_public_key(&keypair2.public);
+        let keypair1 = SigningKey::from_bytes(&rand::random());
+        let keypair2 = SigningKey::from_bytes(&rand::random());
+        let addr1 = Address::from_public_key(&keypair1.verifying_key());
+        let addr2 = Address::from_public_key(&keypair2.verifying_key());
 
         trust_network
             .update_trust(&addr1, &addr2, 0.8)

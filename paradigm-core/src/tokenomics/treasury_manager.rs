@@ -608,7 +608,7 @@ pub struct TreasuryStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ed25519_dalek::Keypair;
+    use ed25519_dalek::SigningKey;
     use rand::thread_rng;
 
     #[tokio::test]
@@ -616,8 +616,8 @@ mod tests {
         let mut treasury = TreasuryManager::new();
         treasury.initialize().await.unwrap();
 
-        let keypair = Keypair::generate(&mut thread_rng());
-        let proposer = Address::from_public_key(&keypair.public);
+        let keypair = SigningKey::from_bytes(&rand::random());
+        let proposer = Address::from_public_key(&keypair.verifying_key());
 
         let request = FundingProposalRequest {
             title: "Network Optimization Research".to_string(),

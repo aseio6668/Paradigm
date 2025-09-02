@@ -397,8 +397,8 @@ mod tests {
         let storage = EphemeralStorage::new();
 
         // Create test addresses
-        let keypair1 = SigningKey::generate(&mut rand::rngs::OsRng);
-        let keypair2 = SigningKey::generate(&mut rand::rngs::OsRng);
+        let keypair1 = SigningKey::from_bytes(&rand::random());
+        let keypair2 = SigningKey::from_bytes(&rand::random());
         let addr1 = Address::from_public_key(&keypair1.verifying_key());
         let addr2 = Address::from_public_key(&keypair2.verifying_key());
 

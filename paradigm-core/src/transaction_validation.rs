@@ -758,14 +758,14 @@ mod tests {
         let validator = TransactionValidator::new(config).await.unwrap();
 
         // Create test transaction
-        let keypair = SigningKey::generate(&mut OsRng);
+        let keypair = SigningKey::from_bytes(&rand::random());
         let public_key = keypair.verifying_key();
         let address = Address::from_public_key(&public_key);
 
         let transaction = Transaction {
             id: uuid::Uuid::new_v4(),
             from: address.clone(),
-            to: Address::from_public_key(&SigningKey::generate(&mut OsRng).verifying_key()),
+            to: Address::from_public_key(&SigningKey::from_bytes(&rand::random()).verifying_key()),
             amount: 1000_00000000,
             fee: 1_000_000,
             message: None,
@@ -787,14 +787,14 @@ mod tests {
         let config = NetworkValidationConfig::default();
         let validator = TransactionValidator::new(config).await.unwrap();
 
-        let keypair = SigningKey::generate(&mut OsRng);
+        let keypair = SigningKey::from_bytes(&rand::random());
         let public_key = keypair.verifying_key();
         let address = Address::from_public_key(&public_key);
 
         let transaction = Transaction {
             id: uuid::Uuid::new_v4(),
             from: address.clone(),
-            to: Address::from_public_key(&SigningKey::generate(&mut OsRng).verifying_key()),
+            to: Address::from_public_key(&SigningKey::from_bytes(&rand::random()).verifying_key()),
             amount: 1000_00000000,
             fee: 1_000_000,
             message: None,

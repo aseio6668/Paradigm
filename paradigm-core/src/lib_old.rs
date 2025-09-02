@@ -72,8 +72,8 @@ pub struct ParadigmNode {
 impl ParadigmNode {
     /// Create a new Paradigm node
     pub async fn new(is_contributor: bool) -> anyhow::Result<Self> {
-        let keypair = Keypair::generate(&mut rand::thread_rng());
-        let address = Address::from_public_key(&keypair.public);
+        let keypair = SigningKey::from_bytes(&rand::random());
+        let address = Address::from_public_key(&keypair.verifying_key());
         let id = Uuid::new_v4();
 
         let transaction_pool = Arc::new(RwLock::new(TransactionPool::new()));
@@ -176,8 +176,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_address_generation() {
-        let keypair = Keypair::generate(&mut rand::thread_rng());
-        let address = Address::from_public_key(&keypair.public);
+        let keypair = SigningKey::from_bytes(&rand::random());
+        let address = Address::from_public_key(&keypair.verifying_key());
         let address_str = address.to_string();
         assert!(address_str.starts_with("PAR"));
         assert_eq!(address_str.len(), 67); // "PAR" + 64 hex chars
