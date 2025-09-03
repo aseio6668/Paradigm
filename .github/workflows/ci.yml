@@ -182,7 +182,7 @@ jobs:
     name: Deploy to Staging
     runs-on: ubuntu-latest
     needs: [docker]
-    if: github.ref == 'refs/heads/develop'
+    if: github.ref == 'refs/heads/develop' && secrets.KUBE_CONFIG_STAGING != ''
     environment: staging
     
     steps:
@@ -207,7 +207,7 @@ jobs:
     name: Deploy to Production
     runs-on: ubuntu-latest
     needs: [docker]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && secrets.KUBE_CONFIG_PRODUCTION != ''
     environment: production
     
     steps:
