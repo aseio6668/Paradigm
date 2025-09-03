@@ -17,6 +17,11 @@ on:
           - beta
           - nightly
 
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
@@ -143,32 +148,32 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
         
-    - name: Build Core image (test build without push)
+    - name: Build and push Core image
       uses: docker/build-push-action@v6
       with:
         context: .
         file: docker/Dockerfile.core
-        push: false
+        push: true
         tags: ghcr.io/aseio6668/paradigm/core:main
         cache-from: type=gha
         cache-to: type=gha,mode=max
         
-    - name: Build Wallet image (test build without push)
+    - name: Build and push Wallet image
       uses: docker/build-push-action@v6
       with:
         context: .
         file: docker/Dockerfile.wallet
-        push: false
+        push: true
         tags: ghcr.io/aseio6668/paradigm/wallet:main
         cache-from: type=gha
         cache-to: type=gha,mode=max
         
-    - name: Build Contributor image (test build without push)
+    - name: Build and push Contributor image
       uses: docker/build-push-action@v6
       with:
         context: .
         file: docker/Dockerfile.contributor
-        push: false
+        push: true
         tags: ghcr.io/aseio6668/paradigm/contributor:main
         cache-from: type=gha
         cache-to: type=gha,mode=max
