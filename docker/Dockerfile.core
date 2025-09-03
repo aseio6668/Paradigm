@@ -17,6 +17,9 @@ WORKDIR /app
 # Copy workspace files
 COPY Cargo.toml Cargo.lock ./
 COPY paradigm-core ./paradigm-core
+COPY paradigm-wallet ./paradigm-wallet
+COPY paradigm-contributor ./paradigm-contributor  
+COPY paradigm-sdk ./paradigm-sdk
 
 # Build the application
 RUN cargo build --release --package paradigm-core
