@@ -143,12 +143,33 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
         
-    - name: Extract metadata
-      id: meta
+    - name: Extract Core metadata
+      id: meta-core
       uses: docker/metadata-action@v5
       with:
-        images: |
-          ghcr.io/${{ github.repository }}
+        images: ghcr.io/${{ github.repository }}/core
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Extract Wallet metadata
+      id: meta-wallet
+      uses: docker/metadata-action@v5
+      with:
+        images: ghcr.io/${{ github.repository }}/wallet
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Extract Contributor metadata
+      id: meta-contributor
+      uses: docker/metadata-action@v5
+      with:
+        images: ghcr.io/${{ github.repository }}/contributor
         tags: |
           type=ref,event=branch
           type=ref,event=pr
@@ -161,8 +182,8 @@ jobs:
         context: .
         file: docker/Dockerfile.core
         push: true
-        tags: ghcr.io/${{ github.repository }}/core:${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
+        tags: ${{ steps.meta-core.outputs.tags }}
+        labels: ${{ steps.meta-core.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         
@@ -172,8 +193,8 @@ jobs:
         context: .
         file: docker/Dockerfile.wallet
         push: true
-        tags: ghcr.io/${{ github.repository }}/wallet:${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
+        tags: ${{ steps.meta-wallet.outputs.tags }}
+        labels: ${{ steps.meta-wallet.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         
@@ -183,8 +204,8 @@ jobs:
         context: .
         file: docker/Dockerfile.contributor
         push: true
-        tags: ghcr.io/${{ github.repository }}/contributor:${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
+        tags: ${{ steps.meta-contributor.outputs.tags }}
+        labels: ${{ steps.meta-contributor.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
