@@ -22,7 +22,7 @@ COPY paradigm-contributor ./paradigm-contributor
 COPY paradigm-sdk ./paradigm-sdk
 
 # Build the application
-RUN cargo build --release --package paradigm-core
+RUN RUST_BACKTRACE=1 cargo build --release --package paradigm-core --verbose
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -43,7 +43,6 @@ RUN mkdir -p /app/data /app/config /app/logs && \
 
 # Copy binary from builder
 COPY --from=builder /app/target/release/paradigm-core /app/paradigm-core
-COPY --from=builder /app/paradigm-core/config/ /app/config/
 
 # Set permissions
 RUN chmod +x /app/paradigm-core && \
