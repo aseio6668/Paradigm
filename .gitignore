@@ -7,9 +7,9 @@ target/
 .misc/
 .notes/
 
-# Rust specific
-Cargo.lock
+# Rust specific  
 **/*.rs.bk
+# Note: Cargo.lock should be committed for applications to ensure reproducible builds
 
 # IDE files
 .vscode/
