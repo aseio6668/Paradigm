@@ -59,6 +59,7 @@ model_cache/
 
 # Wallets and private keys (NEVER commit these!)
 *.wallet
+!Dockerfile.wallet
 *.key
 *.seed
 keystore/
