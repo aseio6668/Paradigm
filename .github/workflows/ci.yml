@@ -91,7 +91,7 @@ jobs:
       run: cargo install cargo-deny
       
     - name: Run cargo-deny
-      run: cargo deny check --config cargo-deny.toml
+      run: cargo deny check
 
   build:
     name: Build Release
