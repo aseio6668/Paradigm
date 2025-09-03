@@ -51,7 +51,6 @@ impl Address {
         &self.0
     }
 
-
     pub fn from_string(addr_str: &str) -> anyhow::Result<Self> {
         if !addr_str.starts_with("PAR") {
             return Err(anyhow::anyhow!(

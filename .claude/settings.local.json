@@ -104,7 +104,10 @@
       "Bash(copy targetreleaseparadigm-core.exe paradigm-core-backup.exe)",
       "Read(C:\\Users\\aseio\\Documents\\.Source\\Paradigm[cc]\\paradigm-core/**)",
       "Bash(git rm:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run watch:*)",
+      "Bash(gh run view:*)"
     ],
     "deny": [],
     "ask": [],

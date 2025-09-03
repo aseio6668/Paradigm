@@ -1,10 +1,7 @@
 use anyhow::Result;
 use libp2p::{
-    gossipsub,
-    identity::Keypair as LibP2PKeypair,
-    kad, mdns, noise,
-    swarm::Swarm,
-    tcp, yamux, PeerId, Transport,
+    gossipsub, identity::Keypair as LibP2PKeypair, kad, mdns, noise, swarm::Swarm, tcp, yamux,
+    PeerId, Transport,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
