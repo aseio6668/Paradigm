@@ -17,8 +17,8 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  docker-test:
-    name: Test Docker Build
+  test-core:
+    name: Test Core Docker Build
     runs-on: ubuntu-latest
     
     steps:
@@ -44,6 +44,24 @@ jobs:
         tags: ghcr.io/aseio6668/paradigm/core:test
         cache-from: type=gha
         cache-to: type=gha,mode=max
+
+  test-wallet:
+    name: Test Wallet Docker Build
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Login to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
         
     - name: Test build Wallet image
       uses: docker/build-push-action@v6
@@ -54,6 +72,24 @@ jobs:
         tags: ghcr.io/aseio6668/paradigm/wallet:test
         cache-from: type=gha
         cache-to: type=gha,mode=max
+
+  test-contributor:
+    name: Test Contributor Docker Build
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Login to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
         
     - name: Test build Contributor image
       uses: docker/build-push-action@v6
