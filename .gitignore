@@ -3,9 +3,10 @@
 /*/target/
 /.old/
 target/
-.claude/
+
 .misc/
 .notes/
+
 
 # Rust specific  
 **/*.rs.bk
