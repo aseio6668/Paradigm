@@ -326,7 +326,7 @@ impl OptimizedConsensusEngine {
         let start_time = Instant::now();
 
         // Simplified validation for trusted sources or high-fee transactions
-        let validation_checks = vec![
+        let validation_checks = [
             self.validate_signature(&transaction).await?,
             self.validate_balance(&transaction).await?,
             self.validate_nonce(&transaction).await?,
@@ -362,7 +362,7 @@ impl OptimizedConsensusEngine {
         let start_time = Instant::now();
 
         // Comprehensive validation
-        let validation_checks = vec![
+        let validation_checks = [
             self.validate_signature(&transaction).await?,
             self.validate_balance(&transaction).await?,
             self.validate_nonce(&transaction).await?,

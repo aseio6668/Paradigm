@@ -1,6 +1,5 @@
 use anyhow::Result;
 use dashmap::DashMap;
-use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 /// High-throughput transaction processing optimization for Paradigm
 use std::collections::BTreeMap;

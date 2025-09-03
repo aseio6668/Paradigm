@@ -493,6 +493,7 @@ impl AdvancedMempool {
         let by_priority = self.by_priority.read().await;
 
         // Find lowest priority transactions to evict
+        #[allow(clippy::never_loop)]
         for (priority, tx_ids) in by_priority.iter() {
             for tx_id in tx_ids.iter().take(10) {
                 // Evict up to 10 transactions

@@ -120,7 +120,7 @@ impl Sigil {
 
     /// Get the "DNA" string - a unique identifier encoding content + metadata
     pub fn get_dna_string(&self) -> String {
-        let mut dna_components = vec![
+        let mut dna_components = [
             self.content_hash.clone(),
             self.glyph.to_string(),
             self.originator.clone(),

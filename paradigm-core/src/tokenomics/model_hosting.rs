@@ -201,8 +201,8 @@ impl ModelHosting {
             let request_clone = request.clone();
             let model_id = request.model_id;
 
-            // Release the mutable borrow by dropping the reference
-            drop(request);
+            // Release the mutable borrow
+            let _ = request;
 
             // Calculate earnings for provider
             let earnings = self

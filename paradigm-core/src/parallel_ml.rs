@@ -1,6 +1,5 @@
 use anyhow::Result;
 use dashmap::DashMap;
-use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 /// High-performance parallel ML task processing for Paradigm
 use std::collections::{HashMap, VecDeque};

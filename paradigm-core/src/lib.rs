@@ -51,9 +51,6 @@ impl Address {
         &self.0
     }
 
-    pub fn to_string(&self) -> String {
-        format!("PAR{}", hex::encode(&self.0[..20]))
-    }
 
     pub fn from_string(addr_str: &str) -> anyhow::Result<Self> {
         if !addr_str.starts_with("PAR") {
@@ -77,7 +74,7 @@ impl Address {
 
 impl std::fmt::Display for Address {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "PAR{}", hex::encode(&self.0[..20]))
     }
 }
 pub type Hash = [u8; 32];

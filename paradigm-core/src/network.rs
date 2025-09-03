@@ -1,10 +1,9 @@
 use anyhow::Result;
 use libp2p::{
-    futures::StreamExt,
     gossipsub,
     identity::Keypair as LibP2PKeypair,
     kad, mdns, noise,
-    swarm::{NetworkBehaviour, Swarm},
+    swarm::Swarm,
     tcp, yamux, PeerId, Transport,
 };
 use serde::{Deserialize, Serialize};

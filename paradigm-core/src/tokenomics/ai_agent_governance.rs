@@ -1083,7 +1083,7 @@ impl AgentEvolutionSystem {
 
     async fn create_evolved_agent(&self) -> Result<AIGovernanceAgent> {
         // Create new agent with evolved characteristics
-        let specializations = vec![
+        let specializations = [
             AgentSpecialization::Economic,
             AgentSpecialization::Technical,
             AgentSpecialization::Community,
@@ -1091,7 +1091,7 @@ impl AgentEvolutionSystem {
             AgentSpecialization::Arbitration,
         ];
 
-        let personalities = vec![
+        let personalities = [
             AgentPersonality::Conservative,
             AgentPersonality::Progressive,
             AgentPersonality::Collaborative,
