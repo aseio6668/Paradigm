@@ -3,6 +3,8 @@ name = "paradigm-wallet"
 version = "0.1.0"
 edition = "2021"
 description = "GUI wallet for Paradigm cryptocurrency"
+license = "MIT OR Apache-2.0"
+authors = ["Paradigm Network Team"]
 
 [dependencies]
 paradigm-core = { path = "../paradigm-core" }

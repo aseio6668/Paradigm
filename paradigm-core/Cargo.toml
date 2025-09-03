@@ -3,6 +3,8 @@ name = "paradigm-core"
 version = "0.1.0"
 edition = "2021"
 description = "Core blockchain implementation for Paradigm cryptocurrency"
+license = "MIT OR Apache-2.0"
+authors = ["Paradigm Network Team"]
 
 [dependencies]
 tokio = { workspace = true }

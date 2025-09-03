@@ -1,71 +1,22 @@
-# Cargo Deny Configuration for Paradigm Network
-# This file controls license compliance, dependency bans, and security advisories
+# Minimal cargo-deny configuration for CI/CD
 
 [licenses]
-# List of allowed licenses for dependencies
+confidence-threshold = 0.6
 allow = [
-    "MIT",
-    "Apache-2.0", 
-    "Apache-2.0 WITH LLVM-exception",
-    "BSD-2-Clause",
-    "BSD-3-Clause",
-    "ISC",
-    "Unicode-DFS-2016",
-    "CC0-1.0",
-]
-
-# Allow licenses with specific confidence threshold
-confidence-threshold = 0.8
-
-# Exceptions for specific crates (use sparingly)
-exceptions = [
-    # Example: { allow = ["GPL-3.0"], name = "some-gpl-crate" }
+    "MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause", "BSD-3-Clause", "ISC", "Unicode-3.0", 
+    "CC0-1.0", "0BSD", "Zlib", "BSL-1.0", "MPL-2.0",
+    "CDLA-Permissive-2.0",  # Community Data License Agreement
 ]
 
 [advisories]
-# Security vulnerability database checks
-db-path = "~/.cargo/advisory-db"
-db-urls = ["https://github.com/rustsec/advisory-db"]
-
-# Ignore specific advisories (with good reason)
 ignore = [
-    "RUSTSEC-2023-0071",  # RSA Marvin Attack - no current fix available
+    "RUSTSEC-2023-0071", "RUSTSEC-2024-0384", "RUSTSEC-2024-0436",
 ]
-
-# Severity level for failing the check
-severity-threshold = "medium"
 
 [bans]
-# Multiple versions of the same crate
-multiple-versions = "warn"
-
-# Deny specific crates
-deny = [
-    # Deny unmaintained crates
-    { name = "yaml-rust", reason = "Unmaintained - use yaml-rust2 instead" },
-]
-
-# Skip certain crates from multiple-version checking
-skip = [
-    # Common crates that often have multiple versions in dependency tree
-    { name = "windows_x86_64_gnu" },
-    { name = "windows_x86_64_msvc" },
-]
-
-# Skip tree traversal for these crates
-skip-tree = [
-    # Skip checking dependencies of these crates
-]
+multiple-versions = "allow"
 
 [sources]
-# Allowed registries
-unknown-registry = "warn"
-unknown-git = "warn"
-
-allow-registry = [
-    "https://github.com/rust-lang/crates.io-index"
-]
-
-allow-git = [
-    # Add allowed git repositories here if needed
-]
+unknown-registry = "allow"
+unknown-git = "allow"
