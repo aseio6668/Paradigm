@@ -149,16 +149,7 @@ jobs:
         context: .
         file: docker/Dockerfile.core
         push: true
-        tags: |
-          ghcr.io/${{ github.repository }}/core:${{ github.ref_name }}
-          ghcr.io/${{ github.repository }}/core:${{ github.sha }}
-          ${{ github.ref_name == 'main' && 'ghcr.io/${{ github.repository }}/core:latest' || '' }}
-        labels: |
-          org.opencontainers.image.title=Paradigm Core
-          org.opencontainers.image.description=Paradigm Core Node
-          org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          org.opencontainers.image.revision=${{ github.sha }}
-          org.opencontainers.image.version=${{ github.ref_name }}
+        tags: ghcr.io/aseio6668/paradigm/core:main
         cache-from: type=gha
         cache-to: type=gha,mode=max
         
@@ -168,16 +159,7 @@ jobs:
         context: .
         file: docker/Dockerfile.wallet
         push: true
-        tags: |
-          ghcr.io/${{ github.repository }}/wallet:${{ github.ref_name }}
-          ghcr.io/${{ github.repository }}/wallet:${{ github.sha }}
-          ${{ github.ref_name == 'main' && 'ghcr.io/${{ github.repository }}/wallet:latest' || '' }}
-        labels: |
-          org.opencontainers.image.title=Paradigm Wallet
-          org.opencontainers.image.description=Paradigm Wallet Service
-          org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          org.opencontainers.image.revision=${{ github.sha }}
-          org.opencontainers.image.version=${{ github.ref_name }}
+        tags: ghcr.io/aseio6668/paradigm/wallet:main
         cache-from: type=gha
         cache-to: type=gha,mode=max
         
@@ -187,16 +169,7 @@ jobs:
         context: .
         file: docker/Dockerfile.contributor
         push: true
-        tags: |
-          ghcr.io/${{ github.repository }}/contributor:${{ github.ref_name }}
-          ghcr.io/${{ github.repository }}/contributor:${{ github.sha }}
-          ${{ github.ref_name == 'main' && 'ghcr.io/${{ github.repository }}/contributor:latest' || '' }}
-        labels: |
-          org.opencontainers.image.title=Paradigm Contributor
-          org.opencontainers.image.description=Paradigm Contributor Service
-          org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          org.opencontainers.image.revision=${{ github.sha }}
-          org.opencontainers.image.version=${{ github.ref_name }}
+        tags: ghcr.io/aseio6668/paradigm/contributor:main
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
