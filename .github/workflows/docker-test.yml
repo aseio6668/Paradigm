@@ -35,20 +35,32 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
         
-    - name: Test build Core image (no push)
-      uses: docker/build-push-action@v6
-      with:
-        context: .
-        file: docker/Dockerfile.core
-        push: false
-        tags: ghcr.io/aseio6668/paradigm/core:test
-        
-    - name: Test build and push Core image (with push)
+    - name: Test build Core image
       uses: docker/build-push-action@v6
       with:
         context: .
         file: docker/Dockerfile.core
         push: true
         tags: ghcr.io/aseio6668/paradigm/core:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        
+    - name: Test build Wallet image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: docker/Dockerfile.wallet
+        push: true
+        tags: ghcr.io/aseio6668/paradigm/wallet:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        
+    - name: Test build Contributor image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: docker/Dockerfile.contributor
+        push: true
+        tags: ghcr.io/aseio6668/paradigm/contributor:test
         cache-from: type=gha
         cache-to: type=gha,mode=max
